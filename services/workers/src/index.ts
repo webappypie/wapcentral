@@ -7,5 +7,6 @@
  */
 
 export * from './usageWorker.js';
+export * from './healthWorker.js';
 
 export const WORKERS_VERSION = '0.6.0';

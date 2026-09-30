@@ -24,6 +24,8 @@ export const COLLECTIONS = {
   PROMOTION_EVENTS: 'promotionEvents',
   COST_ALERTS: 'costAlerts',
   DATA_RETENTION: 'dataRetention',
+  INFRASTRUCTURE_ALERTS: 'infrastructureAlerts',
+  AI_SERVER_METRICS: 'aiServerMetrics',
 } as const;
 
 // ============================================================
@@ -120,3 +122,19 @@ export const ENVIRONMENTS = {
 // ============================================================
 export const AUDIT_RETENTION_DAYS = 365; // Keep audit logs for 1 year
 export const USAGE_RETENTION_DAYS = 90; // Keep raw usage events for 90 days
+
+// ============================================================
+// Infrastructure Health & Heartbeats (Phase 11)
+// ============================================================
+export const HEALTH_MONITORING = {
+  DEFAULT_HEARTBEAT_INTERVAL_MS: 30000, // 30 seconds
+  DEFAULT_PROBE_TIMEOUT_MS: 5000, // 5 seconds
+  LATENCY_WARNING_THRESHOLD_MS: 300,
+  LATENCY_CRITICAL_THRESHOLD_MS: 800,
+  ERROR_RATE_WARNING_THRESHOLD_PCT: 5.0,
+  ERROR_RATE_CRITICAL_THRESHOLD_PCT: 20.0,
+  CONSECUTIVE_FAILURES_CRITICAL_THRESHOLD: 3,
+  GPU_USAGE_WARNING_THRESHOLD_PCT: 85.0,
+  VRAM_USAGE_WARNING_THRESHOLD_PCT: 90.0,
+  QUEUE_DEPTH_WARNING_THRESHOLD: 50,
+} as const;

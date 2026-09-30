@@ -25,6 +25,16 @@ import {
   updateDataRetentionPolicy,
   triggerManualRetentionPruning,
 } from './services/analyticsService.js';
+import {
+  subscribePlatformHealth,
+  subscribeAiServerMetrics,
+  subscribeInfrastructureAlerts,
+  triggerServiceHealthCheck,
+  createInfrastructureAlertRule,
+  toggleInfrastructureAlertRule,
+  deleteInfrastructureAlertRule,
+  simulateAiServerLoad,
+} from './services/infrastructureService.js';
 
 const mockActor = {
   uid: 'usr_test_admin',
@@ -473,6 +483,109 @@ describe('Core Dashboard Services & In-Memory Fallback', () => {
       const pruneResult = await triggerManualRetentionPruning(mockActor);
       expect(pruneResult.prunedCount).toBeGreaterThanOrEqual(0);
       expect(typeof pruneResult.timestamp).toBe('string');
+    });
+  });
+
+  describe('Infrastructure Health & Monitoring Service', () => {
+    it('should subscribe to platform health and return service list and overview metrics', async () => {
+      let loadedServices: any[] = [];
+      let loadedOverview: any = null;
+
+      const unsub = subscribePlatformHealth((services, overview) => {
+        loadedServices = services;
+        loadedOverview = overview;
+      });
+      unsub();
+
+      expect(loadedServices.length).toBeGreaterThanOrEqual(11);
+      expect(loadedOverview).toBeDefined();
+      expect(loadedOverview.totalServices).toBeGreaterThanOrEqual(11);
+      expect(loadedOverview.healthyCount).toBeGreaterThan(0);
+      expect(loadedOverview.avgLatencyMs).toBeGreaterThan(0);
+
+      const gateway = loadedServices.find((s) => s.serviceId === 'ai-gateway');
+      expect(gateway).toBeDefined();
+      expect(gateway.category).toBe('api');
+      expect(gateway.latencyMs).toBeGreaterThan(0);
+    });
+
+    it('should trigger manual heartbeat probes for a specific service and all services', async () => {
+      const singleProbeResult = await triggerServiceHealthCheck('ai-gateway');
+      expect(singleProbeResult.length).toBeGreaterThanOrEqual(11);
+
+      const allProbeResult = await triggerServiceHealthCheck();
+      expect(allProbeResult.length).toBeGreaterThanOrEqual(11);
+      expect(allProbeResult.every((s) => s.lastCheckedAt)).toBe(true);
+    });
+
+    it('should subscribe to self-hosted AI compute metrics and support load simulation', async () => {
+      let metrics: any = null;
+      const unsub = subscribeAiServerMetrics((data) => {
+        metrics = data;
+      });
+      unsub();
+
+      expect(metrics).toBeDefined();
+      expect(metrics.serverId).toBe('self_hosted');
+      expect(metrics.gpuUsagePct).toBeGreaterThan(0);
+      expect(metrics.vramUsedMb).toBeGreaterThan(0);
+      expect(metrics.vramTotalMb).toBe(81920);
+
+      const simulated = simulateAiServerLoad({ gpuUsagePct: 89.0, queueDepth: 60 });
+      expect(simulated.gpuUsagePct).toBe(89.0);
+      expect(simulated.queueDepth).toBe(60);
+      expect(simulated.status).toBe('degraded');
+    });
+
+    it('should manage infrastructure alert rules: create, evaluate triggers, toggle, and delete', async () => {
+      const newRule = await createInfrastructureAlertRule(
+        {
+          name: 'Test Gateway High Latency',
+          targetServiceId: 'ai-gateway',
+          metric: 'latency_ms',
+          threshold: 100,
+          severity: 'warning',
+          enabled: true,
+          notifyEmails: ['ops-test@webappypie.com'],
+        },
+        mockActor,
+      );
+
+      expect(newRule.id).toBeDefined();
+      expect(newRule.name).toBe('Test Gateway High Latency');
+      expect(newRule.threshold).toBe(100);
+
+      let currentRules: any[] = [];
+      let activeTriggers: any[] = [];
+      const unsub = subscribeInfrastructureAlerts((rules, triggers) => {
+        currentRules = rules;
+        activeTriggers = triggers;
+      });
+      unsub();
+
+      expect(currentRules.some((r) => r.id === newRule.id)).toBe(true);
+      expect(Array.isArray(activeTriggers)).toBe(true);
+
+      await toggleInfrastructureAlertRule(newRule.id, false, mockActor);
+
+      let afterToggleRules: any[] = [];
+      const unsub2 = subscribeInfrastructureAlerts((rules) => {
+        afterToggleRules = rules;
+      });
+      unsub2();
+
+      const toggled = afterToggleRules.find((r) => r.id === newRule.id);
+      expect(toggled?.enabled).toBe(false);
+
+      await deleteInfrastructureAlertRule(newRule.id, mockActor);
+
+      let afterDeleteRules: any[] = [];
+      const unsub3 = subscribeInfrastructureAlerts((rules) => {
+        afterDeleteRules = rules;
+      });
+      unsub3();
+
+      expect(afterDeleteRules.some((r) => r.id === newRule.id)).toBe(false);
     });
   });
 });

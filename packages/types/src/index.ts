@@ -341,24 +341,109 @@ export interface FeatureFlag {
 }
 
 // ============================================================
-// Health / Monitoring Types
+// Health / Monitoring Types (Phase 11)
 // ============================================================
 
 export type HealthStatusLevel = 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
 
+export type ServiceCategory = 'api' | 'infrastructure' | 'ai_provider' | 'ai_server' | 'worker';
+
 export interface HealthStatus {
   status: HealthStatusLevel;
-  latencyMs?: number;
+  latencyMs?: number | undefined;
   lastCheckedAt: Timestamp;
-  error?: string;
+  error?: string | undefined;
 }
 
 export interface ServiceHealth {
   serviceId: string;
   serviceName: string;
   status: HealthStatusLevel;
-  latencyMs?: number;
-  errorRate?: number;
+  latencyMs?: number | undefined;
+  errorRate?: number | undefined;
+  lastCheckedAt: Timestamp;
+}
+
+export interface DetailedServiceHealth {
+  serviceId: string;
+  serviceName: string;
+  category: ServiceCategory;
+  status: HealthStatusLevel;
+  latencyMs: number;
+  errorRatePct: number;
+  uptimePct30d: number;
+  consecutiveFailures: number;
+  lastCheckedAt: Timestamp;
+  endpoint?: string | undefined;
+  region?: string | undefined;
+  details?: Record<string, unknown> | undefined;
+  errorMessage?: string | undefined;
+}
+
+export interface AiServerMetrics {
+  serverId: string;
+  serverName: string;
+  status: HealthStatusLevel;
+  cpuUsagePct: number;
+  memoryUsedMb: number;
+  memoryTotalMb: number;
+  gpuUsagePct: number;
+  vramUsedMb: number;
+  vramTotalMb: number;
+  queueDepth: number;
+  activeStreams: number;
+  avgLatencyMs: number;
+  temperatureC: number;
+  modelLoaded: string;
+  reportedAt: Timestamp;
+}
+
+export type InfrastructureAlertMetric =
+  | 'latency_ms'
+  | 'error_rate_pct'
+  | 'consecutive_failures'
+  | 'gpu_usage_pct'
+  | 'vram_usage_pct'
+  | 'queue_depth';
+
+export type InfrastructureAlertSeverity = 'warning' | 'critical';
+
+export interface InfrastructureAlertRule {
+  id: string;
+  name: string;
+  targetServiceId: string; // 'all' or specific serviceId
+  metric: InfrastructureAlertMetric;
+  threshold: number;
+  severity: InfrastructureAlertSeverity;
+  enabled: boolean;
+  notifyEmails: string[];
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface InfrastructureAlertTrigger {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  targetServiceId: string;
+  targetServiceName: string;
+  severity: InfrastructureAlertSeverity;
+  metric: InfrastructureAlertMetric;
+  currentValue: number;
+  threshold: number;
+  message: string;
+  triggeredAt: Timestamp;
+}
+
+export interface PlatformHealthOverview {
+  overallStatus: HealthStatusLevel;
+  healthyCount: number;
+  degradedCount: number;
+  unhealthyCount: number;
+  totalServices: number;
+  avgLatencyMs: number;
+  maxErrorRatePct: number;
+  activeAlertsCount: number;
   lastCheckedAt: Timestamp;
 }
 

@@ -350,3 +350,85 @@ export const DataRetentionPolicySchema = z.object({
 
 export type CreateCostAlertRuleInput = z.input<typeof CreateCostAlertRuleSchema>;
 export type DataRetentionPolicyInput = z.input<typeof DataRetentionPolicySchema>;
+
+// ============================================================
+// Infrastructure Health & Alerts Schemas (Phase 11)
+// ============================================================
+
+export const HealthStatusLevelSchema = z.enum(['healthy', 'degraded', 'unhealthy', 'unknown']);
+
+export const ServiceCategorySchema = z.enum([
+  'api',
+  'infrastructure',
+  'ai_provider',
+  'ai_server',
+  'worker',
+]);
+
+export const InfrastructureAlertMetricSchema = z.enum([
+  'latency_ms',
+  'error_rate_pct',
+  'consecutive_failures',
+  'gpu_usage_pct',
+  'vram_usage_pct',
+  'queue_depth',
+]);
+
+export const InfrastructureAlertSeveritySchema = z.enum(['warning', 'critical']);
+
+export const CreateInfrastructureAlertRuleSchema = z.object({
+  name: z.string().min(1).max(100),
+  targetServiceId: z.string().min(1),
+  metric: InfrastructureAlertMetricSchema,
+  threshold: z.number().positive(),
+  severity: InfrastructureAlertSeveritySchema,
+  enabled: z.boolean().default(true),
+  notifyEmails: z.array(z.string().email()).default([]),
+});
+
+export const InfrastructureAlertRuleSchema = CreateInfrastructureAlertRuleSchema.extend({
+  id: z.string().min(1),
+  createdAt: TimestampSchema,
+  updatedAt: TimestampSchema,
+});
+
+export const DetailedServiceHealthSchema = z.object({
+  serviceId: z.string().min(1),
+  serviceName: z.string().min(1),
+  category: ServiceCategorySchema,
+  status: HealthStatusLevelSchema,
+  latencyMs: z.number().nonnegative(),
+  errorRatePct: z.number().min(0).max(100),
+  uptimePct30d: z.number().min(0).max(100),
+  consecutiveFailures: z.number().int().nonnegative(),
+  lastCheckedAt: TimestampSchema,
+  endpoint: z.string().optional(),
+  region: z.string().optional(),
+  details: z.record(z.unknown()).optional(),
+  errorMessage: z.string().optional(),
+});
+
+export const AiServerMetricsSchema = z.object({
+  serverId: z.string().min(1),
+  serverName: z.string().min(1),
+  status: HealthStatusLevelSchema,
+  cpuUsagePct: z.number().min(0).max(100),
+  memoryUsedMb: z.number().nonnegative(),
+  memoryTotalMb: z.number().positive(),
+  gpuUsagePct: z.number().min(0).max(100),
+  vramUsedMb: z.number().nonnegative(),
+  vramTotalMb: z.number().positive(),
+  queueDepth: z.number().int().nonnegative(),
+  activeStreams: z.number().int().nonnegative(),
+  avgLatencyMs: z.number().nonnegative(),
+  temperatureC: z.number().nonnegative(),
+  modelLoaded: z.string().min(1),
+  reportedAt: TimestampSchema,
+});
+
+export type CreateInfrastructureAlertRuleInput = z.input<
+  typeof CreateInfrastructureAlertRuleSchema
+>;
+export type InfrastructureAlertRuleInput = z.infer<typeof InfrastructureAlertRuleSchema>;
+export type DetailedServiceHealthInput = z.infer<typeof DetailedServiceHealthSchema>;
+export type AiServerMetricsInput = z.infer<typeof AiServerMetricsSchema>;

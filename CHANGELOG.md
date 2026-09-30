@@ -5,12 +5,41 @@ All notable changes to this project are documented here. Format based on
 
 ---
 
-## [Unreleased] — Phase 11: Infrastructure Health & Operations
+## [Unreleased] — Phase 12: Security Hardening
 
-- Real-time service health check dashboard (APIs, Firebase, Providers, Workers)
-- System metrics and latency monitoring
-- Backup and restore procedures
-- Operational runbooks
+- Firestore security rules audit & penetration test
+- Secret exposure audit (no keys in client code, logs, or git history)
+- RBAC coverage audit
+- Dependency vulnerability scan
+- Comprehensive security test suite
+- Remediation of all findings
+
+---
+
+## [0.12.0] — Phase 11: Infrastructure Health — 2026-09-30
+
+### Added
+
+- **Shared Types, Schemas & Config (`@wapcentral/types`, `@wapcentral/validation`, `@wapcentral/config`):**
+  - Added `ServiceCategory`, `DetailedServiceHealth`, `AiServerMetrics`, `InfrastructureAlertMetric`, `InfrastructureAlertSeverity`, `InfrastructureAlertRule`, `InfrastructureAlertTrigger`, and `PlatformHealthOverview` interfaces.
+  - Added `HealthStatusLevelSchema`, `ServiceCategorySchema`, `InfrastructureAlertMetricSchema`, `InfrastructureAlertSeveritySchema`, `CreateInfrastructureAlertRuleSchema`, `InfrastructureAlertRuleSchema`, `DetailedServiceHealthSchema`, and `AiServerMetricsSchema` with Zod validation.
+  - Added `INFRASTRUCTURE_ALERTS` and `AI_SERVER_METRICS` collections to `@wapcentral/config`.
+  - Added `HEALTH_MONITORING` thresholds and default heartbeat configuration constants.
+
+- **Background Health Worker Engine (`@wapcentral/workers`):**
+  - **Service Heartbeat Probing (`probeServiceHeartbeat`)**: Parallel and single-service probes measuring latency, error rates, and consecutive failures with automatic classification (`healthy`, `degraded`, `unhealthy`).
+  - **Catalogue of Core Services (`DEFAULT_MONITORED_SERVICES`)**: Default coverage for APIs (`admin-api`, `promotion-api`, `ai-gateway`, `workers`), Infrastructure (`firestore`, `cloud_storage`, `secret_manager`), AI Providers (`gemini`, `openai`, `anthropic`), and AI Compute Nodes (`self_hosted`).
+  - **Self-Hosted AI Node Telemetry (`collectAiServerMetrics`)**: Gathers compute metrics including GPU utilization %, VRAM allocation, host CPU load %, host system RAM, request queue depth, active concurrent streams, and core temperature.
+  - **Automated Infrastructure Alert Evaluation (`evaluateInfrastructureAlerts`)**: Evaluates rules against live metrics and triggers alerts for high latency, consecutive failures, error spikes, GPU saturation, VRAM exhaustion, and queue saturation.
+  - **Platform Health Aggregator (`computePlatformOverview`)**: Computes platform-wide operational state, counts, weighted latency, and max error rate.
+  - Comprehensive unit test suite in `healthWorker.test.ts` (12 passing tests).
+
+- **Dashboard Infrastructure Service & Operations UI (`apps/dashboard`):**
+  - **Infrastructure Service (`infrastructureService.ts`)**: Real-time subscriptions for platform health, AI server telemetry, and alert rules, with single/batch manual probe execution and MLOps load simulation.
+  - **Services Matrix Tab**: Interactive monitoring matrix displaying status badges, P95 latency with threshold color coding, 30d uptime %, error rates, consecutive failure counters, category filters, and per-node "Ping Node" triggers.
+  - **Self-Hosted AI Node Tab**: Visual utilization meters for GPU Compute, VRAM Allocation, CPU, and Memory, with live throughput stats (queue depth, active streams, token generation latency, GPU temp) and MLOps load simulation controls.
+  - **Alert Rules & Thresholds Tab**: Live active incident notification banners (warning/critical), alert rule management table with instant enable/disable toggling and deletion, and a "Create Alert Rule" modal form.
+  - Unit test suite in `services.test.ts` validating health subscriptions, probes, telemetry, and alert rule lifecycle.
 
 ---
 
@@ -18,25 +47,45 @@ All notable changes to this project are documented here. Format based on
 
 ### Added
 
-- **Shared Types, Schemas & Config (`@wapcentral/types`, `@wapcentral/validation`, `@wapcentral/config`):**
-  - Added `AlertSeverity`, `AlertMetricType`, `CostAlertRule`, `CostAlertTrigger`, `DataRetentionPolicy`, `CampaignPerformance`, `DailyUsageTrend`, and `UsageAggregationSummary` interfaces.
-  - Added `CostAlertRuleSchema`, `CreateCostAlertRuleSchema`, and `DataRetentionPolicySchema` with Zod validation.
+- **Shared Types, Schemas & Config (`@wapcentral/types`, `@wapcentral/validation`,
+  `@wapcentral/config`):**
+  - Added `AlertSeverity`, `AlertMetricType`, `CostAlertRule`, `CostAlertTrigger`,
+    `DataRetentionPolicy`, `CampaignPerformance`, `DailyUsageTrend`, and `UsageAggregationSummary`
+    interfaces.
+  - Added `CostAlertRuleSchema`, `CreateCostAlertRuleSchema`, and `DataRetentionPolicySchema` with
+    Zod validation.
   - Added `COST_ALERTS` and `DATA_RETENTION` collections to `@wapcentral/config`.
 
 - **Analytics & Aggregation Worker Engine (`@wapcentral/workers`):**
-  - **Multi-Dimensional AI Aggregation (`aggregateUsageBreakdowns`)**: Aggregates usage events across providers, mobile apps, features, and daily timelines, tracking token consumption, error rates, average latency, and estimated USD expenditure based on model pricing cards.
-  - **Proactive Cost & Quota Alerts (`evaluateCostAlerts`)**: Evaluates rules against real-time consumption; automatically triggers `warning` severity at $\ge 80\%$ and `critical` severity at $\ge 100\%$ of threshold for daily spend, monthly spend, token volume, and error rates.
-  - **Promotion Performance Aggregation (`aggregateCampaignPerformance`)**: Aggregates impressions, clicks, and computes click-through rate (CTR %) across all active and archived campaigns.
-  - **Data Retention & Compliance Engine (`pruneExpiredEvents`)**: TTL pruning engine that safely cleans raw historical usage and promotion events beyond configured retention periods.
-  - Exported `@wapcentral/workers` as a reusable workspace library and validated with unit test suite (`workers.test.ts`).
+  - **Multi-Dimensional AI Aggregation (`aggregateUsageBreakdowns`)**: Aggregates usage events
+    across providers, mobile apps, features, and daily timelines, tracking token consumption, error
+    rates, average latency, and estimated USD expenditure based on model pricing cards.
+  - **Proactive Cost & Quota Alerts (`evaluateCostAlerts`)**: Evaluates rules against real-time
+    consumption; automatically triggers `warning` severity at $\ge 80\%$ and `critical` severity at
+    $\ge 100\%$ of threshold for daily spend, monthly spend, token volume, and error rates.
+  - **Promotion Performance Aggregation (`aggregateCampaignPerformance`)**: Aggregates impressions,
+    clicks, and computes click-through rate (CTR %) across all active and archived campaigns.
+  - **Data Retention & Compliance Engine (`pruneExpiredEvents`)**: TTL pruning engine that safely
+    cleans raw historical usage and promotion events beyond configured retention periods.
+  - Exported `@wapcentral/workers` as a reusable workspace library and validated with unit test
+    suite (`workers.test.ts`).
 
 - **Dashboard Analytics Service & UI (`apps/dashboard`):**
-  - **Analytics Service (`analyticsService.ts`)**: Real-time Firestore subscriptions with seamless in-memory fallbacks for offline development, audit trail integration, and rule mutation methods.
-  - **AI Usage & Spend Dashboard**: KPI summary cards (Total Requests, Estimated Spend USD clearly labeled with `ESTIMATE` tags, Total Tokens, Error Rate), time-range filter (7d, 14d, 30d, 90d), daily trend charts, provider breakdown cards, and app-level usage distribution table.
-  - **Promotion Analytics Dashboard**: Top-line summary cards (Impressions, Clicks, Avg CTR) and comprehensive campaign performance table.
-  - **Cost Alerts & Quotas Management**: Real-time active alert notification banners, alert rule table with instant enable/disable toggling and deletion, and a modal for creating new metric rules with email alerting.
-  - **Data Retention Policy & Pruning**: Configurable TTL form for usage events, promotion events, and audit logs, displaying pruning timestamps and lifetime pruned count with on-demand manual pruning execution.
-  - **Test Suite**: Added unit tests in `services.test.ts` covering usage aggregation subscriptions, campaign analytics, rule creation/toggle/deletion, and manual retention pruning.
+  - **Analytics Service (`analyticsService.ts`)**: Real-time Firestore subscriptions with seamless
+    in-memory fallbacks for offline development, audit trail integration, and rule mutation methods.
+  - **AI Usage & Spend Dashboard**: KPI summary cards (Total Requests, Estimated Spend USD clearly
+    labeled with `ESTIMATE` tags, Total Tokens, Error Rate), time-range filter (7d, 14d, 30d, 90d),
+    daily trend charts, provider breakdown cards, and app-level usage distribution table.
+  - **Promotion Analytics Dashboard**: Top-line summary cards (Impressions, Clicks, Avg CTR) and
+    comprehensive campaign performance table.
+  - **Cost Alerts & Quotas Management**: Real-time active alert notification banners, alert rule
+    table with instant enable/disable toggling and deletion, and a modal for creating new metric
+    rules with email alerting.
+  - **Data Retention Policy & Pruning**: Configurable TTL form for usage events, promotion events,
+    and audit logs, displaying pruning timestamps and lifetime pruned count with on-demand manual
+    pruning execution.
+  - **Test Suite**: Added unit tests in `services.test.ts` covering usage aggregation subscriptions,
+    campaign analytics, rule creation/toggle/deletion, and manual retention pruning.
 
 ---
 

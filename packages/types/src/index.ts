@@ -184,18 +184,18 @@ export interface GatewayRequest {
   version: string;
   environment: Environment;
   feature: string;
-  modelPreference?: string;
+  modelPreference?: string | undefined;
   payload: GatewayPayload;
   requestId: string;
 }
 
 export interface GatewayPayload {
   type: 'generate' | 'analyze_image' | 'embed';
-  prompt?: string;
-  imageData?: string; // base64
-  messages?: ChatMessage[];
-  maxTokens?: number;
-  temperature?: number;
+  prompt?: string | undefined;
+  imageData?: string | undefined; // base64
+  messages?: ChatMessage[] | undefined;
+  maxTokens?: number | undefined;
+  temperature?: number | undefined;
 }
 
 export interface ChatMessage {
@@ -411,12 +411,12 @@ export interface UsageEvent {
   modelId: string;
   feature: string;
   requestId: string;
-  inputTokens?: number;
-  outputTokens?: number;
-  costEstimateUsd?: number;
+  inputTokens?: number | undefined;
+  outputTokens?: number | undefined;
+  costEstimateUsd?: number | undefined;
   latencyMs: number;
   success: boolean;
-  error?: string;
+  error?: string | undefined;
   timestamp: Timestamp;
 }
 

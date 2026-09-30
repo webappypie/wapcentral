@@ -5,13 +5,53 @@ All notable changes to this project are documented here. Format based on
 
 ---
 
-## [Unreleased] — Phase 6: AI Gateway & Usage
+## [Unreleased] — Phase 7: Promotion System
 
-- `services/ai-gateway/` Cloud Run service with request authentication (Firebase Auth tokens)
-- Model routing, circuit-breaker failover execution, and timeout/retry handling
-- Quota and rate-limit enforcement engine
-- Non-blocking asynchronous Firestore `usageEvents` telemetry logging
-- `usageDaily` aggregation worker and cost estimation tracking
+- Promotion API (`services/promotion-api`) with campaign matching engine
+- Targeting evaluation (app, platform, country, version)
+- Creative format resolution (banner, interstitial, rewarded, native)
+- Client-side promotion SDK contracts and local cache handling
+- Impression & click telemetry collection
+
+---
+
+## [0.7.0] — Phase 6: AI Gateway & Usage — 2026-09-30
+
+### Added
+
+- **AI Gateway Service (`services/ai-gateway`):**
+  - High-performance Express + TypeScript proxy service designed for Cloud Run deployment.
+  - Request authentication middleware (`authenticateGateway`) verifying Firebase Auth ID tokens or
+    caller identities.
+  - Quota and Rate Limit Engine (`policyEngine`): Enforces daily token and request limits per
+    application policy, tracking current daily usage with automatic reset checks and 429 quota
+    rejection.
+  - Emergency Kill Switch: Implemented global and per-provider emergency kill switches
+    (`toggleEmergencyKillSwitch`) returning 503 Service Unavailable when triggered.
+  - Intelligent Routing & Multi-Tier Fallback (`router`): Evaluates candidate routes according to
+    configured `AiPolicy`, executes primary model request, automatically falls back to secondary /
+    tertiary models upon provider errors, and calculates request latency.
+  - Asynchronous Usage Telemetry (`usageRecorder`): Non-blocking fire-and-forget telemetry recording
+    for request tokens, completion tokens, model details, latency, and estimated cost tagged with
+    `isEstimate: true`.
+  - Telemetry Inspection & Health Endpoints: `GET /health`, `GET /v1/health`, `POST /v1/gateway`,
+    `POST /v1/gateway/kill-switch`, and `GET /v1/gateway/telemetry`.
+  - 9 automated integration tests (`services/ai-gateway/src/tests/gateway.test.ts`) covering
+    authentication, validation, multimodal vision routing, fallback failover, quota rejection, and
+    kill switch triggers.
+- **Usage Workers Service (`services/workers`):**
+  - `aggregateUsageDaily`: Aggregates raw `usageEvents` into `DailyUsage` rollups grouped by
+    `appId_providerId_YYYY-MM-DD`, computing totals for requests, prompt/completion tokens, cached
+    tokens, error counts, average latency, and estimated cost.
+  - `pruneExpiredEvents`: Background worker task pruning raw telemetry records past retention window
+    (default 30 days) to prevent database bloat.
+  - `processUsageBatch`: Incremental rollup engine for processing streaming telemetry batches into
+    existing daily aggregates.
+  - 3 unit tests (`services/workers/src/tests/workers.test.ts`) validating rollups, retention
+    pruning, and batch merging.
+- **Shared Types & Validation:**
+  - Updated `UsageEvent`, `GatewayRequest`, and `GatewayPayload` in `@wapcentral/types` with
+    explicit `| undefined` unions to strictly satisfy `exactOptionalPropertyTypes: true`.
 
 ---
 

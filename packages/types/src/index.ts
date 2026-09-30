@@ -449,3 +449,109 @@ export interface DailyUsage {
   errorCount: number;
   avgLatencyMs: number;
 }
+
+// ============================================================
+// Cost & Quota Alerts Types
+// ============================================================
+
+export type AlertSeverity = 'info' | 'warning' | 'critical';
+
+export type AlertMetricType =
+  'daily_cost_usd' | 'monthly_cost_usd' | 'daily_tokens' | 'monthly_tokens' | 'error_rate_pct';
+
+export interface CostAlertRule {
+  id: string;
+  name: string;
+  appId?: string | undefined; // Specific app, or undefined for global
+  metric: AlertMetricType;
+  threshold: number; // USD amount, token count, or percentage
+  enabled: boolean;
+  notifyEmails: string[];
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface CostAlertTrigger {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  metric: AlertMetricType;
+  currentValue: number;
+  threshold: number;
+  severity: AlertSeverity;
+  message: string;
+  appId?: string | undefined;
+  triggeredAt: Timestamp;
+}
+
+// ============================================================
+// Data Retention Policy Types
+// ============================================================
+
+export interface DataRetentionPolicy {
+  usageEventsTtlDays: number; // Default: 90 days
+  promotionEventsTtlDays: number; // Default: 90 days
+  auditLogsTtlDays: number; // Default: 365 days
+  lastPrunedAt?: Timestamp | undefined;
+  prunedCount?: number | undefined;
+}
+
+// ============================================================
+// Analytics Aggregations & Performance Types
+// ============================================================
+
+export interface CampaignPerformance {
+  campaignId: string;
+  campaignName: string;
+  promotedAppId: string;
+  layoutVariant: LayoutVariant;
+  impressions: number;
+  clicks: number;
+  ctr: number; // Percentage (e.g. 3.45%)
+  status: CampaignStatus;
+}
+
+export interface DailyUsageTrend {
+  date: string; // YYYY-MM-DD
+  requests: number;
+  tokens: number;
+  costEstimateUsd: number;
+}
+
+export interface UsageAggregationSummary {
+  totalRequests: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  totalCostEstimateUsd: number;
+  totalErrors: number;
+  errorRatePct: number;
+  avgLatencyMs: number;
+  byProvider: Record<
+    string,
+    {
+      requests: number;
+      tokens: number;
+      costEstimateUsd: number;
+      errorCount: number;
+      avgLatencyMs: number;
+    }
+  >;
+  byApp: Record<
+    string,
+    {
+      requests: number;
+      tokens: number;
+      costEstimateUsd: number;
+    }
+  >;
+  byFeature: Record<
+    string,
+    {
+      requests: number;
+      tokens: number;
+      costEstimateUsd: number;
+    }
+  >;
+  dailyTrends: DailyUsageTrend[];
+}

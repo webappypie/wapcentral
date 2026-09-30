@@ -310,3 +310,43 @@ export type UpdateAiProviderInput = z.input<typeof UpdateAiProviderSchema>;
 export type CreateAiPolicyInput = z.input<typeof CreateAiPolicySchema>;
 export type UpdateAiPolicyInput = z.input<typeof UpdateAiPolicySchema>;
 export type AiModelInput = z.infer<typeof AiModelSchema>;
+
+// ============================================================
+// Cost Alert & Retention Schemas
+// ============================================================
+
+export const AlertSeveritySchema = z.enum(['info', 'warning', 'critical']);
+
+export const AlertMetricTypeSchema = z.enum([
+  'daily_cost_usd',
+  'monthly_cost_usd',
+  'daily_tokens',
+  'monthly_tokens',
+  'error_rate_pct',
+]);
+
+export const CreateCostAlertRuleSchema = z.object({
+  name: z.string().min(1).max(100),
+  appId: z.string().optional(),
+  metric: AlertMetricTypeSchema,
+  threshold: z.number().positive(),
+  enabled: z.boolean().default(true),
+  notifyEmails: z.array(z.string().email()).default([]),
+});
+
+export const CostAlertRuleSchema = CreateCostAlertRuleSchema.extend({
+  id: z.string().min(1),
+  createdAt: TimestampSchema,
+  updatedAt: TimestampSchema,
+});
+
+export const DataRetentionPolicySchema = z.object({
+  usageEventsTtlDays: z.number().int().min(1).max(3650).default(90),
+  promotionEventsTtlDays: z.number().int().min(1).max(3650).default(90),
+  auditLogsTtlDays: z.number().int().min(1).max(3650).default(365),
+  lastPrunedAt: TimestampSchema.optional(),
+  prunedCount: z.number().int().nonnegative().optional(),
+});
+
+export type CreateCostAlertRuleInput = z.input<typeof CreateCostAlertRuleSchema>;
+export type DataRetentionPolicyInput = z.input<typeof DataRetentionPolicySchema>;

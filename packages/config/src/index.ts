@@ -22,6 +22,8 @@ export const COLLECTIONS = {
   AUDIT_LOGS: 'auditLogs',
   ROLES: 'roles',
   PROMOTION_EVENTS: 'promotionEvents',
+  COST_ALERTS: 'costAlerts',
+  DATA_RETENTION: 'dataRetention',
 } as const;
 
 // ============================================================

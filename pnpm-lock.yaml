@@ -70,6 +70,9 @@ importers:
       '@wapcentral/validation':
         specifier: workspace:*
         version: link:../../packages/validation
+      '@wapcentral/workers':
+        specifier: workspace:*
+        version: link:../../services/workers
       clsx:
         specifier: ^2.1.1
         version: 2.1.1

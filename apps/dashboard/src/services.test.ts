@@ -14,6 +14,17 @@ import {
   subscribeFeatureFlags,
 } from './services/featureFlagsService.js';
 import { recordAuditLog, subscribeAuditLogs } from './services/auditService.js';
+import {
+  subscribeUsageAnalytics,
+  subscribeCampaignAnalytics,
+  subscribeCostAlerts,
+  createCostAlertRule,
+  toggleCostAlertRule,
+  deleteCostAlertRule,
+  subscribeDataRetentionPolicy,
+  updateDataRetentionPolicy,
+  triggerManualRetentionPruning,
+} from './services/analyticsService.js';
 
 const mockActor = {
   uid: 'usr_test_admin',
@@ -341,6 +352,127 @@ describe('Core Dashboard Services & In-Memory Fallback', () => {
 
       const all = await fetchAiPolicies();
       expect(all.some((p) => p.id === policy.id)).toBe(true);
+    });
+  });
+
+  describe('Analytics & Cost Management Service', () => {
+    it('should subscribe to AI usage analytics and compute breakdowns and daily trends', async () => {
+      let result: any = null;
+      const unsub = subscribeUsageAnalytics(30, (summary) => {
+        result = summary;
+      });
+      unsub();
+
+      expect(result).toBeDefined();
+      expect(result.totalRequests).toBeGreaterThan(0);
+      expect(result.totalTokens).toBeGreaterThan(0);
+      expect(result.totalCostEstimateUsd).toBeGreaterThan(0);
+      expect(Object.keys(result.byProvider).length).toBeGreaterThan(0);
+      expect(Object.keys(result.byApp).length).toBeGreaterThan(0);
+      expect(Object.keys(result.byFeature).length).toBeGreaterThan(0);
+      expect(result.dailyTrends.length).toBe(30);
+
+      // Verify cost estimate structure
+      const gemini = result.byProvider['gemini'];
+      expect(gemini).toBeDefined();
+      expect(gemini.costEstimateUsd).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should subscribe to promotion campaign analytics and compute impressions, clicks, CTR', async () => {
+      let result: any[] = [];
+      const unsub = subscribeCampaignAnalytics((data) => {
+        result = data;
+      });
+      unsub();
+
+      expect(result.length).toBeGreaterThan(0);
+      const campaign = result[0]!;
+      expect(campaign.campaignId).toBeDefined();
+      expect(campaign.impressions).toBeGreaterThanOrEqual(0);
+      expect(campaign.clicks).toBeGreaterThanOrEqual(0);
+      expect(campaign.ctr).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should manage cost alert rules: create, toggle, evaluate, and delete', async () => {
+      const rule = await createCostAlertRule(
+        {
+          name: 'High Daily Spend Alert',
+          metric: 'daily_cost_usd',
+          threshold: 50.0,
+          enabled: true,
+          notifyEmails: ['alert-lead@webappypie.com'],
+        },
+        mockActor,
+      );
+
+      expect(rule.id).toBeDefined();
+      expect(rule.name).toBe('High Daily Spend Alert');
+      expect(rule.threshold).toBe(50.0);
+
+      let currentRules: any[] = [];
+      let activeTriggers: any[] = [];
+      const unsub = subscribeCostAlerts((rules, triggers) => {
+        currentRules = rules;
+        activeTriggers = triggers;
+      });
+      unsub();
+
+      expect(currentRules.some((r) => r.id === rule.id)).toBe(true);
+      expect(Array.isArray(activeTriggers)).toBe(true);
+
+      await toggleCostAlertRule(rule.id, false, mockActor);
+
+      let updatedRules: any[] = [];
+      const unsub2 = subscribeCostAlerts((rules) => {
+        updatedRules = rules;
+      });
+      unsub2();
+
+      const found = updatedRules.find((r) => r.id === rule.id);
+      expect(found?.enabled).toBe(false);
+
+      await deleteCostAlertRule(rule.id, mockActor);
+
+      let afterDelete: any[] = [];
+      const unsub3 = subscribeCostAlerts((rules) => {
+        afterDelete = rules;
+      });
+      unsub3();
+
+      expect(afterDelete.some((r) => r.id === rule.id)).toBe(false);
+    });
+
+    it('should update retention policy and trigger manual pruning', async () => {
+      let currentPolicy: any = null;
+      const unsub = subscribeDataRetentionPolicy((policy) => {
+        currentPolicy = policy;
+      });
+      unsub();
+
+      expect(currentPolicy).toBeDefined();
+      expect(currentPolicy.usageEventsTtlDays).toBeGreaterThan(0);
+
+      await updateDataRetentionPolicy(
+        {
+          usageEventsTtlDays: 14,
+          promotionEventsTtlDays: 30,
+          auditLogsTtlDays: 180,
+        },
+        mockActor,
+      );
+
+      let updatedPolicy: any = null;
+      const unsub2 = subscribeDataRetentionPolicy((policy) => {
+        updatedPolicy = policy;
+      });
+      unsub2();
+
+      expect(updatedPolicy.usageEventsTtlDays).toBe(14);
+      expect(updatedPolicy.promotionEventsTtlDays).toBe(30);
+
+      const pruneResult = await triggerManualRetentionPruning(mockActor);
+      expect(pruneResult.prunedCount).toBeGreaterThanOrEqual(0);
+      expect(typeof pruneResult.timestamp).toBe('string');
     });
   });
 });

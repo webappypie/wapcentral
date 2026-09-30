@@ -5,12 +5,38 @@ All notable changes to this project are documented here. Format based on
 
 ---
 
-## [Unreleased] — Phase 10: Analytics & Cost
+## [Unreleased] — Phase 11: Infrastructure Health & Operations
 
-- AI usage charts and provider breakdowns
-- Cost estimation dashboard with USD currency labels
-- Promotion analytics aggregation (impressions, clicks, CTR)
-- Configurable budget alerts and quota notification triggers
+- Real-time service health check dashboard (APIs, Firebase, Providers, Workers)
+- System metrics and latency monitoring
+- Backup and restore procedures
+- Operational runbooks
+
+---
+
+## [0.11.0] — Phase 10: Analytics & Cost — 2026-09-30
+
+### Added
+
+- **Shared Types, Schemas & Config (`@wapcentral/types`, `@wapcentral/validation`, `@wapcentral/config`):**
+  - Added `AlertSeverity`, `AlertMetricType`, `CostAlertRule`, `CostAlertTrigger`, `DataRetentionPolicy`, `CampaignPerformance`, `DailyUsageTrend`, and `UsageAggregationSummary` interfaces.
+  - Added `CostAlertRuleSchema`, `CreateCostAlertRuleSchema`, and `DataRetentionPolicySchema` with Zod validation.
+  - Added `COST_ALERTS` and `DATA_RETENTION` collections to `@wapcentral/config`.
+
+- **Analytics & Aggregation Worker Engine (`@wapcentral/workers`):**
+  - **Multi-Dimensional AI Aggregation (`aggregateUsageBreakdowns`)**: Aggregates usage events across providers, mobile apps, features, and daily timelines, tracking token consumption, error rates, average latency, and estimated USD expenditure based on model pricing cards.
+  - **Proactive Cost & Quota Alerts (`evaluateCostAlerts`)**: Evaluates rules against real-time consumption; automatically triggers `warning` severity at $\ge 80\%$ and `critical` severity at $\ge 100\%$ of threshold for daily spend, monthly spend, token volume, and error rates.
+  - **Promotion Performance Aggregation (`aggregateCampaignPerformance`)**: Aggregates impressions, clicks, and computes click-through rate (CTR %) across all active and archived campaigns.
+  - **Data Retention & Compliance Engine (`pruneExpiredEvents`)**: TTL pruning engine that safely cleans raw historical usage and promotion events beyond configured retention periods.
+  - Exported `@wapcentral/workers` as a reusable workspace library and validated with unit test suite (`workers.test.ts`).
+
+- **Dashboard Analytics Service & UI (`apps/dashboard`):**
+  - **Analytics Service (`analyticsService.ts`)**: Real-time Firestore subscriptions with seamless in-memory fallbacks for offline development, audit trail integration, and rule mutation methods.
+  - **AI Usage & Spend Dashboard**: KPI summary cards (Total Requests, Estimated Spend USD clearly labeled with `ESTIMATE` tags, Total Tokens, Error Rate), time-range filter (7d, 14d, 30d, 90d), daily trend charts, provider breakdown cards, and app-level usage distribution table.
+  - **Promotion Analytics Dashboard**: Top-line summary cards (Impressions, Clicks, Avg CTR) and comprehensive campaign performance table.
+  - **Cost Alerts & Quotas Management**: Real-time active alert notification banners, alert rule table with instant enable/disable toggling and deletion, and a modal for creating new metric rules with email alerting.
+  - **Data Retention Policy & Pruning**: Configurable TTL form for usage events, promotion events, and audit logs, displaying pruning timestamps and lifetime pruned count with on-demand manual pruning execution.
+  - **Test Suite**: Added unit tests in `services.test.ts` covering usage aggregation subscriptions, campaign analytics, rule creation/toggle/deletion, and manual retention pruning.
 
 ---
 

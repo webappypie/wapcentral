@@ -5,14 +5,41 @@ All notable changes to this project are documented here. Format based on
 
 ---
 
-## [Unreleased] — Phase 12: Security Hardening
+## [Unreleased] — Phase 13: Production Release
 
-- Firestore security rules audit & penetration test
-- Secret exposure audit (no keys in client code, logs, or git history)
-- RBAC coverage audit
-- Dependency vulnerability scan
-- Comprehensive security test suite
-- Remediation of all findings
+- Production Firebase project fully configured
+- Custom domain setup for dashboard (e.g. central.webappypie.com)
+- Full production deployment pipeline (GitHub Actions)
+- Uptime monitoring configuration
+- Automated backup strategy for Firestore
+- Rollback procedures and runbooks
+- Production smoke test and failure injection verification
+
+---
+
+## [0.13.0] — Phase 12: Security Hardening — 2026-09-30
+
+### Added
+
+- **Firestore Security Rules Audit & Penetration Testing (`firestore.rules`):**
+  - Expanded security rules to achieve 100% explicit coverage across all 18 collections, including `promotionEvents`, `costAlerts`, `dataRetention`, `infrastructureAlerts`, and `aiServerMetrics`.
+  - Enforced client write blocking (`allow write: if false;`) on raw event collections (`promotionEvents`, `aiServerMetrics`), ensuring only authorized backend services write via Admin SDK.
+  - Added secret leak prevention filter (`hasNoPrivateSecrets`) across alert, retention, provider, and app collections.
+  - Expanded emulator penetration test suite to 25 tests in `tests/rules/firestore-rules.test.ts` covering role privilege escalation resistance, secret leak rejection, immutable audit log guarantees, and default-deny protection on arbitrary paths.
+
+- **Input Validation & Injection Resistance (`@wapcentral/validation`):**
+  - Implemented `HttpUrlSchema` with strict `/^https?:\/\//i` enforcement across campaign `storeUrl`, `imageUrl`, `animationUrl`, and provider `baseUrl`, preventing XSS and protocol injection via `javascript:` or `data:` URIs.
+  - Hardened identifier schemas against path traversal and SQL/NoSQL injection patterns.
+  - Added numeric boundary constraints on cost and retention thresholds.
+
+- **Security Hardening Test Suite (`tests/infrastructure/security-hardening.test.ts`):**
+  - Automated scanner test verifying zero committed `.env` files, zero service account JSONs, and strict `.gitignore` patterns.
+  - Cryptographic test suite verifying deterministic HMAC-SHA256 signature canonicalization, constant-time verification, and single-bit tamper rejection.
+  - Input validation injection resistance tests (prototype pollution, script tags, URI protocols).
+  - RBAC role hierarchy and immutability tests.
+
+- **Comprehensive Security Audit Report (`docs/06_SECURITY_AUDIT_REPORT.md`):**
+  - Published exhaustive security audit report documenting collection access matrices, secret exposure findings, RBAC Express middleware coverage, HMAC anti-tamper mechanisms, and dependency vulnerability assessment.
 
 ---
 
@@ -20,26 +47,51 @@ All notable changes to this project are documented here. Format based on
 
 ### Added
 
-- **Shared Types, Schemas & Config (`@wapcentral/types`, `@wapcentral/validation`, `@wapcentral/config`):**
-  - Added `ServiceCategory`, `DetailedServiceHealth`, `AiServerMetrics`, `InfrastructureAlertMetric`, `InfrastructureAlertSeverity`, `InfrastructureAlertRule`, `InfrastructureAlertTrigger`, and `PlatformHealthOverview` interfaces.
-  - Added `HealthStatusLevelSchema`, `ServiceCategorySchema`, `InfrastructureAlertMetricSchema`, `InfrastructureAlertSeveritySchema`, `CreateInfrastructureAlertRuleSchema`, `InfrastructureAlertRuleSchema`, `DetailedServiceHealthSchema`, and `AiServerMetricsSchema` with Zod validation.
+- **Shared Types, Schemas & Config (`@wapcentral/types`, `@wapcentral/validation`,
+  `@wapcentral/config`):**
+  - Added `ServiceCategory`, `DetailedServiceHealth`, `AiServerMetrics`,
+    `InfrastructureAlertMetric`, `InfrastructureAlertSeverity`, `InfrastructureAlertRule`,
+    `InfrastructureAlertTrigger`, and `PlatformHealthOverview` interfaces.
+  - Added `HealthStatusLevelSchema`, `ServiceCategorySchema`, `InfrastructureAlertMetricSchema`,
+    `InfrastructureAlertSeveritySchema`, `CreateInfrastructureAlertRuleSchema`,
+    `InfrastructureAlertRuleSchema`, `DetailedServiceHealthSchema`, and `AiServerMetricsSchema` with
+    Zod validation.
   - Added `INFRASTRUCTURE_ALERTS` and `AI_SERVER_METRICS` collections to `@wapcentral/config`.
   - Added `HEALTH_MONITORING` thresholds and default heartbeat configuration constants.
 
 - **Background Health Worker Engine (`@wapcentral/workers`):**
-  - **Service Heartbeat Probing (`probeServiceHeartbeat`)**: Parallel and single-service probes measuring latency, error rates, and consecutive failures with automatic classification (`healthy`, `degraded`, `unhealthy`).
-  - **Catalogue of Core Services (`DEFAULT_MONITORED_SERVICES`)**: Default coverage for APIs (`admin-api`, `promotion-api`, `ai-gateway`, `workers`), Infrastructure (`firestore`, `cloud_storage`, `secret_manager`), AI Providers (`gemini`, `openai`, `anthropic`), and AI Compute Nodes (`self_hosted`).
-  - **Self-Hosted AI Node Telemetry (`collectAiServerMetrics`)**: Gathers compute metrics including GPU utilization %, VRAM allocation, host CPU load %, host system RAM, request queue depth, active concurrent streams, and core temperature.
-  - **Automated Infrastructure Alert Evaluation (`evaluateInfrastructureAlerts`)**: Evaluates rules against live metrics and triggers alerts for high latency, consecutive failures, error spikes, GPU saturation, VRAM exhaustion, and queue saturation.
-  - **Platform Health Aggregator (`computePlatformOverview`)**: Computes platform-wide operational state, counts, weighted latency, and max error rate.
+  - **Service Heartbeat Probing (`probeServiceHeartbeat`)**: Parallel and single-service probes
+    measuring latency, error rates, and consecutive failures with automatic classification
+    (`healthy`, `degraded`, `unhealthy`).
+  - **Catalogue of Core Services (`DEFAULT_MONITORED_SERVICES`)**: Default coverage for APIs
+    (`admin-api`, `promotion-api`, `ai-gateway`, `workers`), Infrastructure (`firestore`,
+    `cloud_storage`, `secret_manager`), AI Providers (`gemini`, `openai`, `anthropic`), and AI
+    Compute Nodes (`self_hosted`).
+  - **Self-Hosted AI Node Telemetry (`collectAiServerMetrics`)**: Gathers compute metrics including
+    GPU utilization %, VRAM allocation, host CPU load %, host system RAM, request queue depth,
+    active concurrent streams, and core temperature.
+  - **Automated Infrastructure Alert Evaluation (`evaluateInfrastructureAlerts`)**: Evaluates rules
+    against live metrics and triggers alerts for high latency, consecutive failures, error spikes,
+    GPU saturation, VRAM exhaustion, and queue saturation.
+  - **Platform Health Aggregator (`computePlatformOverview`)**: Computes platform-wide operational
+    state, counts, weighted latency, and max error rate.
   - Comprehensive unit test suite in `healthWorker.test.ts` (12 passing tests).
 
 - **Dashboard Infrastructure Service & Operations UI (`apps/dashboard`):**
-  - **Infrastructure Service (`infrastructureService.ts`)**: Real-time subscriptions for platform health, AI server telemetry, and alert rules, with single/batch manual probe execution and MLOps load simulation.
-  - **Services Matrix Tab**: Interactive monitoring matrix displaying status badges, P95 latency with threshold color coding, 30d uptime %, error rates, consecutive failure counters, category filters, and per-node "Ping Node" triggers.
-  - **Self-Hosted AI Node Tab**: Visual utilization meters for GPU Compute, VRAM Allocation, CPU, and Memory, with live throughput stats (queue depth, active streams, token generation latency, GPU temp) and MLOps load simulation controls.
-  - **Alert Rules & Thresholds Tab**: Live active incident notification banners (warning/critical), alert rule management table with instant enable/disable toggling and deletion, and a "Create Alert Rule" modal form.
-  - Unit test suite in `services.test.ts` validating health subscriptions, probes, telemetry, and alert rule lifecycle.
+  - **Infrastructure Service (`infrastructureService.ts`)**: Real-time subscriptions for platform
+    health, AI server telemetry, and alert rules, with single/batch manual probe execution and MLOps
+    load simulation.
+  - **Services Matrix Tab**: Interactive monitoring matrix displaying status badges, P95 latency
+    with threshold color coding, 30d uptime %, error rates, consecutive failure counters, category
+    filters, and per-node "Ping Node" triggers.
+  - **Self-Hosted AI Node Tab**: Visual utilization meters for GPU Compute, VRAM Allocation, CPU,
+    and Memory, with live throughput stats (queue depth, active streams, token generation latency,
+    GPU temp) and MLOps load simulation controls.
+  - **Alert Rules & Thresholds Tab**: Live active incident notification banners (warning/critical),
+    alert rule management table with instant enable/disable toggling and deletion, and a "Create
+    Alert Rule" modal form.
+  - Unit test suite in `services.test.ts` validating health subscriptions, probes, telemetry, and
+    alert rule lifecycle.
 
 ---
 

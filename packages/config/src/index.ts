@@ -66,6 +66,8 @@ export const ROLES = {
   SUPER_ADMIN: 'super_admin',
 } as const;
 
+export const ALLOWED_ROLES = ['viewer', 'editor', 'admin', 'super_admin'] as const;
+
 export const ROLE_HIERARCHY: Record<string, number> = {
   viewer: 1,
   editor: 2,

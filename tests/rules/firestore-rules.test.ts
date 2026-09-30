@@ -282,4 +282,142 @@ describe('Firestore Security Rules — RBAC & Data Protection', () => {
       );
     });
   });
+
+  describe('6. Security Penetration & Attack Surface Tests (Phase 12)', () => {
+    it('should prevent privilege escalation: viewers and editors cannot modify user roles', async () => {
+      const viewerDb = getViewerDb();
+      await assertFails(setDoc(doc(viewerDb, 'roles/user_viewer'), { role: 'super_admin' }));
+
+      const editorDb = getEditorDb();
+      await assertFails(setDoc(doc(editorDb, 'roles/user_editor'), { role: 'admin' }));
+    });
+
+    it('should prevent secret leaks across alert, retention and app collections', async () => {
+      const adminDb = getAdminDb();
+      const editorDb = getEditorDb();
+
+      // Secret leak in costAlerts
+      await assertFails(
+        setDoc(doc(adminDb, 'costAlerts/rule_leak_1'), {
+          name: 'Leaky Rule',
+          apiKey: 'sk-leaked-key-12345',
+        }),
+      );
+
+      // Secret leak in dataRetention
+      await assertFails(
+        setDoc(doc(adminDb, 'dataRetention/leak_retention'), {
+          signingSecret: 'whsec_compromised_signing_secret',
+        }),
+      );
+
+      // Secret leak in infrastructureAlerts
+      await assertFails(
+        setDoc(doc(adminDb, 'infrastructureAlerts/leak_infra'), {
+          serviceAccount: '{"type": "service_account"}',
+        }),
+      );
+
+      // Secret leak in apps
+      await assertFails(
+        setDoc(doc(editorDb, 'apps/leaky_app'), {
+          id: 'leaky_app',
+          name: 'Leaky App',
+          privateKey: '-----BEGIN PRIVATE KEY-----...',
+        }),
+      );
+    });
+
+    it('should enforce backend-only write protection on telemetry and event collections', async () => {
+      const adminDb = getAdminDb();
+
+      // promotionEvents write blocked
+      await assertFails(
+        setDoc(doc(adminDb, 'promotionEvents/fake_promo_evt'), {
+          eventType: 'click',
+          campaignId: 'camp-1',
+        }),
+      );
+
+      // aiServerMetrics write blocked
+      await assertFails(
+        setDoc(doc(adminDb, 'aiServerMetrics/self_hosted'), {
+          gpuUsagePct: 10.0,
+        }),
+      );
+
+      // healthChecks write blocked
+      await assertFails(
+        setDoc(doc(adminDb, 'healthChecks/spoofed_check'), {
+          serviceId: 'admin-api',
+          status: 'healthy',
+        }),
+      );
+
+      // usageDaily write blocked
+      await assertFails(
+        setDoc(doc(adminDb, 'usageDaily/tampered_daily'), {
+          totalCostUsd: 0,
+        }),
+      );
+    });
+
+    it('should enforce default-deny on any arbitrary or undeclared collection path', async () => {
+      const unauthedDb = getUnauthedDb();
+      const superAdminDb = getSuperAdminDb();
+
+      await assertFails(getDoc(doc(unauthedDb, 'unregistered_backdoor/exploit')));
+      await assertFails(
+        setDoc(doc(superAdminDb, 'random_internal_data/payload'), {
+          compromised: true,
+        }),
+      );
+    });
+
+    it('should allow legitimate admin operations on costAlerts, dataRetention, and infrastructureAlerts', async () => {
+      const adminDb = getAdminDb();
+
+      // Valid cost alert
+      await assertSucceeds(
+        setDoc(doc(adminDb, 'costAlerts/valid_rule_1'), {
+          id: 'valid_rule_1',
+          name: 'Valid Rule',
+          metric: 'daily_cost_usd',
+          threshold: 50.0,
+          enabled: true,
+        }),
+      );
+
+      // Valid data retention
+      await assertSucceeds(
+        setDoc(doc(adminDb, 'dataRetention/global'), {
+          usageEventsTtlDays: 90,
+          promotionEventsTtlDays: 90,
+          auditLogsTtlDays: 365,
+        }),
+      );
+
+      // Valid infrastructure alert
+      await assertSucceeds(
+        setDoc(doc(adminDb, 'infrastructureAlerts/valid_infra_1'), {
+          id: 'valid_infra_1',
+          name: 'Valid Infra Rule',
+          metric: 'latency_ms',
+          threshold: 300,
+          severity: 'warning',
+          enabled: true,
+        }),
+      );
+
+      // Viewer can read them
+      const viewerDb = getViewerDb();
+      await assertSucceeds(getDoc(doc(viewerDb, 'costAlerts/valid_rule_1')));
+      await assertSucceeds(getDoc(doc(viewerDb, 'dataRetention/global')));
+      await assertSucceeds(getDoc(doc(viewerDb, 'infrastructureAlerts/valid_infra_1')));
+
+      // Viewer cannot write to them
+      await assertFails(setDoc(doc(viewerDb, 'costAlerts/viewer_unauth_write'), { name: 'Fail' }));
+      await assertFails(setDoc(doc(viewerDb, 'dataRetention/global'), { usageEventsTtlDays: 1 }));
+    });
+  });
 });

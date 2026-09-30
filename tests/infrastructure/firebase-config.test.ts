@@ -107,7 +107,7 @@ describe('Phase 1 — Firebase Foundation', () => {
       expect(rulesContent.length).toBeGreaterThan(100);
     });
 
-    it('should cover all 13 core collections identified in PRD & Architecture', () => {
+    it('should cover all 18 core collections identified in PRD & Architecture', () => {
       const requiredCollections = [
         'roles',
         'apps',
@@ -122,6 +122,11 @@ describe('Phase 1 — Firebase Foundation', () => {
         'usageEvents',
         'healthChecks',
         'auditLogs',
+        'promotionEvents',
+        'costAlerts',
+        'dataRetention',
+        'infrastructureAlerts',
+        'aiServerMetrics',
       ];
 
       for (const col of requiredCollections) {
@@ -130,7 +135,14 @@ describe('Phase 1 — Firebase Foundation', () => {
     });
 
     it('should forbid client writes to backend-only collections', () => {
-      const backendOnlyCollections = ['usageDaily', 'usageEvents', 'healthChecks', 'auditLogs'];
+      const backendOnlyCollections = [
+        'usageDaily',
+        'usageEvents',
+        'healthChecks',
+        'auditLogs',
+        'promotionEvents',
+        'aiServerMetrics',
+      ];
 
       for (const col of backendOnlyCollections) {
         const regex = new RegExp(

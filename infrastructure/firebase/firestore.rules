@@ -194,6 +194,51 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ============================================================
+    // 14. Promotion Events (/promotionEvents/{eventId})
+    // Client write is FORBIDDEN. Only promotion-api writes.
+    // ============================================================
+    match /promotionEvents/{eventId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    // ============================================================
+    // 15. Cost Alert Rules (/costAlerts/{alertId})
+    // ============================================================
+    match /costAlerts/{alertId} {
+      allow read: if isViewer();
+      allow create, update, delete: if isAdmin()
+                                    && hasNoPrivateSecrets(request.resource.data);
+    }
+
+    // ============================================================
+    // 16. Data Retention Policy (/dataRetention/{policyId})
+    // ============================================================
+    match /dataRetention/{policyId} {
+      allow read: if isViewer();
+      allow write: if isAdmin()
+                    && hasNoPrivateSecrets(request.resource.data);
+    }
+
+    // ============================================================
+    // 17. Infrastructure Alerts (/infrastructureAlerts/{alertId})
+    // ============================================================
+    match /infrastructureAlerts/{alertId} {
+      allow read: if isViewer();
+      allow create, update, delete: if isAdmin()
+                                    && hasNoPrivateSecrets(request.resource.data);
+    }
+
+    // ============================================================
+    // 18. AI Server Metrics (/aiServerMetrics/{serverId})
+    // Client write is FORBIDDEN. Only health-worker/node agent writes.
+    // ============================================================
+    match /aiServerMetrics/{serverId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
     // Default deny catch-all for any undefined paths
     match /{document=**} {
       allow read, write: if false;

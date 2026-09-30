@@ -122,6 +122,13 @@ export const TargetingRulesSchema = z.object({
   environments: z.array(EnvironmentSchema).optional(),
 });
 
+export const HttpUrlSchema = z
+  .string()
+  .url()
+  .refine((url) => /^https?:\/\//i.test(url), {
+    message: 'Must be a valid HTTP or HTTPS URL',
+  });
+
 export const CreateCampaignSchema = z.object({
   name: z.string().min(1).max(100),
   promotedAppId: z.string().min(1),
@@ -129,9 +136,9 @@ export const CreateCampaignSchema = z.object({
   title: z.string().min(1).max(60),
   description: z.string().min(1).max(200),
   ctaText: z.string().min(1).max(30),
-  storeUrl: z.string().url(),
-  imageUrl: z.string().url().optional(),
-  animationUrl: z.string().url().optional(),
+  storeUrl: HttpUrlSchema,
+  imageUrl: HttpUrlSchema.optional(),
+  animationUrl: HttpUrlSchema.optional(),
   layoutVariant: LayoutVariantSchema,
   scheduleStart: TimestampSchema.optional(),
   scheduleEnd: TimestampSchema.optional(),
@@ -212,7 +219,7 @@ export const CreateAiProviderSchema = z.object({
   name: z.string().min(1).max(100),
   type: AiProviderTypeSchema,
   enabled: z.boolean().default(true),
-  baseUrl: z.string().url().optional(),
+  baseUrl: HttpUrlSchema.optional(),
   description: z.string().max(500).optional(),
   models: z.array(AiModelSchema).default([]),
   apiKey: z.string().min(1).optional(),

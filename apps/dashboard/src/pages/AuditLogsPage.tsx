@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   PageHeader,
   Card,
@@ -14,42 +14,43 @@ import {
   TableCell,
   Badge,
 } from '@wapcentral/ui';
-import { FileText, ShieldAlert } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext.js';
+import { FileText, ShieldAlert, Search } from 'lucide-react';
 import { RoleGuard } from '../components/RoleGuard.js';
+import type { AuditLog } from '@wapcentral/types';
+import { subscribeAuditLogs } from '../services/auditService.js';
 
 type ViewState = 'content' | 'loading' | 'empty' | 'error';
 
 export const AuditLogsPage: React.FC = () => {
   const [viewState, setViewState] = useState<ViewState>('content');
-  const { hasRole } = useAuth();
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const mockLogs = [
-    {
-      id: 'log_01',
-      actor: 'admin@webappypie.com',
-      action: 'campaign.publish',
-      resource: 'campaign/camp_01',
-      ip: '192.168.1.42',
-      timestamp: '10 mins ago',
-    },
-    {
-      id: 'log_02',
-      actor: 'editor@webappypie.com',
-      action: 'flag.update',
-      resource: 'featureFlags/promotion_enabled',
-      ip: '192.168.1.18',
-      timestamp: '1 hour ago',
-    },
-    {
-      id: 'log_03',
-      actor: 'admin@webappypie.com',
-      action: 'app.create',
-      resource: 'apps/app_03',
-      ip: '192.168.1.42',
-      timestamp: '3 hours ago',
-    },
-  ];
+  useEffect(() => {
+    const unsubscribe = subscribeAuditLogs(
+      (loadedLogs) => setLogs(loadedLogs),
+      () => {},
+    );
+    return () => unsubscribe();
+  }, []);
+
+  const getActionBadgeVariant = (action: string) => {
+    if (action.includes('delete') || action.includes('archive') || action.includes('pause')) {
+      return 'warning';
+    }
+    if (action.includes('create') || action.includes('publish')) {
+      return 'success';
+    }
+    return 'outline';
+  };
+
+  const filteredLogs = logs.filter(
+    (log) =>
+      log.actorEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      log.resourceType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      log.resourceId.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
 
   return (
     <RoleGuard requiredRole="admin">
@@ -99,38 +100,71 @@ export const AuditLogsPage: React.FC = () => {
         )}
 
         {viewState === 'content' && (
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>Actor</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Resource</TableHead>
-                    <TableHead>Origin IP</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {mockLogs.map((log) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="text-xs text-slate-500">{log.timestamp}</TableCell>
-                      <TableCell className="font-semibold text-xs">{log.actor}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-mono text-[10px]">
-                          {log.action}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-slate-600 dark:text-slate-400">
-                        {log.resource}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-slate-400">{log.ip}</TableCell>
+          <>
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by actor, action, resource..."
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 pl-9 pr-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Timestamp</TableHead>
+                      <TableHead>Actor</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Resource</TableHead>
+                      <TableHead>Origin IP</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredLogs.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-slate-500">
+                          No audit log entries found.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredLogs.map((log) => (
+                        <TableRow key={log.id}>
+                          <TableCell className="text-xs text-slate-500 font-mono whitespace-nowrap">
+                            {new Date(log.timestamp).toLocaleString()}
+                          </TableCell>
+                          <TableCell className="font-semibold text-xs text-slate-900 dark:text-slate-100">
+                            {log.actorEmail}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={getActionBadgeVariant(log.action)}
+                              className="font-mono text-[10px]"
+                            >
+                              {log.action}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-slate-600 dark:text-slate-400">
+                            <span className="text-slate-400">{log.resourceType}/</span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">
+                              {log.resourceId}
+                            </span>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-slate-400">
+                            {log.ipAddress || '127.0.0.1'}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </>
         )}
       </div>
     </RoleGuard>

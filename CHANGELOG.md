@@ -5,12 +5,69 @@ All notable changes to this project are documented here. Format based on
 
 ---
 
-## [Unreleased] — Phase 3: Core Dashboard Features
+## [Unreleased] — Phase 4: Admin API & Key Vault
 
-- App management CRUD with Firestore listeners
-- Self-promotion campaign builder with creative upload and live device preview
-- Feature flag editor with dual-layer Firestore + Remote Config sync
-- Basic analytics charts and export
+- Admin API service on Cloud Run / Functions with Express
+- Google Cloud Secret Manager integration for provider keys
+- Key rotation and access audit logging
+- API key issue/revoke endpoints with app-key authentication
+
+---
+
+## [0.4.0] — Phase 3: Core Dashboard Features — 2026-09-30
+
+### Added
+
+- **Live Firestore Client & Resilience Architecture (`apps/dashboard/src/lib/firestore.ts`):**
+  - Firestore and Storage client setup with emulator auto-discovery.
+  - Zero-lag in-memory fallback strategy (`isOfflineMode`) ensuring complete test and development
+    resilience without network blocking.
+- **Core Dashboard Services (`apps/dashboard/src/services/`):**
+  - `appsService`: App registration, update, delete/archive, and real-time subscription
+    (`subscribeApps`) using Zod schemas (`CreateAppSchema`, `UpdateAppSchema`).
+  - `campaignsService`: Promotion campaign CRUD, real-time subscription (`subscribeCampaigns`), and
+    status toggles (`published`, `paused`, `draft`) with frequency capping.
+  - `featureFlagsService`: Remote config flag upsert, boolean quick toggling, and real-time
+    subscription (`subscribeFeatureFlags`) using `UpsertFeatureFlagSchema`.
+  - `auditService`: Immutable audit event recording (`recordAuditLog`) and real-time feed
+    (`subscribeAuditLogs`) tracking administrative actions across apps, campaigns, and flags.
+- **Interactive Device Preview Component (`apps/dashboard/src/components/DevicePreview.tsx`):**
+  - Realistic smartphone bezel with dynamic island / notch, status bar, and home indicator.
+  - Placement rendering modes:
+    - `banner`: Top or bottom docked banner with app icon, headline, body copy, and CTA button.
+    - `interstitial`: Fullscreen takeover overlay with background artwork, close button, and CTA
+      bar.
+    - `native`: In-feed sponsored card blending seamlessly with mock content feeds.
+- **Production Modals (`apps/dashboard/src/components/modals/`):**
+  - `AppModal`: App registration and configuration with platform selection, package ID validation,
+    versioning, store URLs, and modular SDK checkboxes.
+  - `CampaignModal`: 2-column campaign builder featuring live interactive `DevicePreview` updating
+    in real time as creative fields (title, description, CTA, image URL, layout) change.
+  - `FeatureFlagModal`: Remote flag creator supporting boolean, string, and numeric types with
+    global, per-app, and per-environment scopes.
+- **Page Data Wiring:**
+  - `AppsPage`: Real-time subscription to registered apps, search by name/package ID, platform
+    filtering, add/edit modal integration, and delete confirmation.
+  - `PromotionsPage`: Real-time subscription to campaigns, status filtering, one-click Publish/Pause
+    toggles, standalone full-screen mobile preview modal, and CampaignModal integration.
+  - `ConfigPage`: Real-time subscription to feature flags, quick-toggle boolean switches, dual-layer
+    Firestore + Remote Config explanation, and FeatureFlagModal integration.
+  - `OverviewPage`: Dynamic KPI metrics driven by live app counts, active campaign counts, and
+    feature flag counts.
+  - `AuditLogsPage`: Real-time admin audit stream with action categorization and actor/resource
+    search filtering.
+
+### Tests & Validation
+
+- 3 new unit tests in `DevicePreview.test.tsx` verifying banner, interstitial, and native rendering
+  in SSR.
+- 7 new service tests in `services.test.ts` verifying CRUD operations, Zod validation rejections,
+  and audit event emission.
+- All 15 monorepo test suites passing (`pnpm test`): 12 dashboard tests, 13 UI tests, 16
+  infrastructure tests.
+- 20 live Firestore security rules tests passing on Firestore emulator (`pnpm test:rules`).
+- Entire monorepo builds cleanly with zero TypeScript errors (`pnpm build`).
+- Prettier code style validated cleanly (`pnpm format:check`).
 
 ---
 

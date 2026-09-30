@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   PageHeader,
   Card,
@@ -11,12 +11,39 @@ import {
   EmptyState,
   ErrorState,
 } from '@wapcentral/ui';
-import { Smartphone, Sparkles, Megaphone, Tag, RefreshCw } from 'lucide-react';
+import { Smartphone, Sparkles, Megaphone, Tag, RefreshCw, Sliders } from 'lucide-react';
+import { subscribeApps } from '../services/appsService.js';
+import { subscribeCampaigns } from '../services/campaignsService.js';
+import { subscribeFeatureFlags } from '../services/featureFlagsService.js';
 
 type ViewState = 'content' | 'loading' | 'empty' | 'error';
 
 export const OverviewPage: React.FC = () => {
   const [viewState, setViewState] = useState<ViewState>('content');
+  const [appsCount, setAppsCount] = useState(0);
+  const [activeCampaignsCount, setActiveCampaignsCount] = useState(0);
+  const [flagsCount, setFlagsCount] = useState(0);
+
+  useEffect(() => {
+    const unsubApps = subscribeApps(
+      (apps) => setAppsCount(apps.length),
+      () => {},
+    );
+    const unsubCampaigns = subscribeCampaigns(
+      (camps) => setActiveCampaignsCount(camps.filter((c) => c.status === 'published').length),
+      () => {},
+    );
+    const unsubFlags = subscribeFeatureFlags(
+      (flags) => setFlagsCount(flags.filter((f) => f.enabled).length),
+      () => {},
+    );
+
+    return () => {
+      unsubApps();
+      unsubCampaigns();
+      unsubFlags();
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -86,7 +113,7 @@ export const OverviewPage: React.FC = () => {
                 <Smartphone className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">12</div>
+                <div className="text-2xl font-bold">{appsCount}</div>
                 <p className="text-xs text-slate-500 mt-1">Across Android & iOS fleets</p>
               </CardContent>
             </Card>
@@ -99,7 +126,7 @@ export const OverviewPage: React.FC = () => {
                 <Tag className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">5</div>
+                <div className="text-2xl font-bold">{activeCampaignsCount}</div>
                 <p className="text-xs text-emerald-600 font-medium mt-1">
                   100% non-blocking delivery
                 </p>
@@ -109,13 +136,13 @@ export const OverviewPage: React.FC = () => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-slate-500">
-                  AI Daily Tokens
+                  Active Feature Flags
                 </CardTitle>
-                <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                <Sliders className="h-4 w-4 text-purple-600 dark:text-purple-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">2.4M</div>
-                <p className="text-xs text-slate-500 mt-1">Across OpenAI & Gemini</p>
+                <div className="text-2xl font-bold">{flagsCount}</div>
+                <p className="text-xs text-slate-500 mt-1">Synchronized via Remote Config</p>
               </CardContent>
             </Card>
 

@@ -5,13 +5,47 @@ All notable changes to this project are documented here. Format based on
 
 ---
 
-## [Unreleased] — Phase 8: Mobile Promotion Module (wap_promo_sdk)
+## [Unreleased] — Phase 9: Ads Management (wap_ads_sdk)
 
-- Flutter SDK package (`sdks/wap_promo_sdk/`)
-- PromoCache (local persistent cache with zero-latency startup)
-- PromoService (background refresh, HMAC signature verification)
-- PromoWidget (banner, interstitial, and native variants with graceful fallbacks)
-- Frequency capping enforcement and fire-and-forget analytics event dispatch
+- Third-party ad network wrapper SDK (`sdks/wap_ads_sdk/`)
+- Google AdMob integration (banner, interstitial, rewarded, native)
+- Meta Audience Network integration
+- AppLovin MAX mediation integration
+- WAPAds integration hook delegating to wap_promo_sdk
+- Dashboard ad unit configuration and provider registry
+
+---
+
+## [0.9.0] — Phase 8: Mobile Promotion Module (wap_promo_sdk) — 2026-09-30
+
+### Added
+
+- **Flutter Promotion SDK (`sdks/wap_promo_sdk`):**
+  - **Zero-Latency Startup**: `WapPromoSdk.init` immediately resolves promotional state from local
+    cache so widgets render without waiting for remote network responses.
+  - **Non-Blocking Reliability**: Remote campaign fetching and background refreshes run completely
+    out-of-band; mobile startup and UI frame rendering are never blocked.
+  - **Graceful Degradation**: Multi-tier resolution: Cache -> Remote Config safe default -> Hide
+    widget (`SizedBox.shrink()`). Never throws exceptions or crashes the host app.
+  - **Cryptographic Security (`CryptoValidator`)**: Validates server HMAC-SHA256 signatures with
+    timing-safe equality against `PROMOTION_SIGNING_SECRET` before trusting incoming payloads.
+  - **Local Persistence (`PromoCache`)**: Persistent cache layer using `SharedPreferences` with
+    in-memory fallbacks, managing campaign expiration and impression histories.
+  - **Frequency Capping (`PromoService`)**: Automatically blocks campaigns from displaying once
+    per-device impression limits are reached within the configured period window.
+  - **Fire-and-Forget Telemetry**: Dispatches impression and click analytics to `promotion-api`
+    asynchronously without awaiting HTTP completion.
+  - **Widgets & UI Components**:
+    - `WapPromoBanner`: Responsive bottom or inline banner with thumbnail, title, description, and
+      CTA.
+    - `WapPromoInterstitial`: Modal takeover dialog with close button and CTA install action.
+    - `WapPromoNative`: Native feed card with 'PROMOTED' badge for scrollable list feeds.
+    - `WapPromoBuilder`: Flexible builder exposing raw `PromoPayload` for custom layouts.
+  - **Test Suite**: 21 unit and widget tests (`crypto_validator_test.dart`,
+    `promo_models_test.dart`, `promo_cache_test.dart`, `promo_service_test.dart`,
+    `promo_widget_test.dart`) covering HMAC validation, tamper detection, cache-first boot, network
+    failure resilience, frequency capping, and widget rendering.
+  - **Integration Documentation**: Production-grade `README.md` with integration examples.
 
 ---
 

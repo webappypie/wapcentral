@@ -1,0 +1,100 @@
+name: Security Checks
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+  schedule:
+    # Run weekly security scan on Mondays at 9am UTC
+    - cron: "0 9 * * 1"
+
+jobs:
+  # ============================================================
+  # Dependency Vulnerability Scan
+  # ============================================================
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "9"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit for high/critical vulnerabilities
+        run: pnpm audit --audit-level=high
+        continue-on-error: false
+
+  # ============================================================
+  # .env and credential file check
+  # ============================================================
+  env-file-check:
+    name: Env File Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check no .env files committed
+        run: |
+          echo "Checking for committed .env files..."
+          if find . -name ".env" -not -path "./.git/*" -not -name ".env.example" | grep -q .; then
+            echo "ERROR: .env file detected in repository!"
+            find . -name ".env" -not -path "./.git/*" -not -name ".env.example"
+            exit 1
+          fi
+          echo "No .env files found. OK."
+
+      - name: Check no service account JSON files committed
+        run: |
+          echo "Checking for service account JSON files..."
+          if find . -name "*service-account*.json" -not -path "./.git/*" | grep -q .; then
+            echo "ERROR: Service account JSON file detected in repository!"
+            find . -name "*service-account*.json" -not -path "./.git/*"
+            exit 1
+          fi
+          if find . -name "google-services.json" -not -path "./.git/*" | grep -q .; then
+            echo "ERROR: google-services.json detected in repository!"
+            exit 1
+          fi
+          echo "No credential files found. OK."
+
+      - name: Check for hardcoded key patterns
+        run: |
+          echo "Scanning for hardcoded key patterns..."
+          PATTERNS=(
+            "sk-[a-zA-Z0-9]"
+            "AIza[a-zA-Z0-9]"
+            "AKIA[A-Z0-9]"
+            "ghp_[a-zA-Z0-9]"
+            "-----BEGIN PRIVATE KEY-----"
+            "-----BEGIN RSA PRIVATE KEY-----"
+          )
+          FOUND=0
+          for pattern in "${PATTERNS[@]}"; do
+            if grep -r "$pattern" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.dart" . \
+              --exclude-dir=node_modules \
+              --exclude-dir=dist \
+              --exclude-dir=build \
+              --exclude-dir=".git" 2>/dev/null | grep -v ".env.example"; then
+              echo "ERROR: Potential secret pattern found: $pattern"
+              FOUND=1
+            fi
+          done
+          if [ $FOUND -eq 1 ]; then
+            exit 1
+          fi
+          echo "No hardcoded secrets detected. OK."

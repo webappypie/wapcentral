@@ -1,0 +1,113 @@
+# ========================
+# Environment files (NEVER commit real values)
+# ========================
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.staging.local
+.env.production.local
+
+# ========================
+# Firebase / Google Cloud (NEVER commit)
+# ========================
+google-services.json
+GoogleService-Info.plist
+*-service-account.json
+firebase-debug.log
+firebase-debug.*.log
+.firebase/
+.firebaserc.local
+
+# ========================
+# Dependencies
+# ========================
+node_modules/
+.pnpm-store/
+
+# ========================
+# Build outputs
+# ========================
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+.turbo/
+# Compiled TS config files (auto-generated)
+apps/dashboard/vite.config.js
+apps/dashboard/vite.config.js.map
+apps/dashboard/vite.config.d.ts
+apps/dashboard/vite.config.d.ts.map
+
+# ========================
+# Test / Coverage
+# ========================
+coverage/
+.nyc_output/
+
+# ========================
+# Flutter / Dart
+# ========================
+sdks/wap_promo_sdk/.dart_tool/
+sdks/wap_promo_sdk/build/
+sdks/wap_ads_sdk/.dart_tool/
+sdks/wap_ads_sdk/build/
+*.iml
+.gradle/
+local.properties
+**/android/.gradle/
+**/android/local.properties
+**/android/key.properties
+**/ios/Flutter/.last_build_id
+*.flutter-plugins
+*.flutter-plugins-dependencies
+
+# ========================
+# IDE / Editor
+# ========================
+.idea/
+*.iws
+*.ipr
+.vscode/settings.json
+.vscode/launch.json
+*.suo
+*.user
+*.userosscache
+*.sln.docobj
+
+# ========================
+# OS
+# ========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========================
+# Logs
+# ========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ========================
+# Temporary
+# ========================
+tmp/
+temp/
+*.tmp
+*.temp
+
+# ========================
+# Secrets / Keys (catch-all)
+# ========================
+*.pem
+*.key
+*.p12
+*.pfx
+*.p8
+*secret*
+*credentials*.json

@@ -1,0 +1,38 @@
+// Firestore Security Rules — WAPCentral
+// Phase 1 will implement full production rules.
+// This is a LOCKED-DOWN placeholder — denies all client access by default.
+// Backend services access Firestore via Admin SDK (bypasses these rules).
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // PHASE 0 PLACEHOLDER — ALL ACCESS DENIED
+    // ============================================================
+    // Phase 1 will implement granular rules per collection.
+    // Backend services use Firebase Admin SDK and are not subject to these rules.
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ============================================================
+    // TODO (Phase 1): Implement per-collection rules:
+    //
+    // apps — read: authenticated admin; write: admin role only
+    // environments — read: authenticated admin; write: admin role only
+    // providers — read: authenticated admin; write: admin role only
+    // models — read: authenticated admin; write: admin role only
+    // aiPolicies — read: authenticated admin; write: admin role only
+    // campaigns — read: authenticated admin; write: editor+ role
+    // campaignAssets — read: authenticated admin; write: editor+ role
+    // featureFlags — read: authenticated admin; write: admin+ role
+    // usageDaily — read: authenticated admin; write: DENY (backend only)
+    // usageEvents — read: authenticated admin; write: DENY (backend only)
+    // healthChecks — read: authenticated admin; write: DENY (backend only)
+    // auditLogs — read: authenticated admin (super_admin only); write: DENY (backend only)
+    // roles — read: super_admin only; write: super_admin only
+    // ============================================================
+  }
+}

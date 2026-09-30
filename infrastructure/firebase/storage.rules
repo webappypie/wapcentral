@@ -1,0 +1,21 @@
+// Storage Security Rules — WAPCentral
+// Phase 1 will implement full production rules.
+// LOCKED-DOWN placeholder — denies all client access by default.
+// Backend services use Admin SDK.
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ============================================================
+    // PHASE 0 PLACEHOLDER — ALL ACCESS DENIED
+    // ============================================================
+    // TODO (Phase 1): Implement rules:
+    // - campaign-assets/{filename} — read: public (signed URLs only); write: DENY (backend only)
+    // - No direct client write access to Storage
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

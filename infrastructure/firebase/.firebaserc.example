@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "development": "wapcentral-dev",
+    "staging": "wapcentral-staging",
+    "production": "wapcentral-prod"
+  }
+}

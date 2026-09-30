@@ -348,6 +348,7 @@ export interface ServiceHealth {
 // ============================================================
 
 export type UserRole = 'viewer' | 'editor' | 'admin' | 'super_admin';
+export type AdminRole = UserRole;
 
 export interface AdminUser {
   uid: string;

@@ -17,7 +17,7 @@
     "type-check": "tsc --noEmit",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "clean": "rimraf dist"
   },
   "peerDependencies": {
@@ -32,5 +32,8 @@
     "rimraf": "^6.0.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1"
   }
 }

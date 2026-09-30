@@ -5,13 +5,57 @@ All notable changes to this project are documented here. Format based on
 
 ---
 
-## [Unreleased] — Phase 2: Dashboard Shell
+## [Unreleased] — Phase 3: Core Dashboard Features
 
-- React admin dashboard shell with Vite, TypeScript, Tailwind CSS, and Radix UI
-- Sidebar navigation across all 10 core sections
-- Firebase Auth guard and authentication flow
-- Theme provider (light/dark mode)
-- Standardized UI states (loading, empty, error, permission-denied)
+- App management CRUD with Firestore listeners
+- Self-promotion campaign builder with creative upload and live device preview
+- Feature flag editor with dual-layer Firestore + Remote Config sync
+- Basic analytics charts and export
+
+---
+
+## [0.3.0] — Phase 2: Dashboard Shell — 2026-09-30
+
+### Added
+
+- `@wapcentral/ui` component library:
+  - Accessible, customizable components: `Button`, `Card`, `Badge`, `Spinner`, `StatusIndicator`,
+    `EmptyState`, `ErrorState`, `Modal`, `Table`, `PageHeader`
+  - Utility styling helper `cn` combining conditional classes
+  - Full unit test suite with 13 component tests
+- `@wapcentral/dashboard` application:
+  - React 18 + Vite 5 + TypeScript + Tailwind CSS setup
+  - Responsive layout shell: `DashboardLayout`, `Sidebar`, and `Header`
+  - Sidebar navigation across all 10 core sections: Overview, Apps, AI Gateway, Ad Networks,
+    Promotions, Feature Flags, Infrastructure, Analytics, Audit Logs, Settings
+  - Theme management: `ThemeProvider` supporting light, dark, and system preference with
+    localStorage persistence
+  - Authentication: `AuthProvider` integrating Firebase Auth, role resolution, and quick demo role
+    switcher for local testing
+  - Route Guards: `AuthGuard` (session authentication check) and `RoleGuard` (RBAC level
+    authorization gate)
+  - All 10 section pages with standard states (content, loading spinner, empty placeholder, error
+    alert, permission-denied preview)
+  - Public authentication page (`LoginPage`), 403 Forbidden page (`UnauthorizedPage`), and 404 page
+    (`NotFoundPage`)
+  - Full production Vite build bundling cleanly into `apps/dashboard/dist`
+  - Guards unit test suite
+
+### Security
+
+- Protected routing architecture ensures unauthenticated users are redirected to `/login`
+- RoleGuard enforces least-privilege RBAC on sensitive views (e.g. Audit Logs requiring `admin`
+  level)
+- Demo testing roles strictly isolated to client memory/sessionStorage and bypassable in production
+
+### Tests
+
+- 13 component unit tests passed in `@wapcentral/ui`
+- 2 route/role guard integration tests passed in `@wapcentral/dashboard`
+- All 15 package & service tasks passed in monorepo test runner (`pnpm test`)
+- 16 infrastructure tests passed
+- 20 live Firestore security rules tests passed against emulator (`pnpm test:rules`)
+- Full production bundle build passed for all 10 monorepo packages (`pnpm build`)
 
 ---
 

@@ -177,6 +177,63 @@ export const PromotionQuerySchema = z.object({
 // AI Provider / Gateway Schemas
 // ============================================================
 
+export const AiModelSchema = z.object({
+  id: z.string().min(1),
+  providerId: z.string().min(1),
+  modelId: z.string().min(1),
+  name: z.string().min(1).max(100),
+  enabled: z.boolean().default(true),
+  inputCostPer1kTokens: z.number().nonnegative().optional(),
+  outputCostPer1kTokens: z.number().nonnegative().optional(),
+  maxInputTokens: z.number().int().positive().optional(),
+  maxOutputTokens: z.number().int().positive().optional(),
+});
+
+export const CreateAiProviderSchema = z.object({
+  id: z
+    .string()
+    .min(1)
+    .max(50)
+    .regex(/^[a-z0-9_-]+$/, 'Must contain lowercase letters, numbers, hyphens or underscores'),
+  name: z.string().min(1).max(100),
+  type: AiProviderTypeSchema,
+  enabled: z.boolean().default(true),
+  baseUrl: z.string().url().optional(),
+  description: z.string().max(500).optional(),
+  models: z.array(AiModelSchema).default([]),
+  apiKey: z.string().min(1).optional(),
+});
+
+export const UpdateAiProviderSchema = CreateAiProviderSchema.partial().omit({ id: true });
+
+export const FallbackEntrySchema = z.object({
+  providerId: z.string().min(1),
+  modelId: z.string().min(1),
+  priority: z.number().int().min(1).max(100),
+});
+
+export const QuotaConfigSchema = z.object({
+  dailyRequestLimit: z.number().int().positive().optional(),
+  monthlyRequestLimit: z.number().int().positive().optional(),
+  dailyTokenLimit: z.number().int().positive().optional(),
+  monthlyTokenLimit: z.number().int().positive().optional(),
+  perUserDailyRequestLimit: z.number().int().positive().optional(),
+  maxInputTokensPerRequest: z.number().int().positive().optional(),
+  maxOutputTokensPerRequest: z.number().int().positive().optional(),
+});
+
+export const CreateAiPolicySchema = z.object({
+  appId: z.string().min(1),
+  feature: z.string().min(1).max(100),
+  primaryProviderId: z.string().min(1),
+  primaryModelId: z.string().min(1),
+  fallbackChain: z.array(FallbackEntrySchema).default([]),
+  quotas: QuotaConfigSchema.default({}),
+  enabled: z.boolean().default(true),
+});
+
+export const UpdateAiPolicySchema = CreateAiPolicySchema.partial();
+
 export const GatewayRequestSchema = z.object({
   appId: z.string().min(1),
   version: z.string().min(1),
@@ -233,3 +290,8 @@ export type UpdateCampaignInput = z.infer<typeof UpdateCampaignSchema>;
 export type GatewayRequestInput = z.infer<typeof GatewayRequestSchema>;
 export type PromotionQuery = z.infer<typeof PromotionQuerySchema>;
 export type UpsertFeatureFlagInput = z.infer<typeof UpsertFeatureFlagSchema>;
+export type CreateAiProviderInput = z.input<typeof CreateAiProviderSchema>;
+export type UpdateAiProviderInput = z.input<typeof UpdateAiProviderSchema>;
+export type CreateAiPolicyInput = z.input<typeof CreateAiPolicySchema>;
+export type UpdateAiPolicyInput = z.input<typeof UpdateAiPolicySchema>;
+export type AiModelInput = z.infer<typeof AiModelSchema>;

@@ -5,12 +5,78 @@ All notable changes to this project are documented here. Format based on
 
 ---
 
-## [Unreleased] — Phase 5: AI Provider Management
+## [Unreleased] — Phase 6: AI Gateway & Usage
 
-- AI Provider Configuration Engine (OpenAI, Gemini, Anthropic, Self-hosted Ollama/vLLM)
-- Failover & circuit-breaker routing strategy with cost optimization
-- Secure proxy endpoints with rate limiting, quota enforcement, and token tracking
-- AI Provider settings & telemetry dashboard UI
+- `services/ai-gateway/` Cloud Run service with request authentication (Firebase Auth tokens)
+- Model routing, circuit-breaker failover execution, and timeout/retry handling
+- Quota and rate-limit enforcement engine
+- Non-blocking asynchronous Firestore `usageEvents` telemetry logging
+- `usageDaily` aggregation worker and cost estimation tracking
+
+---
+
+## [0.6.0] — Phase 5: AI Provider Management — 2026-09-30
+
+### Added
+
+- **AI Provider Abstraction Layer (`packages/provider-sdk`):**
+  - Platform-agnostic `IProvider` interface defining standard contracts for `generate`,
+    `analyzeImage`, `embed`, `healthCheck`, and `estimateCost`.
+  - `OpenAIProvider`: Chat completions, GPT-4o multimodal vision, embeddings
+    (`text-embedding-3-small`), and models health check.
+  - `GeminiProvider`: Google Generative Language REST integration with `generateContent`, multimodal
+    inlineData, embeddings, and models endpoint probe.
+  - `AnthropicProvider`: Anthropic Claude messages integration with multimodal base64 image blocks
+    and latency checks.
+  - `SelfHostedProvider`: Support for self-hosted LLM endpoints via OpenAI-compatible API (vLLM/TGI)
+    or Ollama native API (`/api/generate`) with zero cloud cost estimation.
+  - `costEstimator`: Dynamic cost estimation engine with default rate cards for `gpt-4o`,
+    `gpt-4o-mini`, `gemini-1.5-flash`, `gemini-1.5-pro`, `claude-3-5-sonnet`, `llama-3.1-8b`, and
+    custom overrides, strictly tagged `isEstimate: true`.
+  - `ProviderError`: Standardized error taxonomy mapping HTTP error codes to `AUTH_ERROR`,
+    `RATE_LIMITED`, `QUOTA_EXCEEDED`, `TIMEOUT`, `INVALID_REQUEST`, `CONTEXT_TOO_LONG`, and
+    `PROVIDER_ERROR` with retryable flags.
+  - `ProviderRegistry`: In-memory provider registry for managing active adapter instances.
+  - 19 automated unit and mock integration tests
+    (`packages/provider-sdk/src/tests/provider-sdk.test.ts`).
+- **Validation Schemas & Shared Types (`packages/validation`, `packages/types`):**
+  - Updated `AiProvider`, `AiModel`, and `AiPolicy` models with optional `baseUrl` and
+    `description`.
+  - Added `CreateAiProviderSchema`, `UpdateAiProviderSchema`, `AiModelSchema`,
+    `CreateAiPolicySchema`, `UpdateAiPolicySchema`, and `FallbackEntrySchema`.
+  - Added new audit action types: `provider.delete`, `policy.create`, `policy.update`,
+    `policy.delete`, `policy.toggle`.
+- **Admin API AI Routes (`services/admin-api`):**
+  - `aiProvidersRouter` (`/v1/ai/providers`): Provider list, get details, create with write-only
+    Secret Manager key vault integration, update, delete (super_admin), and active connection health
+    check trigger (`POST /:id/health-check`).
+  - `aiPoliciesRouter` (`/v1/ai/policies`): Routing policies list, create, update, quick status
+    toggle (`PATCH /:id/toggle`), and delete.
+  - All mutating provider and policy operations automatically write structured entries to the audit
+    trail.
+  - 5 new integration tests in `services/admin-api/src/tests/api.test.ts` (21 tests total passing).
+- **Dashboard AI Management Console (`apps/dashboard`):**
+  - `services/aiService.ts`: Client service managing providers, policies, health checks, and audit
+    logging with offline fallback resilience.
+  - `AiProviderModal.tsx`: Modal for registering and configuring AI providers, managing model
+    allowlists, and safely storing credentials in Secret Manager.
+  - `AiPolicyModal.tsx`: Modal for configuring feature-level routing policies, multi-tier fallback
+    chains, and daily/request quota caps.
+  - `pages/AiPage.tsx`: Revamped interface with tabbed views:
+    - Provider cards with active status, latency badges, and live "Test Connection" trigger buttons.
+    - Routing Policies table with emergency kill switches and fallback chain visualizations.
+    - Model catalog with reference rate card per 1,000,000 tokens and context limit indicators.
+  - 2 new unit tests in `apps/dashboard/src/services.test.ts` (14 tests total passing).
+
+### Tests & Validation
+
+- 19/19 tests passing in `packages/provider-sdk`.
+- 21/21 tests passing in `services/admin-api`.
+- 14/14 tests passing in `apps/dashboard`.
+- 16/16 tests passing in root infrastructure.
+- 20/20 Firestore security rules tests passing on local emulator.
+- 10/10 monorepo packages building cleanly in Turborepo.
+- 100% Prettier code formatting verified.
 
 ---
 

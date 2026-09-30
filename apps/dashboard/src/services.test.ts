@@ -234,4 +234,41 @@ describe('Core Dashboard Services & In-Memory Fallback', () => {
       ).toBe(true);
     });
   });
+
+  describe('AI Management Service', () => {
+    it('should list providers and perform health checks', async () => {
+      const { fetchAiProviders, checkProviderHealth } = await import('./services/aiService.js');
+      const providers = await fetchAiProviders();
+      expect(providers.length).toBeGreaterThanOrEqual(2);
+      expect(providers.some((p) => p.id === 'openai')).toBe(true);
+
+      const health = await checkProviderHealth('openai');
+      expect(health.status).toBe('healthy');
+      expect(health.latencyMs).toBeGreaterThan(0);
+    });
+
+    it('should create and toggle routing policies', async () => {
+      const { createAiPolicy, toggleAiPolicy, fetchAiPolicies } =
+        await import('./services/aiService.js');
+      const policy = await createAiPolicy(
+        {
+          appId: 'app_01',
+          feature: 'service_test_feature',
+          primaryProviderId: 'gemini',
+          primaryModelId: 'gemini-1.5-flash',
+          enabled: true,
+        },
+        mockActor,
+      );
+
+      expect(policy.id).toBeDefined();
+      expect(policy.feature).toBe('service_test_feature');
+
+      const toggled = await toggleAiPolicy(policy.id, mockActor);
+      expect(toggled.enabled).toBe(false);
+
+      const all = await fetchAiPolicies();
+      expect(all.some((p) => p.id === policy.id)).toBe(true);
+    });
+  });
 });

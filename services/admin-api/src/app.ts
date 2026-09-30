@@ -9,6 +9,8 @@ import { appsRouter } from './routes/apps.js';
 import { campaignsRouter } from './routes/campaigns.js';
 import { flagsRouter } from './routes/flags.js';
 import { auditLogsRouter } from './routes/auditLogs.js';
+import { aiProvidersRouter } from './routes/aiProviders.js';
+import { aiPoliciesRouter } from './routes/aiPolicies.js';
 
 export function createApp(): Express {
   const app = express();
@@ -53,6 +55,8 @@ export function createApp(): Express {
   app.use('/v1/campaigns', campaignsRouter);
   app.use('/v1/flags', flagsRouter);
   app.use('/v1/audit-logs', auditLogsRouter);
+  app.use('/v1/ai/providers', aiProvidersRouter);
+  app.use('/v1/ai/policies', aiPoliciesRouter);
 
   // 404 Handler
   app.use((req: Request, res: Response) => {

@@ -212,6 +212,9 @@ importers:
       '@wapcentral/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@wapcentral/provider-sdk':
+        specifier: workspace:*
+        version: link:../../packages/provider-sdk
       '@wapcentral/types':
         specifier: workspace:*
         version: link:../../packages/types

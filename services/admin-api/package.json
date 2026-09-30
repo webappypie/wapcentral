@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@wapcentral/config": "workspace:*",
+    "@wapcentral/provider-sdk": "workspace:*",
     "@wapcentral/types": "workspace:*",
     "@wapcentral/validation": "workspace:*",
     "cors": "^2.8.6",

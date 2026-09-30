@@ -252,4 +252,112 @@ describe('Admin API Service (Phase 4)', () => {
       expect(toggleRes.body.data.enabled).toBe(false);
     });
   });
+
+  describe('AI Provider Management Endpoints', () => {
+    it('should list all registered AI providers for viewer', async () => {
+      const res = await request(app)
+        .get('/v1/ai/providers')
+        .set('Authorization', 'Bearer mock-token-viewer');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.some((p: any) => p.id === 'openai')).toBe(true);
+      expect(res.body.data.some((p: any) => p.id === 'gemini')).toBe(true);
+    });
+
+    it('should allow admin to register an AI provider with write-only secret key', async () => {
+      const res = await request(app)
+        .post('/v1/ai/providers')
+        .set('Authorization', 'Bearer mock-token-admin')
+        .send({
+          id: 'custom_ollama',
+          name: 'Custom Ollama Instance',
+          type: 'self_hosted',
+          enabled: true,
+          baseUrl: 'http://localhost:11434',
+          apiKey: 'test-secret-key-12345',
+          models: [
+            {
+              id: 'm_llama3',
+              providerId: 'custom_ollama',
+              modelId: 'llama-3.1-8b',
+              name: 'Llama 3.1 8B',
+              enabled: true,
+            },
+          ],
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.id).toBe('custom_ollama');
+      // Zero secret leakage in response
+      expect(res.body.data.apiKey).toBeUndefined();
+    });
+
+    it('should allow viewer to trigger provider health check', async () => {
+      const res = await request(app)
+        .post('/v1/ai/providers/openai/health-check')
+        .set('Authorization', 'Bearer mock-token-viewer');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.healthStatus).toBeDefined();
+      expect(res.body.data.healthStatus.status).toBe('healthy');
+    });
+
+    it('should reject non-super_admin from deleting an AI provider', async () => {
+      const res = await request(app)
+        .delete('/v1/ai/providers/openai')
+        .set('Authorization', 'Bearer mock-token-admin');
+
+      expect(res.status).toBe(403);
+    });
+  });
+
+  describe('AI Routing Policy Endpoints', () => {
+    it('should allow editor to create, toggle, and manage routing policies', async () => {
+      const createRes = await request(app)
+        .post('/v1/ai/policies')
+        .set('Authorization', 'Bearer mock-token-editor')
+        .send({
+          appId: 'app_01',
+          feature: 'summarize_article',
+          primaryProviderId: 'gemini',
+          primaryModelId: 'gemini-1.5-flash',
+          fallbackChain: [
+            {
+              providerId: 'openai',
+              modelId: 'gpt-4o-mini',
+              priority: 1,
+            },
+          ],
+          quotas: {
+            dailyRequestLimit: 25000,
+          },
+          enabled: true,
+        });
+
+      expect(createRes.status).toBe(201);
+      expect(createRes.body.data.feature).toBe('summarize_article');
+
+      const policyId = createRes.body.data.id;
+
+      // Toggle status
+      const toggleRes = await request(app)
+        .patch(`/v1/ai/policies/${policyId}/toggle`)
+        .set('Authorization', 'Bearer mock-token-editor');
+
+      expect(toggleRes.status).toBe(200);
+      expect(toggleRes.body.data.enabled).toBe(false);
+
+      // Delete policy (admin required)
+      const deleteRes = await request(app)
+        .delete(`/v1/ai/policies/${policyId}`)
+        .set('Authorization', 'Bearer mock-token-admin');
+
+      expect(deleteRes.status).toBe(200);
+      expect(deleteRes.body.data.deleted).toBe(true);
+    });
+  });
 });

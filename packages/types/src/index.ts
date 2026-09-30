@@ -127,6 +127,8 @@ export interface AiProvider {
   type: AiProviderType;
   enabled: boolean;
   models: AiModel[];
+  baseUrl?: string;
+  description?: string;
   healthStatus?: HealthStatus;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -138,10 +140,10 @@ export interface AiModel {
   modelId: string; // e.g. "gpt-4o", "gemini-1.5-pro"
   name: string;
   enabled: boolean;
-  inputCostPer1kTokens?: number; // USD estimate
-  outputCostPer1kTokens?: number; // USD estimate
-  maxInputTokens?: number;
-  maxOutputTokens?: number;
+  inputCostPer1kTokens?: number | undefined; // USD estimate
+  outputCostPer1kTokens?: number | undefined; // USD estimate
+  maxInputTokens?: number | undefined;
+  maxOutputTokens?: number | undefined;
 }
 
 export interface AiPolicy {
@@ -164,13 +166,13 @@ export interface FallbackEntry {
 }
 
 export interface QuotaConfig {
-  dailyRequestLimit?: number;
-  monthlyRequestLimit?: number;
-  dailyTokenLimit?: number;
-  monthlyTokenLimit?: number;
-  perUserDailyRequestLimit?: number;
-  maxInputTokensPerRequest?: number;
-  maxOutputTokensPerRequest?: number;
+  dailyRequestLimit?: number | undefined;
+  monthlyRequestLimit?: number | undefined;
+  dailyTokenLimit?: number | undefined;
+  monthlyTokenLimit?: number | undefined;
+  perUserDailyRequestLimit?: number | undefined;
+  maxInputTokensPerRequest?: number | undefined;
+  maxOutputTokensPerRequest?: number | undefined;
 }
 
 // ============================================================
@@ -371,6 +373,11 @@ export type AuditAction =
   | 'provider.create'
   | 'provider.update'
   | 'provider.disable'
+  | 'provider.delete'
+  | 'policy.create'
+  | 'policy.update'
+  | 'policy.delete'
+  | 'policy.toggle'
   | 'secret.write'
   | 'campaign.create'
   | 'campaign.update'

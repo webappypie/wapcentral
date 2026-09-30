@@ -1,19 +1,53 @@
-// Storage Security Rules — WAPCentral
-// Phase 1 will implement full production rules.
-// LOCKED-DOWN placeholder — denies all client access by default.
-// Backend services use Admin SDK.
-
 rules_version = '2';
+
+/**
+ * Production Firebase Storage Security Rules — WebAppyPie Central (WAPCentral)
+ *
+ * Rules governing campaign creative assets:
+ * - Public read for campaign creatives so mobile apps (via wap_promo_sdk) can
+ *   fetch images and animations directly without authentication bottlenecks.
+ * - Writes restricted to authenticated staff with editor, admin, or super_admin roles.
+ * - Enforces content-type limits (PNG, JPEG, WebP, GIF, Lottie JSON) and size constraints (max 5MB).
+ * - All other paths default to DENY.
+ */
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // ============================================================
-    // PHASE 0 PLACEHOLDER — ALL ACCESS DENIED
-    // ============================================================
-    // TODO (Phase 1): Implement rules:
-    // - campaign-assets/{filename} — read: public (signed URLs only); write: DENY (backend only)
-    // - No direct client write access to Storage
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
+    function isEditorOrAbove() {
+      return isSignedIn()
+          && request.auth.token.role != null
+          && (request.auth.token.role in ['editor', 'admin', 'super_admin']);
+    }
+
+    function isValidCreativeContentType() {
+      return request.resource.contentType.matches('image/(png|jpeg|webp|gif)')
+          || request.resource.contentType == 'application/json';
+    }
+
+    function isValidFileSize() {
+      // 5 MB limit per asset
+      return request.resource.size <= 5 * 1024 * 1024;
+    }
+
+    // ============================================================
+    // Campaign Creative Assets (/campaign-assets/{campaignId}/{assetName})
+    // ============================================================
+    match /campaign-assets/{campaignId}/{assetName} {
+      // Public read allows client apps and CDN to fetch creatives
+      allow read: if true;
+
+      // Writes restricted to editors/admins with content validation
+      allow write: if isEditorOrAbove()
+                   && isValidCreativeContentType()
+                   && isValidFileSize();
+    }
+
+    // Default deny catch-all
     match /{allPaths=**} {
       allow read, write: if false;
     }

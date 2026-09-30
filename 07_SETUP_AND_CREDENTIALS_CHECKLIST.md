@@ -1,7 +1,7 @@
 # Setup & Credentials Checklist — WAPCentral
 
-**Do NOT store real secret values in this file.**
-Use this as a checklist before starting each environment setup.
+**Do NOT store real secret values in this file.** Use this as a checklist before starting each
+environment setup.
 
 ---
 
@@ -41,13 +41,14 @@ Use this as a checklist before starting each environment setup.
 
 ## Firebase Projects (3 Required)
 
-| Project | Project ID (example) | Purpose |
-|---|---|---|
-| Development | `wapcentral-dev` | Local dev and testing |
-| Staging | `wapcentral-staging` | Pre-production validation |
-| Production | `wapcentral-prod` | Live traffic |
+| Project     | Project ID (example) | Purpose                   |
+| ----------- | -------------------- | ------------------------- |
+| Development | `wapcentral-dev`     | Local dev and testing     |
+| Staging     | `wapcentral-staging` | Pre-production validation |
+| Production  | `wapcentral-prod`    | Live traffic              |
 
 Each project must have:
+
 - [ ] Firebase Authentication enabled (Email/Password + Google)
 - [ ] Firestore database created (in production mode)
 - [ ] Firebase Storage bucket configured
@@ -60,9 +61,11 @@ Each project must have:
 ---
 
 ## Google Cloud Secret Manager
+
 (One Secret Manager instance per GCP project/environment)
 
 Secrets to create in each environment:
+
 - [ ] `OPENAI_API_KEY`
 - [ ] `GEMINI_API_KEY`
 - [ ] `ANTHROPIC_API_KEY`
@@ -100,6 +103,7 @@ Secrets to create in each environment:
 ## Ad Networks Configuration
 
 ### Google AdMob
+
 - [ ] AdMob account created and verified
 - [ ] Android App registered in AdMob
 - [ ] iOS App registered in AdMob (future)
@@ -107,12 +111,14 @@ Secrets to create in each environment:
 - [ ] AdMob App IDs noted for Firestore config
 
 ### Meta Audience Network
+
 - [ ] Meta Business account with AAN access
 - [ ] App registered in Meta Business Manager
 - [ ] Placement IDs created
 - [ ] Private credentials stored in Secret Manager
 
 ### AppLovin MAX
+
 - [ ] AppLovin account created
 - [ ] MAX SDK configured
 - [ ] Mediation adapters configured (AdMob + Meta + others)

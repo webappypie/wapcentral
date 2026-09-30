@@ -29,10 +29,10 @@ export const COLLECTIONS = {
 export const PROMOTION = {
   SCHEMA_VERSION: 1,
   DEFAULT_CACHE_TTL_SECONDS: 21600, // 6 hours
-  MAX_CACHE_TTL_SECONDS: 86400,     // 24 hours
-  MIN_CACHE_TTL_SECONDS: 300,       // 5 minutes
-  REQUEST_TIMEOUT_MS: 5000,         // 5 seconds
-  PAYLOAD_MAX_SIZE_BYTES: 8192,     // 8 KB
+  MAX_CACHE_TTL_SECONDS: 86400, // 24 hours
+  MIN_CACHE_TTL_SECONDS: 300, // 5 minutes
+  REQUEST_TIMEOUT_MS: 5000, // 5 seconds
+  PAYLOAD_MAX_SIZE_BYTES: 8192, // 8 KB
   RATE_LIMIT_REQUESTS_PER_MINUTE: 60,
   DEFAULT_PRIORITY: 50,
   MAX_PRIORITY: 100,
@@ -43,12 +43,12 @@ export const PROMOTION = {
 // AI Gateway
 // ============================================================
 export const AI_GATEWAY = {
-  DEFAULT_TIMEOUT_MS: 30000,        // 30 seconds
+  DEFAULT_TIMEOUT_MS: 30000, // 30 seconds
   MAX_RETRIES: 2,
   RETRY_DELAY_MS: 1000,
   MAX_INPUT_TOKENS_DEFAULT: 4096,
   MAX_OUTPUT_TOKENS_DEFAULT: 2048,
-  COST_ESTIMATE_LABEL: 'ESTIMATE',  // Always label cost estimates
+  COST_ESTIMATE_LABEL: 'ESTIMATE', // Always label cost estimates
 } as const;
 
 // ============================================================
@@ -116,4 +116,4 @@ export const ENVIRONMENTS = {
 // Audit
 // ============================================================
 export const AUDIT_RETENTION_DAYS = 365; // Keep audit logs for 1 year
-export const USAGE_RETENTION_DAYS = 90;  // Keep raw usage events for 90 days
+export const USAGE_RETENTION_DAYS = 90; // Keep raw usage events for 90 days

@@ -1,0 +1,18 @@
+{
+  "environment": "production",
+  "projectId": "wapcentral-prod",
+  "storageBucket": "wapcentral-prod.firebasestorage.app",
+  "authDomain": "wapcentral-prod.firebaseapp.com",
+  "hostingSite": "wapcentral-prod",
+  "region": "us-central1",
+  "features": {
+    "remoteConfig": true,
+    "secretManager": true,
+    "emulator": false
+  },
+  "allowedOrigins": [
+    "https://central.webappypie.com",
+    "https://wapcentral-prod.web.app",
+    "https://wapcentral-prod.firebaseapp.com"
+  ]
+}

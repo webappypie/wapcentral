@@ -20,7 +20,10 @@ const args = process.argv.slice(2);
 const serviceIndex = args.indexOf('--service');
 const service = serviceIndex !== -1 ? args[serviceIndex + 1] : null;
 
-const requiredVars = [...REQUIRED_FOR_ALL, ...(service ? (REQUIRED_BY_SERVICE[service] ?? []) : [])];
+const requiredVars = [
+  ...REQUIRED_FOR_ALL,
+  ...(service ? (REQUIRED_BY_SERVICE[service] ?? []) : []),
+];
 
 const missing = requiredVars.filter((v) => !process.env[v]);
 

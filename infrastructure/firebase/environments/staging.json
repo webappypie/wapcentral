@@ -1,0 +1,18 @@
+{
+  "environment": "staging",
+  "projectId": "wapcentral-staging",
+  "storageBucket": "wapcentral-staging.firebasestorage.app",
+  "authDomain": "wapcentral-staging.firebaseapp.com",
+  "hostingSite": "wapcentral-staging",
+  "region": "us-central1",
+  "features": {
+    "remoteConfig": true,
+    "secretManager": true,
+    "emulator": false
+  },
+  "allowedOrigins": [
+    "https://staging.central.webappypie.com",
+    "https://wapcentral-staging.web.app",
+    "https://wapcentral-staging.firebaseapp.com"
+  ]
+}

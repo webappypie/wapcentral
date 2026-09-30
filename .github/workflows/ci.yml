@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: "18"
-  PNPM_VERSION: "9"
+  NODE_VERSION: '18'
+  PNPM_VERSION: '9'
 
 jobs:
   # ============================================================

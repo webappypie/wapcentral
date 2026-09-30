@@ -1,0 +1,8 @@
+{
+  "projects": {
+    "default": "wapcentral-dev",
+    "development": "wapcentral-dev",
+    "staging": "wapcentral-staging",
+    "production": "wapcentral-prod"
+  }
+}

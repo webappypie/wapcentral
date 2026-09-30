@@ -1,11 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalEnv": [
-    "NODE_ENV",
-    "ENVIRONMENT",
-    "FIREBASE_PROJECT_ID",
-    "GOOGLE_CLOUD_PROJECT"
-  ],
+  "globalEnv": ["NODE_ENV", "ENVIRONMENT", "FIREBASE_PROJECT_ID", "GOOGLE_CLOUD_PROJECT"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

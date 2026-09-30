@@ -86,9 +86,7 @@ export const CreateAppSchema = z.object({
     .regex(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/, 'Must be a valid package ID'),
   bundleId: z.string().optional(),
   platform: PlatformSchema,
-  version: z
-    .string()
-    .regex(/^\d+\.\d+\.\d+/, 'Must be semantic version'),
+  version: z.string().regex(/^\d+\.\d+\.\d+/, 'Must be semantic version'),
   environment: EnvironmentSchema,
   firebaseProjectId: z.string().optional(),
   storeUrl: z

@@ -1,0 +1,75 @@
+{
+  "parameters": {
+    "promotion_enabled": {
+      "defaultValue": {
+        "value": "true"
+      },
+      "description": "Global switch to enable or disable self-promotion campaigns across mobile apps",
+      "valueType": "BOOLEAN"
+    },
+    "ai_enabled": {
+      "defaultValue": {
+        "value": "true"
+      },
+      "description": "Global switch for mobile AI features",
+      "valueType": "BOOLEAN"
+    },
+    "ads_enabled": {
+      "defaultValue": {
+        "value": "true"
+      },
+      "description": "Global switch for third-party advertising SDKs",
+      "valueType": "BOOLEAN"
+    },
+    "min_app_version": {
+      "defaultValue": {
+        "value": "1.0.0"
+      },
+      "description": "Minimum supported app version. Versions below this will display update prompts.",
+      "valueType": "STRING"
+    },
+    "maintenance_mode": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "description": "Maintenance mode indicator for apps",
+      "valueType": "BOOLEAN"
+    },
+    "cache_ttl_seconds": {
+      "defaultValue": {
+        "value": "21600"
+      },
+      "description": "Default promotion client cache TTL (in seconds, 21600 = 6 hours)",
+      "valueType": "NUMBER"
+    },
+    "request_timeout_ms": {
+      "defaultValue": {
+        "value": "5000"
+      },
+      "description": "Network timeout limit for mobile background refresh (in milliseconds)",
+      "valueType": "NUMBER"
+    },
+    "emergency_ai_kill_switch": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "description": "Emergency switch to instantly disable all AI endpoints and route mobile apps to safe defaults",
+      "valueType": "BOOLEAN"
+    }
+  },
+  "parameterGroups": {
+    "Mobile Runtime Flags": {
+      "description": "Lightweight runtime flags consumed by mobile apps for non-blocking startup and fallback",
+      "parameters": {
+        "promotion_enabled": {},
+        "ai_enabled": {},
+        "ads_enabled": {},
+        "min_app_version": {},
+        "maintenance_mode": {},
+        "cache_ttl_seconds": {},
+        "request_timeout_ms": {},
+        "emergency_ai_kill_switch": {}
+      }
+    }
+  }
+}

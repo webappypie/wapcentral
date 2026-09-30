@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "../../apps/dashboard/dist",
+    "public": "apps/dashboard/dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       {
@@ -30,14 +30,14 @@
     ]
   },
   "firestore": {
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
+    "rules": "infrastructure/firebase/firestore.rules",
+    "indexes": "infrastructure/firebase/firestore.indexes.json"
   },
   "storage": {
-    "rules": "storage.rules"
+    "rules": "infrastructure/firebase/storage.rules"
   },
   "remoteconfig": {
-    "template": "remoteconfig.template.json"
+    "template": "infrastructure/firebase/remoteconfig.template.json"
   },
   "emulators": {
     "auth": {

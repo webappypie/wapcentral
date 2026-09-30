@@ -1,9 +1,12 @@
 # Master PRD — WebAppyPie Central
 
 ## Vision
-One secure control plane for all current and future WebAppyPie apps, games, launchers and AI products.
+
+One secure control plane for all current and future WebAppyPie apps, games, launchers and AI
+products.
 
 ## Core Modules
+
 1. **Overview Dashboard** — KPI cards, charts, health summary
 2. **Apps Registry** — register and manage all owned apps
 3. **Firebase/Environment Registry** — per-app Firebase project references and env configs
@@ -20,33 +23,43 @@ One secure control plane for all current and future WebAppyPie apps, games, laun
 14. **Settings/Roles** — RBAC, user management, MFA enforcement
 
 ## Apps Registry
-Store: app name, package/bundle ID, platform (Android/iOS), version, environment (dev/staging/prod), store links, Firebase project reference, enabled modules, ad config, status.
+
+Store: app name, package/bundle ID, platform (Android/iOS), version, environment (dev/staging/prod),
+store links, Firebase project reference, enabled modules, ad config, status.
 
 ## AI Providers
-Support: OpenAI, Gemini, Anthropic, and self-hosted/open-source models via a provider abstraction interface.
-Controls: enable/disable, model allowlist, routing priority, fallback chain, quotas, rate limits, health checks.
-Secrets: backend-only in Google Cloud Secret Manager.
+
+Support: OpenAI, Gemini, Anthropic, and self-hosted/open-source models via a provider abstraction
+interface. Controls: enable/disable, model allowlist, routing priority, fallback chain, quotas, rate
+limits, health checks. Secrets: backend-only in Google Cloud Secret Manager.
 
 ## AI Gateway
+
 ```
 Mobile App → authenticated gateway → policy/router → provider → normalized response
 ```
-Controls: Firebase Auth, rate limits, quotas, model routing, timeout, retries, safe caching, usage accounting, estimated cost, fallback, emergency kill switch.
+
+Controls: Firebase Auth, rate limits, quotas, model routing, timeout, retries, safe caching, usage
+accounting, estimated cost, fallback, emergency kill switch.
 
 ## Ads Networks
-| Network | Role | Notes |
-|---|---|---|
-| Google AdMob | Primary ad network | AdUnit IDs in Firestore; private creds in Secret Manager |
-| Meta Audience Network | Secondary ad network | Placement IDs in Firestore; private creds in Secret Manager |
-| AppLovin MAX | Mediation layer | Wraps AdMob + Meta + others; config in Firestore |
-| WAPAds | Proprietary cross-promo | Delivered via promotion-api + campaigns system |
 
-Dashboard manages ad configuration metadata. Actual ad rendering is done by native SDKs in Flutter apps.
+| Network               | Role                    | Notes                                                       |
+| --------------------- | ----------------------- | ----------------------------------------------------------- |
+| Google AdMob          | Primary ad network      | AdUnit IDs in Firestore; private creds in Secret Manager    |
+| Meta Audience Network | Secondary ad network    | Placement IDs in Firestore; private creds in Secret Manager |
+| AppLovin MAX          | Mediation layer         | Wraps AdMob + Meta + others; config in Firestore            |
+| WAPAds                | Proprietary cross-promo | Delivered via promotion-api + campaigns system              |
+
+Dashboard manages ad configuration metadata. Actual ad rendering is done by native SDKs in Flutter
+apps.
 
 ## Self-Promotion (WAPAds)
+
 Create campaigns to promote owned apps within other owned apps.
 
 Campaign fields:
+
 - campaign name, promoted app, target app(s)
 - title, description, CTA text, store URL
 - image URL, animation/Lottie URL
@@ -56,7 +69,9 @@ Campaign fields:
 - analytics (impressions, clicks, CTR)
 
 ## Mobile SDK Packages
+
 ### wap_promo_sdk (Flutter)
+
 - Own-app promotion display
 - Campaign/config delivery from promotion-api
 - Local caching (cache-first, non-blocking)
@@ -66,6 +81,7 @@ Campaign fields:
 - Analytics event dispatch (fire-and-forget)
 
 ### wap_ads_sdk (Flutter)
+
 - Google AdMob integration
 - Meta Audience Network integration
 - AppLovin MAX mediation integration
@@ -74,14 +90,16 @@ Campaign fields:
 - Platform-agnostic API contracts for future native Android/iOS support
 
 ## Promotion Reliability (Non-Negotiable)
-App starts normally from local state. Promotion config refreshes in background.
-Use cache → safe default → hide if service is slow or unavailable. Never block startup.
+
+App starts normally from local state. Promotion config refreshes in background. Use cache → safe
+default → hide if service is slow or unavailable. Never block startup.
 
 ## Feature Flags (Dual-Layer)
-| Layer | System | Scope |
-|---|---|---|
-| Primary | Firestore `featureFlags` | Admin-managed, detailed configuration, all platforms |
-| Mobile runtime | Firebase Remote Config | Lightweight, fast delivery to mobile, safe defaults |
+
+| Layer          | System                   | Scope                                                |
+| -------------- | ------------------------ | ---------------------------------------------------- |
+| Primary        | Firestore `featureFlags` | Admin-managed, detailed configuration, all platforms |
+| Mobile runtime | Firebase Remote Config   | Lightweight, fast delivery to mobile, safe defaults  |
 
 - Firestore is the source of truth for all admin-managed configuration
 - Remote Config delivers a subset of flags to mobile with automatic safe defaults
@@ -89,18 +107,24 @@ Use cache → safe default → hide if service is slow or unavailable. Never blo
 - Documented precedence: Remote Config → promotion-api response → hardcoded safe default
 
 ## Remote Configuration
-Feature flags, promotion enable/disable, AI enable/disable, routing, cache TTL, timeout values, maintenance mode, minimum app version, emergency kill switches.
+
+Feature flags, promotion enable/disable, AI enable/disable, routing, cache TTL, timeout values,
+maintenance mode, minimum app version, emergency kill switches.
 
 ## Promotion API Authentication
+
 - Light app-key authentication (identifies the calling app, not a security secret)
 - Rate limiting per app-key (abuse protection mandatory)
 - Sensitive operations remain server-side only
 - App keys are registered in Firestore and not treated as passwords
 
 ## Cost Monitoring
-Track: provider, model, app, request count, tokens (where available), estimated cost, daily/monthly totals, quota usage, errors. Clearly label all cost values as estimates.
+
+Track: provider, model, app, request count, tokens (where available), estimated cost, daily/monthly
+totals, quota usage, errors. Clearly label all cost values as estimates.
 
 ## Security
+
 - MFA for privileged admin users
 - RBAC with four roles: viewer / editor / admin / super-admin
 - Least privilege service accounts
@@ -113,9 +137,13 @@ Track: provider, model, app, request count, tokens (where available), estimated 
 - No secret logging
 
 ## UX
-Premium technical admin UI, responsive desktop-first, light/dark mode, searchable/paginated tables, charts, filters, confirmations, toast notifications, loading/empty/error/offline/permission-denied states, accessibility.
+
+Premium technical admin UI, responsive desktop-first, light/dark mode, searchable/paginated tables,
+charts, filters, confirmations, toast notifications, loading/empty/error/offline/permission-denied
+states, accessibility.
 
 ## V1 Success Criteria
+
 - [ ] Admin login works with MFA
 - [ ] Apps can be registered and managed
 - [ ] All secrets remain server-side (never exposed to client)

@@ -112,7 +112,8 @@ export interface AdPlacement {
   placementId: string;
 }
 
-export type AdUnitType = 'banner' | 'interstitial' | 'rewarded' | 'native' | 'rewarded_interstitial';
+export type AdUnitType =
+  'banner' | 'interstitial' | 'rewarded' | 'native' | 'rewarded_interstitial';
 
 // ============================================================
 // AI Provider Types

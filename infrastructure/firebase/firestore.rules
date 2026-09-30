@@ -1,38 +1,202 @@
-// Firestore Security Rules — WAPCentral
-// Phase 1 will implement full production rules.
-// This is a LOCKED-DOWN placeholder — denies all client access by default.
-// Backend services access Firestore via Admin SDK (bypasses these rules).
-
 rules_version = '2';
+
+/**
+ * Production Firestore Security Rules — WebAppyPie Central (WAPCentral)
+ *
+ * Implements strict Role-Based Access Control (RBAC):
+ * - viewer: Read-only access to dashboard data (apps, metrics, campaigns, flags)
+ * - editor: Can manage apps, campaigns, assets, and feature flags
+ * - admin: Can manage providers, models, policies, delete resources, read logs
+ * - super_admin: Full system control including role assignments
+ *
+ * Golden Rules:
+ * 1. Zero unauthenticated access to any collection.
+ * 2. Sensitive backend collections (usageDaily, usageEvents, healthChecks, auditLogs)
+ *    are append-only / write-protected for clients. Only backend services using
+ *    Firebase Admin SDK can write to them.
+ * 3. Client writes are forbidden from storing private credentials or API keys.
+ */
 service cloud.firestore {
   match /databases/{database}/documents {
 
     // ============================================================
-    // PHASE 0 PLACEHOLDER — ALL ACCESS DENIED
+    // Helper Functions
     // ============================================================
-    // Phase 1 will implement granular rules per collection.
-    // Backend services use Firebase Admin SDK and are not subject to these rules.
 
-    match /{document=**} {
-      allow read, write: if false;
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Role resolution: checks custom claims first, falls back to roles/{uid} document
+    function getUserRole() {
+      return request.auth.token.role != null
+        ? request.auth.token.role
+        : (exists(/databases/$(database)/documents/roles/$(request.auth.uid))
+            ? get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role
+            : 'unassigned');
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && getUserRole() == 'super_admin';
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (getUserRole() in ['admin', 'super_admin']);
+    }
+
+    function isEditor() {
+      return isSignedIn() && (getUserRole() in ['editor', 'admin', 'super_admin']);
+    }
+
+    function isViewer() {
+      return isSignedIn() && (getUserRole() in ['viewer', 'editor', 'admin', 'super_admin']);
+    }
+
+    // Verify document contains no private credentials or raw secret keys
+    function hasNoPrivateSecrets(data) {
+      return !('apiKey' in data.keys())
+          && !('secret' in data.keys())
+          && !('privateKey' in data.keys())
+          && !('serviceAccount' in data.keys())
+          && !('apiSecret' in data.keys())
+          && !('signingSecret' in data.keys())
+          && !('privateCredentials' in data.keys());
+    }
+
+    // Common immutability check on update
+    function isNotMutatingIdAndCreation(data, resourceData) {
+      return (!('id' in data.keys()) || data.id == resourceData.id)
+          && (!('createdAt' in data.keys()) || data.createdAt == resourceData.createdAt);
     }
 
     // ============================================================
-    // TODO (Phase 1): Implement per-collection rules:
-    //
-    // apps — read: authenticated admin; write: admin role only
-    // environments — read: authenticated admin; write: admin role only
-    // providers — read: authenticated admin; write: admin role only
-    // models — read: authenticated admin; write: admin role only
-    // aiPolicies — read: authenticated admin; write: admin role only
-    // campaigns — read: authenticated admin; write: editor+ role
-    // campaignAssets — read: authenticated admin; write: editor+ role
-    // featureFlags — read: authenticated admin; write: admin+ role
-    // usageDaily — read: authenticated admin; write: DENY (backend only)
-    // usageEvents — read: authenticated admin; write: DENY (backend only)
-    // healthChecks — read: authenticated admin; write: DENY (backend only)
-    // auditLogs — read: authenticated admin (super_admin only); write: DENY (backend only)
-    // roles — read: super_admin only; write: super_admin only
+    // 1. Roles & RBAC (/roles/{userId})
     // ============================================================
+    match /roles/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isSuperAdmin());
+      allow write: if isSuperAdmin();
+    }
+
+    // ============================================================
+    // 2. Apps Registry (/apps/{appId})
+    // ============================================================
+    match /apps/{appId} {
+      allow read: if isViewer();
+      allow create: if isEditor()
+                    && hasNoPrivateSecrets(request.resource.data);
+      allow update: if isEditor()
+                    && isNotMutatingIdAndCreation(request.resource.data, resource.data)
+                    && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // 3. Environments Registry (/environments/{envId})
+    // ============================================================
+    match /environments/{envId} {
+      allow read: if isViewer();
+      allow write: if isAdmin();
+    }
+
+    // ============================================================
+    // 4. AI Providers Registry (/providers/{providerId})
+    // Stored metadata ONLY. Raw secrets reside in Secret Manager.
+    // ============================================================
+    match /providers/{providerId} {
+      allow read: if isViewer();
+      allow create, update: if isAdmin()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isSuperAdmin();
+    }
+
+    // ============================================================
+    // 5. AI Models Allowlist (/models/{modelId})
+    // ============================================================
+    match /models/{modelId} {
+      allow read: if isViewer();
+      allow write: if isAdmin();
+    }
+
+    // ============================================================
+    // 6. AI Gateway Policies (/aiPolicies/{policyId})
+    // ============================================================
+    match /aiPolicies/{policyId} {
+      allow read: if isViewer();
+      allow write: if isAdmin();
+    }
+
+    // ============================================================
+    // 7. Self-Promotion Campaigns (/campaigns/{campaignId})
+    // ============================================================
+    match /campaigns/{campaignId} {
+      allow read: if isViewer();
+      allow create: if isEditor()
+                    && hasNoPrivateSecrets(request.resource.data);
+      allow update: if isEditor()
+                    && isNotMutatingIdAndCreation(request.resource.data, resource.data)
+                    && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // 8. Campaign Creative Assets Metadata (/campaignAssets/{assetId})
+    // ============================================================
+    match /campaignAssets/{assetId} {
+      allow read: if isViewer();
+      allow create, update: if isEditor()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // 9. Feature Flags (/featureFlags/{flagId})
+    // Primary source of truth for dashboard-managed configuration
+    // ============================================================
+    match /featureFlags/{flagId} {
+      allow read: if isViewer();
+      allow create, update: if isEditor();
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // 10. Usage Daily Aggregation (/usageDaily/{dailyId})
+    // Client write is FORBIDDEN. Only backend usage-worker writes.
+    // ============================================================
+    match /usageDaily/{dailyId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    // ============================================================
+    // 11. Raw Usage Events (/usageEvents/{eventId})
+    // Client write is FORBIDDEN. Only ai-gateway writes.
+    // ============================================================
+    match /usageEvents/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ============================================================
+    // 12. Health Checks (/healthChecks/{checkId})
+    // Client write is FORBIDDEN. Only health-worker writes.
+    // ============================================================
+    match /healthChecks/{checkId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    // ============================================================
+    // 13. Audit Logs (/auditLogs/{logId})
+    // Immutable audit trail. Direct client write is completely blocked.
+    // ============================================================
+    match /auditLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Default deny catch-all for any undefined paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }

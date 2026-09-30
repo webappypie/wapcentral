@@ -4,20 +4,20 @@ WebAppyPie Promotion SDK for Flutter — part of the WAPCentral platform.
 
 ## Overview
 
-`wap_promo_sdk` delivers self-promotion campaigns from the WAPCentral platform to your Flutter
-app. It is designed to be **completely non-blocking** — your app always starts immediately from
-local cache, with promotions refreshed silently in the background.
+`wap_promo_sdk` delivers self-promotion campaigns from the WAPCentral platform to your Flutter app.
+It is designed to be **completely non-blocking** — your app always starts immediately from local
+cache, with promotions refreshed silently in the background.
 
 ## Critical Design Guarantees
 
-| Guarantee | Behavior |
-|---|---|
+| Guarantee                | Behavior                                                          |
+| ------------------------ | ----------------------------------------------------------------- |
 | **Non-blocking startup** | `init()` returns immediately; network fetch happens in background |
-| **Cache-first** | App always renders from local cache (SharedPreferences) |
-| **Graceful degradation** | If network fails: cache → default → hide. Never crashes. |
-| **HMAC validation** | Server signature validated before any payload is applied |
-| **Frequency capping** | Per-device impression limits respected |
-| **Analytics** | Impression/click events sent fire-and-forget (non-blocking) |
+| **Cache-first**          | App always renders from local cache (SharedPreferences)           |
+| **Graceful degradation** | If network fails: cache → default → hide. Never crashes.          |
+| **HMAC validation**      | Server signature validated before any payload is applied          |
+| **Frequency capping**    | Per-device impression limits respected                            |
+| **Analytics**            | Impression/click events sent fire-and-forget (non-blocking)       |
 
 ## Platform-Agnostic API Contract
 

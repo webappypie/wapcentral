@@ -1,0 +1,21 @@
+{
+  "environment": "development",
+  "projectId": "wapcentral-dev",
+  "storageBucket": "wapcentral-dev.firebasestorage.app",
+  "authDomain": "wapcentral-dev.firebaseapp.com",
+  "hostingSite": "wapcentral-dev",
+  "region": "us-central1",
+  "features": {
+    "remoteConfig": true,
+    "secretManager": true,
+    "emulator": true
+  },
+  "emulatorPorts": {
+    "auth": 9099,
+    "firestore": 8080,
+    "storage": 9199,
+    "hosting": 5000,
+    "ui": 4000
+  },
+  "allowedOrigins": ["http://localhost:3000", "http://localhost:5000", "http://127.0.0.1:3000"]
+}

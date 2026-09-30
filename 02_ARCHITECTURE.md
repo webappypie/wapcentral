@@ -39,6 +39,7 @@ Mobile Apps (Flutter)
 ```
 
 ## Frontend
+
 - React 18+, TypeScript, Vite
 - Tailwind CSS + accessible component library (e.g. shadcn/ui + Radix)
 - React Router v6+
@@ -46,40 +47,44 @@ Mobile Apps (Flutter)
 - Zod for schema validation
 
 ## Backend
-Use **Cloud Run** for long-running/high-control services and **Cloud Functions** for event-driven/lightweight tasks. No unnecessary microservices in V1.
+
+Use **Cloud Run** for long-running/high-control services and **Cloud Functions** for
+event-driven/lightweight tasks. No unnecessary microservices in V1.
 
 ### Services
-| Service | Runtime | Responsibility |
-|---|---|---|
-| `admin-api` | Cloud Run | Dashboard API, RBAC, Secret Manager proxy, audit logging |
-| `promotion-api` | Cloud Run | Campaign delivery, app-key auth, rate limiting, payload signing |
-| `ai-gateway` | Cloud Run | AI routing, quota enforcement, usage recording, kill switch |
-| `usage-worker` | Cloud Functions | Aggregate usageEvents → usageDaily |
-| `health-worker` | Cloud Functions | Heartbeat checks, provider health snapshots |
+
+| Service         | Runtime         | Responsibility                                                  |
+| --------------- | --------------- | --------------------------------------------------------------- |
+| `admin-api`     | Cloud Run       | Dashboard API, RBAC, Secret Manager proxy, audit logging        |
+| `promotion-api` | Cloud Run       | Campaign delivery, app-key auth, rate limiting, payload signing |
+| `ai-gateway`    | Cloud Run       | AI routing, quota enforcement, usage recording, kill switch     |
+| `usage-worker`  | Cloud Functions | Aggregate usageEvents → usageDaily                              |
+| `health-worker` | Cloud Functions | Heartbeat checks, provider health snapshots                     |
 
 ## Firestore Collections
 
-| Collection | Owner | Description |
-|---|---|---|
-| `apps` | admin-api | App registry (name, packageId, platform, version, env, store URLs) |
-| `environments` | admin-api | Per-app environment configs |
-| `providers` | admin-api | AI provider registry (non-secret metadata only) |
-| `models` | admin-api | AI model allowlist per provider |
-| `aiPolicies` | admin-api | Routing, fallback, quotas, rate limits, kill switches |
-| `campaigns` | admin-api | Self-promotion campaigns |
-| `campaignAssets` | admin-api | Creative metadata (refs to Firebase Storage) |
-| `featureFlags` | admin-api | Dashboard-managed feature flags (primary source of truth) |
-| `usageDaily` | usage-worker | Aggregated daily AI usage + cost estimates |
-| `usageEvents` | ai-gateway | Individual AI request events |
-| `healthChecks` | health-worker | Provider and service health snapshots |
-| `auditLogs` | admin-api | Append-only admin action log |
-| `roles` | admin-api | RBAC role assignments (viewer / editor / admin / super-admin) |
+| Collection       | Owner         | Description                                                        |
+| ---------------- | ------------- | ------------------------------------------------------------------ |
+| `apps`           | admin-api     | App registry (name, packageId, platform, version, env, store URLs) |
+| `environments`   | admin-api     | Per-app environment configs                                        |
+| `providers`      | admin-api     | AI provider registry (non-secret metadata only)                    |
+| `models`         | admin-api     | AI model allowlist per provider                                    |
+| `aiPolicies`     | admin-api     | Routing, fallback, quotas, rate limits, kill switches              |
+| `campaigns`      | admin-api     | Self-promotion campaigns                                           |
+| `campaignAssets` | admin-api     | Creative metadata (refs to Firebase Storage)                       |
+| `featureFlags`   | admin-api     | Dashboard-managed feature flags (primary source of truth)          |
+| `usageDaily`     | usage-worker  | Aggregated daily AI usage + cost estimates                         |
+| `usageEvents`    | ai-gateway    | Individual AI request events                                       |
+| `healthChecks`   | health-worker | Provider and service health snapshots                              |
+| `auditLogs`      | admin-api     | Append-only admin action log                                       |
+| `roles`          | admin-api     | RBAC role assignments (viewer / editor / admin / super-admin)      |
 
 **Rule:** Never store raw private credentials in any Firestore document.
 
 ## Secret Manager
 
 All private credentials stored server-side only in Google Cloud Secret Manager:
+
 - `OPENAI_API_KEY`
 - `GEMINI_API_KEY`
 - `ANTHROPIC_API_KEY`
@@ -92,28 +97,31 @@ All private credentials stored server-side only in Google Cloud Secret Manager:
 
 ## Feature Flags — Dual-Layer Model
 
-| Layer | System | Purpose |
-|---|---|---|
-| **Primary** | Firestore `featureFlags` collection | Dashboard-managed, detailed configuration, admin UI |
-| **Mobile runtime** | Firebase Remote Config | Lightweight fast delivery to mobile, safe defaults |
+| Layer              | System                              | Purpose                                             |
+| ------------------ | ----------------------------------- | --------------------------------------------------- |
+| **Primary**        | Firestore `featureFlags` collection | Dashboard-managed, detailed configuration, admin UI |
+| **Mobile runtime** | Firebase Remote Config              | Lightweight fast delivery to mobile, safe defaults  |
 
 **Rules:**
+
 - Firestore is the source of truth for admin-managed config
 - Remote Config is for mobile runtime flags needing fast delivery with no server call
 - Do NOT duplicate everything in both systems
 - Remote Config values are a subset of what Firestore manages
-- Precedence for mobile: Remote Config (fast/cached) → promotion-api response → hardcoded safe default
+- Precedence for mobile: Remote Config (fast/cached) → promotion-api response → hardcoded safe
+  default
 
 ## Ad Networks Architecture
 
-| Network | Role | Config Location | Private Credentials |
-|---|---|---|---|
-| Google AdMob | Primary ad network | Firestore `apps.adConfig` | Secret Manager |
-| Meta Audience Network | Secondary ad network | Firestore `apps.adConfig` | Secret Manager |
-| AppLovin MAX | Mediation layer | Firestore `apps.adConfig` | Secret Manager |
-| WAPAds (own network) | Cross-promotion / house ads | `campaigns` + `promotion-api` | Signing secret |
+| Network               | Role                        | Config Location               | Private Credentials |
+| --------------------- | --------------------------- | ----------------------------- | ------------------- |
+| Google AdMob          | Primary ad network          | Firestore `apps.adConfig`     | Secret Manager      |
+| Meta Audience Network | Secondary ad network        | Firestore `apps.adConfig`     | Secret Manager      |
+| AppLovin MAX          | Mediation layer             | Firestore `apps.adConfig`     | Secret Manager      |
+| WAPAds (own network)  | Cross-promotion / house ads | `campaigns` + `promotion-api` | Signing secret      |
 
-- Ad unit IDs and placement IDs are **public config** (stored in Firestore, readable by app after auth)
+- Ad unit IDs and placement IDs are **public config** (stored in Firestore, readable by app after
+  auth)
 - Private reporting/management API credentials are **backend-only** in Secret Manager
 - No actual ad serving happens on the server — native SDKs handle rendering in Flutter apps
 
@@ -136,9 +144,11 @@ All private credentials stored server-side only in Google Cloud Secret Manager:
 }
 ```
 
-Payload is HMAC-signed using `PROMOTION_SIGNING_SECRET` (backend-only). Mobile SDK validates signature before applying.
+Payload is HMAC-signed using `PROMOTION_SIGNING_SECRET` (backend-only). Mobile SDK validates
+signature before applying.
 
 ## Promotion Client Behavior (wap_promo_sdk)
+
 1. App boots → SDK reads from local cache immediately (zero latency)
 2. App renders normally with cached/default state
 3. Background: SDK fetches from `promotion-api` with app-key auth
@@ -163,6 +173,7 @@ Mobile App → Firebase Auth token
 ```
 
 ### Provider Interface (packages/provider-sdk)
+
 ```typescript
 interface IProvider {
   generate(params: GenerateParams): Promise<GenerateResponse>;
@@ -174,6 +185,7 @@ interface IProvider {
 ```
 
 ## Cost Controls
+
 - Per-app budget caps
 - Per-feature quotas
 - Per-user quotas (optional, Phase 6)
@@ -184,6 +196,7 @@ interface IProvider {
 - Cloud billing alerts + AI provider spending limits
 
 ## Environments
+
 - `development` — local dev + Firebase dev project
 - `staging` — pre-production testing + Firebase staging project
 - `production` — live traffic + Firebase prod project (separate credentials)
@@ -223,10 +236,11 @@ WAPCentral/
 
 ## Mobile SDK Architecture (Platform-Agnostic Contracts)
 
-API contracts are platform-agnostic HTTP/JSON. V1 implements Flutter/Dart only.
-Future versions may add native Android/iOS without changing backend contracts.
+API contracts are platform-agnostic HTTP/JSON. V1 implements Flutter/Dart only. Future versions may
+add native Android/iOS without changing backend contracts.
 
 ### wap_promo_sdk (Flutter)
+
 - Cache-first, non-blocking startup
 - Background refresh with timeout
 - HMAC signature validation
@@ -235,6 +249,7 @@ Future versions may add native Android/iOS without changing backend contracts.
 - Analytics event dispatch (fire-and-forget)
 
 ### wap_ads_sdk (Flutter)
+
 - AdMob integration
 - Meta Audience Network integration
 - AppLovin MAX mediation integration
@@ -244,6 +259,7 @@ Future versions may add native Android/iOS without changing backend contracts.
 ## CI/CD (GitHub Actions — Phase 0 Foundation)
 
 Phase 0 establishes CI foundation:
+
 - Lint checks (ESLint)
 - Format checks (Prettier)
 - Unit test execution (Vitest)
@@ -253,6 +269,7 @@ Phase 0 establishes CI foundation:
 Production deployment pipelines added in Phase 13.
 
 ## Observability
+
 - Request IDs on all service calls
 - Latency + error rate per endpoint
 - Provider failure rates + cost estimates
@@ -260,6 +277,7 @@ Production deployment pipelines added in Phase 13.
 - Do NOT log sensitive payloads, auth headers, or secret values
 
 ## Promotion API Authentication
+
 - Mobile apps use a **light app-key** (non-secret, identifies the app)
 - App key stored in Firestore `apps` collection, readable by the app after registration
 - Rate limiting per app-key (e.g. 60 req/min per key)

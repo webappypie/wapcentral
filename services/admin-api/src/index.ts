@@ -1,22 +1,17 @@
-/**
- * admin-api — WAPCentral Admin Backend Service
- *
- * STUB — Implementation in Phase 4.
- *
- * Responsibilities:
- * - App registry CRUD (with RBAC)
- * - Secure credential management (write-only via Secret Manager)
- * - Audit logging middleware
- * - Firebase Authentication token verification
- * - RBAC enforcement (viewer / editor / admin / super_admin)
- * - Feature flag management
- * - Campaign management API
- * - Health check endpoint
- *
- * Runtime: Cloud Run (Node.js)
- * Authentication: Firebase Auth JWT
- */
+import { app } from './app.js';
+import { config } from './config.js';
 
-// Stub implementation � see above TODO comments
+export * from './config.js';
+export * from './app.js';
+export * from './types/auth.js';
+export * from './middleware/auth.js';
+export * from './middleware/rbac.js';
+export * from './services/secretVault.js';
+export * from './services/auditService.js';
 
-export {};
+// Only start listening when not running inside a test runner
+if (process.env['NODE_ENV'] !== 'test' && !process.env['VITEST']) {
+  app.listen(config.port, () => {
+    console.log(`[admin-api] Server running on port ${config.port} (${config.environment})`);
+  });
+}

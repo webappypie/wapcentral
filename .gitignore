@@ -109,5 +109,9 @@ temp/
 *.p12
 *.pfx
 *.p8
-*secret*
+*.secret
+*.secrets
+*secret*.json
+*secrets*.json
+*secret*.env
 *credentials*.json

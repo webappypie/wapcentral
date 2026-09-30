@@ -5,12 +5,63 @@ All notable changes to this project are documented here. Format based on
 
 ---
 
-## [Unreleased] — Phase 4: Admin API & Key Vault
+## [Unreleased] — Phase 5: AI Provider Management
 
-- Admin API service on Cloud Run / Functions with Express
-- Google Cloud Secret Manager integration for provider keys
-- Key rotation and access audit logging
-- API key issue/revoke endpoints with app-key authentication
+- AI Provider Configuration Engine (OpenAI, Gemini, Anthropic, Self-hosted Ollama/vLLM)
+- Failover & circuit-breaker routing strategy with cost optimization
+- Secure proxy endpoints with rate limiting, quota enforcement, and token tracking
+- AI Provider settings & telemetry dashboard UI
+
+---
+
+## [0.5.0] — Phase 4: Secure Backend & Key Vault — 2026-09-30
+
+### Added
+
+- **Admin API Service (`services/admin-api`):**
+  - Express + TypeScript architecture with production security headers (`nosniff`, `frameguard`,
+    `XSS protection`), configurable CORS, and centralized error handling.
+  - Health check endpoints (`/health` and `/v1/health`) for Cloud Run / container liveness probes.
+  - Strict RBAC middleware (`viewer` < `editor` < `admin` < `super_admin`) enforcing role-level
+    authorization with HTTP 401/403 responses.
+  - Bearer token authentication supporting JWT validation and local development mock tokens.
+  - Audit logging middleware recording every mutating administrative operation (`logAdminAction`)
+    with actor, resource, action, and timestamp.
+- **Secret Manager Key Vault (`services/admin-api/src/services/secretVault.ts`):**
+  - Google Cloud Secret Manager abstraction with write-only credentials management.
+  - Zero-lag in-memory fallback for local development and test isolation with zero external cloud
+    dependencies.
+  - Strict key allowlist (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`,
+    `SELF_HOSTED_AI_CREDENTIALS`, `ADMOB_REPORTING_CREDENTIALS`, `META_AAN_CREDENTIALS`,
+    `APPLOVIN_API_KEY`, `PROMOTION_SIGNING_SECRET`, `WEBHOOK_SECRETS`).
+  - Zero-leakage guarantee: secret values are never returned by any endpoint or log statement; only
+    metadata (`name`, `configured`, `version`, `lastUpdated`) is exposed.
+  - Built-in redaction helper sanitizing credentials in error messages and logs.
+- **REST API Routes (`services/admin-api/src/routes/`):**
+  - Secrets Vault management (`GET /v1/secrets/status`, `POST /v1/secrets/:name`,
+    `DELETE /v1/secrets/:name`).
+  - Apps CRUD management (`GET /v1/apps`, `POST /v1/apps`, `PUT /v1/apps/:id`,
+    `DELETE /v1/apps/:id`).
+  - Campaigns CRUD management (`GET /v1/campaigns`, `POST /v1/campaigns`,
+    `PATCH /v1/campaigns/:id/status`, `DELETE /v1/campaigns/:id`).
+  - Feature Flags management (`GET /v1/flags`, `POST /v1/flags`, `PATCH /v1/flags/:id/toggle`,
+    `DELETE /v1/flags/:id`).
+  - Audit Logs query endpoint (`GET /v1/audit-logs`).
+- **Dashboard Key Vault UI Integration:**
+  - `apps/dashboard/src/services/secretsService.ts`: Client service for `/api/admin/v1/secrets` with
+    offline fallback.
+  - `apps/dashboard/src/components/modals/SecretModal.tsx`: Secure write-only credential rotation
+    modal with password reveal toggle and security reminders.
+  - `apps/dashboard/src/pages/SettingsPage.tsx`: Dedicated "Secret Manager Vault (Write-Only)" tab
+    with credential status table, version tracking, and modal integration.
+
+### Tests & Validation
+
+- 16 new automated integration tests in `services/admin-api/src/tests/api.test.ts` covering RBAC
+  gates, vault zero-leakage, health probes, and CRUD endpoints.
+- Full monorepo validation: 15/15 Turbo tasks passing.
+- 20/20 Firestore security rules tests passing on local emulator.
+- Clean build across all 10 monorepo packages.
 
 ---
 

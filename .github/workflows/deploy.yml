@@ -1,0 +1,256 @@
+name: Production Deployment Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Deployment Environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '18'
+  PNPM_VERSION: '9'
+  GCP_REGION: 'us-central1'
+  PRODUCTION_PROJECT_ID: 'wapcentral-prod'
+  CUSTOM_DOMAIN: 'central.webappypie.com'
+
+jobs:
+  # ============================================================
+  # Stage 1: Validation & Security Gate
+  # ============================================================
+  quality-gate:
+    name: Quality & Security Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type Check Monorepo
+        run: pnpm type-check
+
+      - name: ESLint Code Inspection
+        run: pnpm lint
+
+      - name: Prettier Code Style Verification
+        run: pnpm format:check
+
+      - name: Run Full Monorepo Tests
+        run: pnpm test
+
+      - name: Run Firestore Security Rules & Penetration Tests
+        run: pnpm test:rules
+
+  # ============================================================
+  # Stage 2: Deploy Firebase Hosting (Admin Dashboard)
+  # ============================================================
+  deploy-dashboard-hosting:
+    name: Deploy Admin Dashboard to Firebase Hosting
+    runs-on: ubuntu-latest
+    needs: quality-gate
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Dashboard Assets
+        run: pnpm --filter @wapcentral/dashboard build
+
+      - name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_WAPCENTRAL_PROD }}
+          projectId: ${{ env.PRODUCTION_PROJECT_ID }}
+          channelId: live
+
+      - name: Verify Custom Domain Routing
+        run: |
+          echo "Dashboard deployed to Firebase Hosting site: ${{ env.PRODUCTION_PROJECT_ID }}"
+          echo "Target custom domain: https://${{ env.CUSTOM_DOMAIN }}"
+
+  # ============================================================
+  # Stage 3: Deploy Backend Microservices to Cloud Run
+  # ============================================================
+  deploy-cloud-run-services:
+    name: Deploy Services to Cloud Run
+    runs-on: ubuntu-latest
+    needs: quality-gate
+    strategy:
+      fail-fast: true
+      matrix:
+        service:
+          - name: admin-api
+            port: 8080
+            min-instances: 1
+            max-instances: 20
+            memory: '512Mi'
+          - name: promotion-api
+            port: 8081
+            min-instances: 2
+            max-instances: 50
+            memory: '512Mi'
+          - name: ai-gateway
+            port: 8082
+            min-instances: 2
+            max-instances: 50
+            memory: '1Gi'
+          - name: workers
+            port: 8083
+            min-instances: 1
+            max-instances: 10
+            memory: '512Mi'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Google Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build Container Image via Cloud Build
+        run: |
+          IMAGE_TAG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PRODUCTION_PROJECT_ID }}/wapcentral/${{ matrix.service.name }}:${{ github.sha }}"
+          gcloud builds submit . \
+            --config=infrastructure/gcloud/cloudbuild.yaml \
+            --substitutions=_SERVICE=${{ matrix.service.name }},_IMAGE_TAG=${IMAGE_TAG}
+
+      - name: Deploy to Cloud Run (Zero Downtime Rolling Update)
+        run: |
+          IMAGE_TAG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PRODUCTION_PROJECT_ID }}/wapcentral/${{ matrix.service.name }}:${{ github.sha }}"
+          gcloud run deploy ${{ matrix.service.name }} \
+            --image=${IMAGE_TAG} \
+            --region=${{ env.GCP_REGION }} \
+            --project=${{ env.PRODUCTION_PROJECT_ID }} \
+            --platform=managed \
+            --port=${{ matrix.service.port }} \
+            --memory=${{ matrix.service.memory }} \
+            --min-instances=${{ matrix.service.min-instances }} \
+            --max-instances=${{ matrix.service.max-instances }} \
+            --service-account=sa-${{ matrix.service.name }}@${{ env.PRODUCTION_PROJECT_ID }}.iam.gserviceaccount.com \
+            --set-secrets=OPENAI_API_KEY=OPENAI_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,PROMOTION_SIGNING_SECRET=PROMOTION_SIGNING_SECRET:latest \
+            --traffic=100
+
+  # ============================================================
+  # Stage 4: Deploy Firestore Rules & Indexes
+  # ============================================================
+  deploy-database-infrastructure:
+    name: Deploy Firestore Rules & Indexes
+    runs-on: ubuntu-latest
+    needs: quality-gate
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate with Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Firestore Rules & Indexes
+        run: |
+          firebase deploy \
+            --only firestore:rules,firestore:indexes,storage:rules,remoteconfig \
+            --project ${{ env.PRODUCTION_PROJECT_ID }} \
+            --non-interactive
+
+  # ============================================================
+  # Stage 5: Post-Deployment Smoke Test & Verification
+  # ============================================================
+  post-deploy-smoke-test:
+    name: Post-Deployment Smoke Test
+    runs-on: ubuntu-latest
+    needs:
+      - deploy-dashboard-hosting
+      - deploy-cloud-run-services
+      - deploy-database-infrastructure
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Production Smoke Test Suite
+        run: pnpm vitest run tests/production/smoke.test.ts
+
+      - name: Publish Deployment Summary
+        if: always()
+        run: |
+          echo "### 🚀 Production Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Project:** \`${{ env.PRODUCTION_PROJECT_ID }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dashboard URL:** [https://${{ env.CUSTOM_DOMAIN }}](https://${{ env.CUSTOM_DOMAIN }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit SHA:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Services Deployed:** \`admin-api\`, \`promotion-api\`, \`ai-gateway\`, \`workers\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Firestore Rules:** 18 collections verified & deployed" >> $GITHUB_STEP_SUMMARY

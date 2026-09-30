@@ -1,0 +1,74 @@
+# WAPCentral Production Firestore Automated Backup Architecture
+# Phase 13 — Production Release
+
+apiVersion: v1
+kind: FirestoreBackupArchitecture
+metadata:
+  name: firestore-backup-prod
+  environment: production
+  projectId: wapcentral-prod
+  region: us-central1
+
+storage:
+  bucket: wapcentral-firestore-backups-prod
+  location: us-central1
+  storageClass: STANDARD
+  uniformBucketLevelAccess: true
+  versioning:
+    enabled: true
+  lifecycleRules:
+    - action:
+        type: SetStorageClass
+        storageClass: NEARLINE
+      condition:
+        age: 7
+        matchesStorageClass:
+          - STANDARD
+    - action:
+        type: SetStorageClass
+        storageClass: COLDLINE
+      condition:
+        age: 30
+        matchesStorageClass:
+          - NEARLINE
+    - action:
+        type: Delete
+      condition:
+        age: 90
+
+scheduler:
+  name: firestore-daily-backup
+  description: Daily automated point-in-time Firestore database export
+  schedule: '0 2 * * *' # Daily at 02:00 UTC
+  timeZone: Etc/UTC
+  httpTarget:
+    uri: https://firestore.googleapis.com/v1/projects/wapcentral-prod/databases/(default):exportDocuments
+    httpMethod: POST
+    headers:
+      Content-Type: application/json
+    body:
+      outputUriPrefix: gs://wapcentral-firestore-backups-prod/exports
+      collectionIds: [] # Empty array exports all collections
+    oidcToken:
+      serviceAccountEmail: sa-backup@wapcentral-prod.iam.gserviceaccount.com
+      audience: https://firestore.googleapis.com/
+
+iam:
+  serviceAccount: sa-backup@wapcentral-prod.iam.gserviceaccount.com
+  roles:
+    - roles/datastore.importExportAdmin
+    - roles/storage.objectAdmin
+    - roles/cloudscheduler.jobRunner
+
+monitoring:
+  alertPolicies:
+    - name: firestore-backup-failure-alert
+      displayName: Alert on Firestore Daily Backup Failure
+      filter: |
+        resource.type="cloud_scheduler_job"
+        AND resource.labels.job_id="firestore-daily-backup"
+        AND metric.type="cloudscheduler.googleapis.com/job/attempt_count"
+        AND metric.labels.status!="SUCCESS"
+      notificationChannels:
+        - projects/wapcentral-prod/notificationChannels/ops-pagerduty
+        - projects/wapcentral-prod/notificationChannels/ops-slack

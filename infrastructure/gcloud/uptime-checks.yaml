@@ -1,0 +1,133 @@
+# WAPCentral Production Uptime Monitoring & Synthetic Health Checks
+# Phase 13 — Production Release
+
+apiVersion: monitoring.googleapis.com/v3
+kind: UptimeCheckSuite
+metadata:
+  environment: production
+  projectId: wapcentral-prod
+
+uptimeChecks:
+  # 1. Admin Dashboard (Firebase Hosting Custom Domain)
+  - id: uptime-dashboard-prod
+    displayName: 'Production Dashboard Synthetic Probe'
+    monitoredResource:
+      type: uptime_url
+      labels:
+        host: central.webappypie.com
+    httpCheck:
+      path: /
+      port: 443
+      useSsl: true
+      validateSsl: true
+      acceptedResponseStatusCodes:
+        - statusValue: 200
+    period: 60s
+    timeout: 10s
+    selectedRegions:
+      - USA
+      - EUROPE
+      - ASIA_PACIFIC
+      - SOUTH_AMERICA
+
+  # 2. Admin API Microservice (Cloud Run)
+  - id: uptime-admin-api-prod
+    displayName: 'Production Admin API Health Probe'
+    monitoredResource:
+      type: uptime_url
+      labels:
+        host: admin.central.webappypie.com
+    httpCheck:
+      path: /health
+      port: 443
+      useSsl: true
+      validateSsl: true
+      acceptedResponseStatusCodes:
+        - statusValue: 200
+    period: 60s
+    timeout: 10s
+    selectedRegions:
+      - USA
+      - EUROPE
+      - ASIA_PACIFIC
+
+  # 3. Promotion Delivery API Microservice (High-Throughput Edge)
+  - id: uptime-promotion-api-prod
+    displayName: 'Production Promotion API Health Probe'
+    monitoredResource:
+      type: uptime_url
+      labels:
+        host: promo.central.webappypie.com
+    httpCheck:
+      path: /v1/health
+      port: 443
+      useSsl: true
+      validateSsl: true
+      acceptedResponseStatusCodes:
+        - statusValue: 200
+    period: 60s
+    timeout: 5s
+    selectedRegions:
+      - USA
+      - EUROPE
+      - ASIA_PACIFIC
+
+  # 4. AI Gateway Microservice (Multi-Provider Fallback Proxy)
+  - id: uptime-ai-gateway-prod
+    displayName: 'Production AI Gateway Health Probe'
+    monitoredResource:
+      type: uptime_url
+      labels:
+        host: ai.central.webappypie.com
+    httpCheck:
+      path: /v1/health
+      port: 443
+      useSsl: true
+      validateSsl: true
+      acceptedResponseStatusCodes:
+        - statusValue: 200
+    period: 60s
+    timeout: 10s
+    selectedRegions:
+      - USA
+      - EUROPE
+      - ASIA_PACIFIC
+
+  # 5. Background Workers (Job Processor & Event Ingestion)
+  - id: uptime-workers-prod
+    displayName: 'Production Background Workers Health Probe'
+    monitoredResource:
+      type: uptime_url
+      labels:
+        host: workers.central.webappypie.com
+    httpCheck:
+      path: /health
+      port: 443
+      useSsl: true
+      validateSsl: true
+      acceptedResponseStatusCodes:
+        - statusValue: 200
+    period: 60s
+    timeout: 10s
+    selectedRegions:
+      - USA
+      - EUROPE
+
+alerting:
+  policies:
+    - name: uptime-check-failure
+      displayName: 'CRITICAL: Service Uptime Check Failed'
+      combiner: OR
+      conditions:
+        - displayName: 'Uptime check failure across multi-region probes'
+          conditionThreshold:
+            filter: metric.type="monitoring.googleapis.com/uptime_check/check_passed" AND resource.type="uptime_url"
+            comparison: COMPARISON_LT
+            thresholdValue: 1.0
+            duration: 120s
+            aggregations:
+              - alignmentPeriod: 60s
+                perSeriesAligner: ALIGN_FRACTION_TRUE
+      notificationChannels:
+        - projects/wapcentral-prod/notificationChannels/pagerduty-p1
+        - projects/wapcentral-prod/notificationChannels/slack-incident-alerts

@@ -5,15 +5,75 @@ All notable changes to this project are documented here. Format based on
 
 ---
 
-## [Unreleased] — Phase 13: Production Release
+## [1.0.0] — Phase 13: Production Release — 2026-09-30
 
-- Production Firebase project fully configured
-- Custom domain setup for dashboard (e.g. central.webappypie.com)
-- Full production deployment pipeline (GitHub Actions)
-- Uptime monitoring configuration
-- Automated backup strategy for Firestore
-- Rollback procedures and runbooks
-- Production smoke test and failure injection verification
+### Added
+
+- **Production Firebase Hosting & Security Headers (`firebase.json`,
+  `infrastructure/firebase/firebase.json`):**
+  - Configured custom domain routing for `central.webappypie.com` targeting `wapcentral-prod`.
+  - Enforced enterprise HTTP security headers across all hosting routes:
+    - `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`
+    - `X-Content-Type-Options: nosniff`
+    - `X-Frame-Options: DENY`
+    - `X-XSS-Protection: 1; mode=block`
+    - `Referrer-Policy: strict-origin-when-cross-origin`
+    - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+  - Set granular caching headers with immutable long-term caching for static assets and strict
+    no-cache for index HTML.
+
+- **Production Deployment CI/CD Pipeline (`.github/workflows/deploy.yml`):**
+  - Implemented 5-stage automated deployment pipeline in GitHub Actions:
+    1. `quality-gate`: TypeScript type checks, ESLint, Prettier verification, monorepo tests, and
+       Firestore security rules penetration testing.
+    2. `deploy-dashboard-hosting`: Builds React admin dashboard and deploys to Firebase Hosting live
+       channel.
+    3. `deploy-cloud-run-services`: Matrix deployment for `admin-api`, `promotion-api`,
+       `ai-gateway`, and `workers` with zero-downtime rolling updates (`--traffic=100`) and Secret
+       Manager bindings.
+    4. `deploy-database-infrastructure`: Deploys Firestore rules, composite indexes, storage rules,
+       and Remote Config parameters.
+    5. `post-deploy-smoke-test`: Executes automated post-deployment synthetic verification.
+
+- **Containerization & Cloud Build Architecture (`Dockerfile`,
+  `infrastructure/gcloud/cloudbuild.yaml`):**
+  - Authored monorepo multi-stage Dockerfile enabling lightweight containerization of any backend
+    microservice.
+  - Configured Cloud Build pipeline with Google Artifact Registry integration and build caching.
+
+- **Automated Firestore Backup Strategy (`infrastructure/gcloud/firestore-backup.yaml`,
+  `scripts/backup-firestore.sh`, `scripts/backup-firestore.js`):**
+  - Designed Cloud Scheduler daily export (`0 2 * * *`) targeting
+    `gs://wapcentral-firestore-backups-prod/exports`.
+  - Configured Cloud Storage lifecycle rules: transition to Nearline after 7 days, Coldline after 30
+    days, and deletion after 90 days.
+  - Implemented cross-platform backup automation scripts (`.sh` and `.js`) with selective collection
+    targeting and backup listing.
+
+- **Multi-Region Synthetic Uptime Monitoring (`infrastructure/gcloud/uptime-checks.yaml`):**
+  - Configured multi-region synthetic probes across USA, Europe, Asia Pacific, and South America
+    edge locations.
+  - Configured health checks for `central.webappypie.com` (dashboard),
+    `admin.central.webappypie.com`, `promo.central.webappypie.com`, `ai.central.webappypie.com`, and
+    `workers.central.webappypie.com`.
+  - Established P1/Critical alert policies routed to PagerDuty and Slack.
+
+- **Disaster Recovery & Emergency Rollback Runbook (`docs/07_DISASTER_RECOVERY_AND_ROLLBACK.md`):**
+  - Documented strict RTO (< 60s stateless, < 30s hosting, < 30m restore) and RPO targets.
+  - Provided copy-paste ready CLI runbooks for instant Cloud Run revision traffic rollback, Firebase
+    Hosting release revert, Remote Config kill switches, and Firestore Point-In-Time Recovery (PITR)
+    / cold backup restore.
+  - Established secret compromise key rotation procedures and blameless post-mortem checklists.
+
+- **Production Release & Operations Runbook (`docs/08_PRODUCTION_RELEASE_RUNBOOK.md`):**
+  - Documented end-to-end architecture, required GCP APIs, service account least-privilege IAM
+    matrix, DNS configuration for `central.webappypie.com`, Secret Manager keys, and deployment
+    checklist.
+
+- **Production Smoke Test Suite (`tests/production/smoke.test.ts`):**
+  - 12 comprehensive unit and integration tests validating production manifests, security headers,
+    CI/CD pipeline definitions, backup policies, uptime checks, and failure injection resilience
+    simulations (AI provider fallback and emergency promotion kill-switch).
 
 ---
 
@@ -22,24 +82,36 @@ All notable changes to this project are documented here. Format based on
 ### Added
 
 - **Firestore Security Rules Audit & Penetration Testing (`firestore.rules`):**
-  - Expanded security rules to achieve 100% explicit coverage across all 18 collections, including `promotionEvents`, `costAlerts`, `dataRetention`, `infrastructureAlerts`, and `aiServerMetrics`.
-  - Enforced client write blocking (`allow write: if false;`) on raw event collections (`promotionEvents`, `aiServerMetrics`), ensuring only authorized backend services write via Admin SDK.
-  - Added secret leak prevention filter (`hasNoPrivateSecrets`) across alert, retention, provider, and app collections.
-  - Expanded emulator penetration test suite to 25 tests in `tests/rules/firestore-rules.test.ts` covering role privilege escalation resistance, secret leak rejection, immutable audit log guarantees, and default-deny protection on arbitrary paths.
+  - Expanded security rules to achieve 100% explicit coverage across all 18 collections, including
+    `promotionEvents`, `costAlerts`, `dataRetention`, `infrastructureAlerts`, and `aiServerMetrics`.
+  - Enforced client write blocking (`allow write: if false;`) on raw event collections
+    (`promotionEvents`, `aiServerMetrics`), ensuring only authorized backend services write via
+    Admin SDK.
+  - Added secret leak prevention filter (`hasNoPrivateSecrets`) across alert, retention, provider,
+    and app collections.
+  - Expanded emulator penetration test suite to 25 tests in `tests/rules/firestore-rules.test.ts`
+    covering role privilege escalation resistance, secret leak rejection, immutable audit log
+    guarantees, and default-deny protection on arbitrary paths.
 
 - **Input Validation & Injection Resistance (`@wapcentral/validation`):**
-  - Implemented `HttpUrlSchema` with strict `/^https?:\/\//i` enforcement across campaign `storeUrl`, `imageUrl`, `animationUrl`, and provider `baseUrl`, preventing XSS and protocol injection via `javascript:` or `data:` URIs.
+  - Implemented `HttpUrlSchema` with strict `/^https?:\/\//i` enforcement across campaign
+    `storeUrl`, `imageUrl`, `animationUrl`, and provider `baseUrl`, preventing XSS and protocol
+    injection via `javascript:` or `data:` URIs.
   - Hardened identifier schemas against path traversal and SQL/NoSQL injection patterns.
   - Added numeric boundary constraints on cost and retention thresholds.
 
 - **Security Hardening Test Suite (`tests/infrastructure/security-hardening.test.ts`):**
-  - Automated scanner test verifying zero committed `.env` files, zero service account JSONs, and strict `.gitignore` patterns.
-  - Cryptographic test suite verifying deterministic HMAC-SHA256 signature canonicalization, constant-time verification, and single-bit tamper rejection.
+  - Automated scanner test verifying zero committed `.env` files, zero service account JSONs, and
+    strict `.gitignore` patterns.
+  - Cryptographic test suite verifying deterministic HMAC-SHA256 signature canonicalization,
+    constant-time verification, and single-bit tamper rejection.
   - Input validation injection resistance tests (prototype pollution, script tags, URI protocols).
   - RBAC role hierarchy and immutability tests.
 
 - **Comprehensive Security Audit Report (`docs/06_SECURITY_AUDIT_REPORT.md`):**
-  - Published exhaustive security audit report documenting collection access matrices, secret exposure findings, RBAC Express middleware coverage, HMAC anti-tamper mechanisms, and dependency vulnerability assessment.
+  - Published exhaustive security audit report documenting collection access matrices, secret
+    exposure findings, RBAC Express middleware coverage, HMAC anti-tamper mechanisms, and dependency
+    vulnerability assessment.
 
 ---
 

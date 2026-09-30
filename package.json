@@ -1,6 +1,6 @@
 {
   "name": "wapcentral",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "WebAppyPie Central Infrastructure — monorepo",
   "packageManager": "pnpm@9.15.9",
@@ -10,10 +10,11 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "test": "turbo run test && vitest run tests/infrastructure",
+    "test": "turbo run test && vitest run tests/infrastructure && vitest run tests/production",
     "test:infra": "vitest run tests/infrastructure",
+    "test:production": "vitest run tests/production",
     "test:rules": "firebase emulators:exec --only firestore \"vitest run tests/rules\"",
-    "test:all": "turbo run test && vitest run tests/infrastructure && firebase emulators:exec --only firestore \"vitest run tests/rules\"",
+    "test:all": "turbo run test && vitest run tests/infrastructure && vitest run tests/production && firebase emulators:exec --only firestore \"vitest run tests/rules\"",
     "emulators": "firebase emulators:start",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",

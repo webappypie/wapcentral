@@ -242,17 +242,17 @@ export interface Campaign {
   description: string;
   ctaText: string;
   storeUrl: string;
-  imageUrl?: string;
-  animationUrl?: string; // Lottie JSON URL
+  imageUrl?: string | undefined;
+  animationUrl?: string | undefined; // Lottie JSON URL
   layoutVariant: LayoutVariant;
-  scheduleStart?: Timestamp;
-  scheduleEnd?: Timestamp;
+  scheduleStart?: Timestamp | undefined;
+  scheduleEnd?: Timestamp | undefined;
   priority: number; // Higher = shown first
   enabled: boolean;
-  frequencyCap?: FrequencyCap;
-  targetingRules?: TargetingRules;
+  frequencyCap?: FrequencyCap | undefined;
+  targetingRules?: TargetingRules | undefined;
   status: CampaignStatus;
-  analytics?: CampaignAnalytics;
+  analytics?: CampaignAnalytics | undefined;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -263,10 +263,10 @@ export interface FrequencyCap {
 }
 
 export interface TargetingRules {
-  minAppVersion?: string;
-  maxAppVersion?: string;
-  platforms?: Platform[];
-  environments?: Environment[];
+  minAppVersion?: string | undefined;
+  maxAppVersion?: string | undefined;
+  platforms?: Platform[] | undefined;
+  environments?: Environment[] | undefined;
 }
 
 export interface CampaignAnalytics {
@@ -281,12 +281,12 @@ export interface CampaignAnalytics {
  */
 export interface PromotionPayload {
   schemaVersion: 1;
-  enabled: boolean;
+  enabled: true;
   campaignId: string;
   title: string;
   description: string;
-  imageUrl?: string;
-  animationUrl?: string;
+  imageUrl?: string | undefined;
+  animationUrl?: string | undefined;
   ctaText: string;
   storeUrl: string;
   layoutVariant: LayoutVariant;
@@ -303,6 +303,20 @@ export interface EmptyPromotionPayload {
   enabled: false;
   cacheTtlSeconds: number;
   signature: string;
+}
+
+export type PromotionDeliveryResponse = PromotionPayload | EmptyPromotionPayload;
+
+export type PromotionEventType = 'impression' | 'click';
+
+export interface PromotionEvent {
+  id: string;
+  eventType: PromotionEventType;
+  campaignId: string;
+  appId: string;
+  deviceId?: string | undefined;
+  timestamp: Timestamp;
+  metadata?: Record<string, unknown> | undefined;
 }
 
 // ============================================================

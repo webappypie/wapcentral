@@ -1,31 +1,33 @@
-/**
- * promotion-api — WAPCentral Campaign Delivery Service
- *
- * STUB — Implementation in Phase 7.
- *
- * Responsibilities:
- * - Serve active campaigns to mobile apps (GET /v1/promotion)
- * - App-key authentication (light auth — identifies app, not a secret)
- * - Rate limiting (60 req/min per app-key, abuse protection)
- * - HMAC-SHA256 payload signing (PROMOTION_SIGNING_SECRET from Secret Manager)
- * - Campaign selection (active, priority-ordered, targeting rules)
- * - Cache-Control headers (cacheTtlSeconds from campaign config)
- * - Analytics ingestion (impression / click events)
- * - Health check endpoint (GET /v1/health)
- *
- * Security:
- * - App keys are identifiers, not secrets — do not use for sensitive operations
- * - All private operations remain server-side
- * - Signing secret never exposed in responses
- * - Rate limit exceeded returns 429 with Retry-After header
- *
- * Platform-agnostic API Contract:
- * - Same endpoint consumed by Flutter (wap_promo_sdk) and future native SDKs
- * - Response schema versioned (schemaVersion field)
- *
- * Runtime: Cloud Run (Node.js)
- */
+import { createApp } from './app.js';
+import { config } from './config.js';
 
-// Stub implementation � see above TODO comments
+export * from './config.js';
+export * from './app.js';
+export * from './utils/crypto.js';
+export * from './utils/semver.js';
+export * from './services/campaignMatcher.js';
+export * from './services/analyticsService.js';
+export * from './middleware/auth.js';
+export * from './middleware/rateLimiter.js';
 
-export {};
+const app = createApp();
+
+if (process.env['NODE_ENV'] !== 'test') {
+  const server = app.listen(config.port, () => {
+    // eslint-disable-next-line no-console
+    console.log(`[promotion-api] Listening on port ${config.port} (env: ${config.nodeEnv})`);
+  });
+
+  const shutdown = (signal: string): void => {
+    // eslint-disable-next-line no-console
+    console.log(`[promotion-api] Received ${signal}, closing server gracefully...`);
+    server.close(() => {
+      // eslint-disable-next-line no-console
+      console.log('[promotion-api] Server closed.');
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}

@@ -21,6 +21,7 @@ export const COLLECTIONS = {
   HEALTH_CHECKS: 'healthChecks',
   AUDIT_LOGS: 'auditLogs',
   ROLES: 'roles',
+  PROMOTION_EVENTS: 'promotionEvents',
 } as const;
 
 // ============================================================

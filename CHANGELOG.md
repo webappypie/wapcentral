@@ -5,13 +5,58 @@ All notable changes to this project are documented here. Format based on
 
 ---
 
-## [Unreleased] — Phase 7: Promotion System
+## [Unreleased] — Phase 8: Mobile Promotion Module (wap_promo_sdk)
 
-- Promotion API (`services/promotion-api`) with campaign matching engine
-- Targeting evaluation (app, platform, country, version)
-- Creative format resolution (banner, interstitial, rewarded, native)
-- Client-side promotion SDK contracts and local cache handling
-- Impression & click telemetry collection
+- Flutter SDK package (`sdks/wap_promo_sdk/`)
+- PromoCache (local persistent cache with zero-latency startup)
+- PromoService (background refresh, HMAC signature verification)
+- PromoWidget (banner, interstitial, and native variants with graceful fallbacks)
+- Frequency capping enforcement and fire-and-forget analytics event dispatch
+
+---
+
+## [0.8.0] — Phase 7: Promotion System — 2026-09-30
+
+### Added
+
+- **Promotion Delivery Service (`services/promotion-api`):**
+  - High-performance Express + TypeScript campaign delivery microservice ready for Google Cloud Run.
+  - Light App-Key Authentication Middleware (`authenticateAppKey`): Authenticates incoming queries
+    via `X-App-Key` header or query parameter, validates registered apps, and prevents unauthorized
+    cross-app spoofing.
+  - Sliding-Window Rate Limiter & Abuse Protection (`promotionRateLimiter`): Enforces 60 requests
+    per minute per app-key with standard headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`,
+    `X-RateLimit-Reset`, `Retry-After`). Automatically triggers a 5-minute cool-off throttle upon
+    abusive spikes (>120 req/min).
+  - Campaign Matching Engine (`campaignMatcher.ts`): Evaluates candidate campaigns against calling
+    app, active schedules, platform constraints, environment restrictions, and semver version ranges
+    (`minAppVersion`, `maxAppVersion`), serving highest-priority active campaigns.
+  - Cryptographic HMAC-SHA256 Payload Signing (`crypto.ts`): Signs delivery payloads with
+    `PROMOTION_SIGNING_SECRET` using canonical field ordering and provides constant-time timing-safe
+    verification (`verifyPayloadSignature`).
+  - Cache-Control HTTP Headers: Emits `Cache-Control: public, max-age={cacheTtlSeconds}` (default 6
+    hours, 1 hour for empty fallback) to optimize CDN and mobile caching.
+  - Delivery Endpoints: `GET /v1/promotion` delivering versioned `PromotionPayload` or signed
+    `EmptyPromotionPayload`.
+  - Analytics & Telemetry Ingestion: `POST /v1/analytics/impression`, `POST /v1/analytics/click`,
+    `POST /v1/promotion/events`, and `GET /v1/analytics/events` with automatic real-time CTR
+    calculation and non-blocking event buffers.
+  - Health Probes: `GET /health` and `GET /v1/health`.
+  - 23 automated tests in `services/promotion-api/src/tests/promotion.test.ts` covering auth,
+    matching, semver, HMAC signing/tamper resistance, rate limits, and analytics telemetry.
+- **Admin API Campaign Lifecycle Enhancements (`services/admin-api`):**
+  - Added `PUT /v1/campaigns/:id` for full campaign details update with schema validation and audit
+    trail logging.
+  - Full campaign lifecycle management: `draft` -> `published` <-> `paused` -> `ended` -> `deleted`.
+  - Added integration test coverage for campaign lifecycle transitions.
+- **Dashboard Creative Assets & Live Preview (`apps/dashboard`):**
+  - Added local image asset upload support to `CampaignModal.tsx` targeting Firebase Storage
+    structures with instant preview in `DevicePreview.tsx`.
+- **Shared Types & Validation:**
+  - Added `PromotionDeliveryResponse`, `PromotionEventType`, and `PromotionEvent` in
+    `@wapcentral/types`.
+  - Added `PromotionEventTypeSchema` and `PromotionEventSchema` in `@wapcentral/validation`.
+  - Added `PROMOTION_EVENTS` collection identifier in `@wapcentral/config`.
 
 ---
 

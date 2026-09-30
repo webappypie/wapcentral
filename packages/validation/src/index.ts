@@ -173,6 +173,17 @@ export const PromotionQuerySchema = z.object({
   platform: PlatformSchema.optional(),
 });
 
+export const PromotionEventTypeSchema = z.enum(['impression', 'click']);
+
+export const PromotionEventSchema = z.object({
+  eventType: PromotionEventTypeSchema,
+  campaignId: z.string().min(1),
+  appId: z.string().min(1),
+  deviceId: z.string().optional(),
+  timestamp: TimestampSchema.optional(),
+  metadata: z.record(z.unknown()).optional(),
+});
+
 // ============================================================
 // AI Provider / Gateway Schemas
 // ============================================================
@@ -289,6 +300,7 @@ export type CreateCampaignInput = z.infer<typeof CreateCampaignSchema>;
 export type UpdateCampaignInput = z.infer<typeof UpdateCampaignSchema>;
 export type GatewayRequestInput = z.infer<typeof GatewayRequestSchema>;
 export type PromotionQuery = z.infer<typeof PromotionQuerySchema>;
+export type PromotionEventInput = z.infer<typeof PromotionEventSchema>;
 export type UpsertFeatureFlagInput = z.infer<typeof UpsertFeatureFlagSchema>;
 export type CreateAiProviderInput = z.input<typeof CreateAiProviderSchema>;
 export type UpdateAiProviderInput = z.input<typeof UpdateAiProviderSchema>;

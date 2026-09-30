@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import type { AuthenticatedRequest } from '../types/auth.js';
 import { requireRole } from '../middleware/rbac.js';
-import { CreateCampaignSchema } from '@wapcentral/validation';
+import { CreateCampaignSchema, UpdateCampaignSchema } from '@wapcentral/validation';
 import type { Campaign, CampaignStatus } from '@wapcentral/types';
 import { logAdminAction } from '../services/auditService.js';
 
@@ -111,6 +111,110 @@ campaignsRouter.post(
     res.status(201).json({
       success: true,
       data: newCampaign,
+      timestamp: now,
+    });
+  },
+);
+
+// PUT /v1/campaigns/:id - Update full campaign details (Editor+)
+campaignsRouter.put(
+  '/:id',
+  requireRole('editor'),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const campaignId = String(req.params['id'] || '');
+    const campIndex = memoryCampaigns.findIndex((c) => c.id === campaignId);
+
+    if (campIndex === -1) {
+      res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: `Campaign '${campaignId}' not found.` },
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    const parsed = UpdateCampaignSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid campaign update payload.',
+          details: parsed.error.format(),
+        },
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    const existing = memoryCampaigns[campIndex]!;
+    const validated = parsed.data;
+    const now = new Date().toISOString();
+
+    const updatedCamp: Campaign = {
+      id: existing.id,
+      name: validated.name ?? existing.name,
+      promotedAppId: validated.promotedAppId ?? existing.promotedAppId,
+      targetAppIds: validated.targetAppIds ?? existing.targetAppIds,
+      title: validated.title ?? existing.title,
+      description: validated.description ?? existing.description,
+      ctaText: validated.ctaText ?? existing.ctaText,
+      storeUrl: validated.storeUrl ?? existing.storeUrl,
+      layoutVariant: validated.layoutVariant ?? existing.layoutVariant,
+      priority: validated.priority ?? existing.priority,
+      enabled: validated.enabled !== undefined ? validated.enabled : existing.enabled,
+      status: validated.status ?? existing.status,
+      ...(validated.imageUrl
+        ? { imageUrl: validated.imageUrl }
+        : existing.imageUrl
+          ? { imageUrl: existing.imageUrl }
+          : {}),
+      ...(validated.animationUrl
+        ? { animationUrl: validated.animationUrl }
+        : existing.animationUrl
+          ? { animationUrl: existing.animationUrl }
+          : {}),
+      ...(validated.scheduleStart
+        ? { scheduleStart: validated.scheduleStart }
+        : existing.scheduleStart
+          ? { scheduleStart: existing.scheduleStart }
+          : {}),
+      ...(validated.scheduleEnd
+        ? { scheduleEnd: validated.scheduleEnd }
+        : existing.scheduleEnd
+          ? { scheduleEnd: existing.scheduleEnd }
+          : {}),
+      ...(validated.frequencyCap
+        ? { frequencyCap: validated.frequencyCap }
+        : existing.frequencyCap
+          ? { frequencyCap: existing.frequencyCap }
+          : {}),
+      ...(validated.targetingRules
+        ? { targetingRules: validated.targetingRules }
+        : existing.targetingRules
+          ? { targetingRules: existing.targetingRules }
+          : {}),
+      ...(existing.analytics ? { analytics: existing.analytics } : {}),
+      createdAt: existing.createdAt,
+      updatedAt: now,
+    };
+
+    memoryCampaigns[campIndex] = updatedCamp;
+
+    if (req.user) {
+      await logAdminAction({
+        action: 'campaign.update',
+        actorUid: req.user.uid,
+        actorEmail: req.user.email,
+        resourceType: 'campaign',
+        resourceId: campaignId,
+        changes: { campaign: { before: existing, after: updatedCamp } },
+      });
+    }
+
+    res.json({
+      success: true,
+      data: updatedCamp,
       timestamp: now,
     });
   },

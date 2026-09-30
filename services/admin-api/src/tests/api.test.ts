@@ -360,4 +360,78 @@ describe('Admin API Service (Phase 4)', () => {
       expect(deleteRes.body.data.deleted).toBe(true);
     });
   });
+
+  describe('Campaign Management & Full Lifecycle (Phase 7)', () => {
+    it('should manage full campaign lifecycle: create -> update -> publish -> pause -> end -> delete', async () => {
+      // 1. Create Campaign (Draft)
+      const createRes = await request(app)
+        .post('/v1/campaigns')
+        .set('Authorization', 'Bearer mock-token-editor')
+        .send({
+          name: 'Habits Launch Blitz',
+          promotedAppId: 'app_03',
+          targetAppIds: ['app_01', 'app_02'],
+          title: 'Build Unstoppable Habits',
+          description: 'Track streaks and boost productivity with AI habit reminders',
+          ctaText: 'Start 7-Day Free Trial',
+          storeUrl: 'https://play.google.com/store/apps/details?id=com.webappypie.habits',
+          layoutVariant: 'native',
+          priority: 88,
+        });
+
+      expect(createRes.status).toBe(201);
+      expect(createRes.body.data.status).toBe('draft');
+      const campaignId = createRes.body.data.id;
+
+      // 2. Update Campaign Details (PUT /:id)
+      const updateRes = await request(app)
+        .put(`/v1/campaigns/${campaignId}`)
+        .set('Authorization', 'Bearer mock-token-editor')
+        .send({
+          title: 'Build High-Impact Habits Fast',
+          priority: 95,
+        });
+
+      expect(updateRes.status).toBe(200);
+      expect(updateRes.body.data.title).toBe('Build High-Impact Habits Fast');
+      expect(updateRes.body.data.priority).toBe(95);
+
+      // 3. Publish Campaign
+      const publishRes = await request(app)
+        .patch(`/v1/campaigns/${campaignId}/status`)
+        .set('Authorization', 'Bearer mock-token-editor')
+        .send({ status: 'published' });
+
+      expect(publishRes.status).toBe(200);
+      expect(publishRes.body.data.status).toBe('published');
+      expect(publishRes.body.data.enabled).toBe(true);
+
+      // 4. Pause Campaign
+      const pauseRes = await request(app)
+        .patch(`/v1/campaigns/${campaignId}/status`)
+        .set('Authorization', 'Bearer mock-token-editor')
+        .send({ status: 'paused' });
+
+      expect(pauseRes.status).toBe(200);
+      expect(pauseRes.body.data.status).toBe('paused');
+      expect(pauseRes.body.data.enabled).toBe(false);
+
+      // 5. End Campaign
+      const endRes = await request(app)
+        .patch(`/v1/campaigns/${campaignId}/status`)
+        .set('Authorization', 'Bearer mock-token-editor')
+        .send({ status: 'ended' });
+
+      expect(endRes.status).toBe(200);
+      expect(endRes.body.data.status).toBe('ended');
+
+      // 6. Delete Campaign (Admin only)
+      const deleteRes = await request(app)
+        .delete(`/v1/campaigns/${campaignId}`)
+        .set('Authorization', 'Bearer mock-token-admin');
+
+      expect(deleteRes.status).toBe(200);
+      expect(deleteRes.body.success).toBe(true);
+    });
+  });
 });

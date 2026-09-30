@@ -73,6 +73,19 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
     );
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setErrors((prev) => ({ ...prev, imageUrl: 'Image asset must be under 5MB.' }));
+        return;
+      }
+      const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const storageUrl = `https://storage.googleapis.com/wapcentral/creatives/${Date.now()}_${cleanName}`;
+      setImageUrl(storageUrl);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
@@ -284,14 +297,25 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">
-                    Creative Image URL
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs text-slate-600 dark:text-slate-400">
+                      Creative Image URL
+                    </label>
+                    <label className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline cursor-pointer">
+                      <span>Upload Asset</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleFileChange}
+                      />
+                    </label>
+                  </div>
                   <input
                     type="url"
                     value={imageUrl}
                     onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="https://images.unsplash.com/..."
+                    placeholder="https://... or click Upload Asset"
                     className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                   {errors.imageUrl && (

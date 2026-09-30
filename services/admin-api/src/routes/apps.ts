@@ -106,6 +106,9 @@ appsRouter.post('/', requireRole('editor'), async (req: AuthenticatedRequest, re
             ...(validated.adConfig.meta ? { meta: validated.adConfig.meta } : {}),
             ...(validated.adConfig.applovin ? { applovin: validated.adConfig.applovin } : {}),
             ...(validated.adConfig.wapads ? { wapads: validated.adConfig.wapads } : {}),
+            ...(validated.adConfig.mediationPriority
+              ? { mediationPriority: validated.adConfig.mediationPriority }
+              : {}),
           },
         }
       : {}),
@@ -174,6 +177,7 @@ appsRouter.put('/:id', requireRole('editor'), async (req: AuthenticatedRequest, 
     ...(parsed.data.environment ? { environment: parsed.data.environment } : {}),
     ...(parsed.data.status ? { status: parsed.data.status } : {}),
     ...(parsed.data.enabledModules ? { enabledModules: parsed.data.enabledModules } : {}),
+    ...(parsed.data.adConfig ? { adConfig: parsed.data.adConfig } : {}),
     updatedAt: new Date().toISOString(),
   };
 

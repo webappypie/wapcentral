@@ -63,11 +63,14 @@ export interface App {
 
 export type AppModule = 'ai' | 'ads' | 'promotion' | 'analytics' | 'health';
 
+export type AdNetworkType = 'admob' | 'meta' | 'applovin' | 'wapads';
+
 export interface AppAdConfig {
-  admob?: AdMobConfig;
-  meta?: MetaAdConfig;
-  applovin?: AppLovinConfig;
-  wapads?: WapAdsConfig;
+  admob?: AdMobConfig | undefined;
+  meta?: MetaAdConfig | undefined;
+  applovin?: AppLovinConfig | undefined;
+  wapads?: WapAdsConfig | undefined;
+  mediationPriority?: AdNetworkType[] | undefined;
 }
 
 // ============================================================

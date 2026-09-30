@@ -29,6 +29,72 @@ let memoryApps: App[] = [
     version: '1.2.0',
     environment: 'production',
     enabledModules: ['promotion', 'ads', 'analytics'],
+    adConfig: {
+      admob: {
+        appId: 'ca-app-pub-3940256099942544~3347511713',
+        enabled: true,
+        adUnits: [
+          {
+            id: 'unit_banner_01',
+            name: 'Reader Main Banner',
+            type: 'banner',
+            platform: 'android',
+            adUnitId: 'ca-app-pub-3940256099942544/6300978111',
+          },
+          {
+            id: 'unit_interstitial_01',
+            name: 'Chapter End Interstitial',
+            type: 'interstitial',
+            platform: 'android',
+            adUnitId: 'ca-app-pub-3940256099942544/1033173712',
+          },
+          {
+            id: 'unit_rewarded_01',
+            name: 'Unlock Premium Feature',
+            type: 'rewarded',
+            platform: 'android',
+            adUnitId: 'ca-app-pub-3940256099942544/5224354917',
+          },
+          {
+            id: 'unit_native_01',
+            name: 'In-Feed Native Ad',
+            type: 'native',
+            platform: 'android',
+            adUnitId: 'ca-app-pub-3940256099942544/2247696110',
+          },
+        ],
+      },
+      meta: {
+        appId: '102938475610293',
+        enabled: true,
+        placements: [
+          {
+            id: 'meta_banner_01',
+            name: 'Meta Footer Banner',
+            type: 'banner',
+            placementId: '102938475610293_102938475610294',
+          },
+        ],
+      },
+      applovin: {
+        sdkKey: 'applovin_sdk_key_live_abcdef1234567890',
+        enabled: true,
+        adUnits: [
+          {
+            id: 'max_banner_01',
+            name: 'MAX Mediated Banner',
+            type: 'banner',
+            platform: 'android',
+            adUnitId: 'max_unit_banner_9988',
+          },
+        ],
+      },
+      wapads: {
+        appKey: 'wap_key_reader_prod',
+        enabled: true,
+      },
+      mediationPriority: ['admob', 'meta', 'applovin', 'wapads'],
+    },
     status: 'active',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -42,6 +108,36 @@ let memoryApps: App[] = [
     version: '2.0.4',
     environment: 'production',
     enabledModules: ['ads', 'promotion'],
+    adConfig: {
+      admob: {
+        appId: 'ca-app-pub-3940256099942544~1458782514',
+        enabled: true,
+        adUnits: [
+          {
+            id: 'calc_banner_ios',
+            name: 'Calc Bottom Banner',
+            type: 'banner',
+            platform: 'ios',
+            adUnitId: 'ca-app-pub-3940256099942544/2934735716',
+          },
+        ],
+      },
+      meta: {
+        appId: '987654321098765',
+        enabled: false,
+        placements: [],
+      },
+      applovin: {
+        sdkKey: 'applovin_sdk_key_calc_ios_123',
+        enabled: true,
+        adUnits: [],
+      },
+      wapads: {
+        appKey: 'wap_key_calc_prod',
+        enabled: true,
+      },
+      mediationPriority: ['admob', 'applovin', 'wapads'],
+    },
     status: 'active',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -147,6 +243,9 @@ export async function createApp(
             ...(validated.adConfig.meta ? { meta: validated.adConfig.meta } : {}),
             ...(validated.adConfig.applovin ? { applovin: validated.adConfig.applovin } : {}),
             ...(validated.adConfig.wapads ? { wapads: validated.adConfig.wapads } : {}),
+            ...(validated.adConfig.mediationPriority
+              ? { mediationPriority: validated.adConfig.mediationPriority }
+              : {}),
           },
         }
       : {}),

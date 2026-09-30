@@ -5,14 +5,57 @@ All notable changes to this project are documented here. Format based on
 
 ---
 
-## [Unreleased] — Phase 9: Ads Management (wap_ads_sdk)
+## [Unreleased] — Phase 10: Analytics & Cost
 
-- Third-party ad network wrapper SDK (`sdks/wap_ads_sdk/`)
-- Google AdMob integration (banner, interstitial, rewarded, native)
-- Meta Audience Network integration
-- AppLovin MAX mediation integration
-- WAPAds integration hook delegating to wap_promo_sdk
-- Dashboard ad unit configuration and provider registry
+- AI usage charts and provider breakdowns
+- Cost estimation dashboard with USD currency labels
+- Promotion analytics aggregation (impressions, clicks, CTR)
+- Configurable budget alerts and quota notification triggers
+
+---
+
+## [0.10.0] — Phase 9: Ads Management (wap_ads_sdk) — 2026-09-30
+
+### Added
+
+- **Flutter Ads SDK (`sdks/wap_ads_sdk`):**
+  - **Unified Advertising Architecture**: Abstracted provider adapter layer (`AdProviderAdapter`)
+    supporting Google AdMob, Meta Audience Network, AppLovin MAX, and first-party WAPAds.
+  - **Decoupled House Ads (`WapPromoHook`)**: Delegates house-ad slots to `wap_promo_sdk` or custom
+    host app implementations without tight package coupling or compile-time dependencies.
+  - **Waterfall Mediation Engine (`MediationManager`)**: Evaluates ad networks sequentially based on
+    priority (e.g. AdMob $\rightarrow$ Meta $\rightarrow$ AppLovin $\rightarrow$ WAPAds), enforcing
+    timeouts and automatic failover on no-fill or network errors.
+  - **Format Support**: Adaptive Banners, Interstitials, Rewarded Video, and Custom Native In-Feed
+    ads.
+  - **Crash-Free UI Widgets**:
+    - `WapAdBanner`: Automatically mounts mediated banners with waterfall fallback and auto-collapse
+      to `SizedBox.shrink()` on exhaustion.
+    - `WapAdNative`: Mediated native ad card widget.
+    - `WapAdsSdk.showInterstitial` and `WapAdsSdk.showRewarded`: Full-screen ad presentations with
+      automated waterfall cascades.
+  - **Pluggable Bridges**: Native bridge interfaces (`AdMobBridge`, `MetaBridge`, `AppLovinBridge`)
+    enabling comprehensive unit and widget testing in headless CI environments without native binary
+    requirements.
+  - **Test Suite**: 24 unit and widget tests covering model serialization, adapter lifecycle,
+    waterfall cascade failover, no-fill fallback to WAPAds house ads, and widget rendering.
+
+- **Dashboard Ads Management (`apps/dashboard`):**
+  - Enhanced `AdsPage.tsx` with:
+    - **Ad Provider Registry**: Overview of AdMob, Meta, AppLovin MAX, and WAPAds with supported
+      formats and security architecture (client IDs vs Secret Manager credentials).
+    - **Per-App Ad Configuration & Waterfall**: App selector, interactive drag/up-down mediation
+      priority waterfall builder, network credential fields, and ad unit inventory table.
+    - **Ad Unit Inventory Management**: Modal form for creating and deleting platform-specific Ad
+      Units (Banner, Interstitial, Rewarded, Native) and Meta Placements, persisted to Firestore
+      `apps.adConfig`.
+  - Added unit test in `services.test.ts` validating app `adConfig` lifecycle and mediation priority
+    updates.
+
+- **Shared Types & Validation (`@wapcentral/types`, `@wapcentral/validation`):**
+  - Added `AdNetworkType` enum and `mediationPriority` property to `AppAdConfig` and
+    `AppAdConfigSchema`.
+  - Updated `admin-api` and `appsService` to support mediation waterfall priority updates.
 
 ---
 

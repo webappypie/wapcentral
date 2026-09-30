@@ -69,11 +69,14 @@ export const WapAdsConfigSchema = z.object({
   enabled: z.boolean(),
 });
 
+export const AdNetworkTypeSchema = z.enum(['admob', 'meta', 'applovin', 'wapads']);
+
 export const AppAdConfigSchema = z.object({
   admob: AdMobConfigSchema.optional(),
   meta: MetaAdConfigSchema.optional(),
   applovin: AppLovinConfigSchema.optional(),
   wapads: WapAdsConfigSchema.optional(),
+  mediationPriority: z.array(AdNetworkTypeSchema).optional(),
 });
 
 export const AppModuleSchema = z.enum(['ai', 'ads', 'promotion', 'analytics', 'health']);

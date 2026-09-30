@@ -98,6 +98,78 @@ describe('Core Dashboard Services & In-Memory Fallback', () => {
 
       expect(afterDelete.some((a) => a.id === app.id)).toBe(false);
     });
+
+    it('should configure and update app adConfig with mediation waterfall and provider ad units', async () => {
+      const app = await createApp(
+        {
+          name: 'Ad Test App',
+          packageId: 'com.webappypie.adtest',
+          platform: 'android',
+          version: '1.0.0',
+          environment: 'production',
+          enabledModules: ['ads'],
+          adConfig: {
+            admob: {
+              appId: 'ca-app-pub-123456789~987654',
+              enabled: true,
+              adUnits: [
+                {
+                  id: 'u1',
+                  name: 'Banner 1',
+                  type: 'banner',
+                  platform: 'android',
+                  adUnitId: 'ca-app-pub-123/banner',
+                },
+              ],
+            },
+            wapads: {
+              appKey: 'wap_test_key',
+              enabled: true,
+            },
+            mediationPriority: ['admob', 'wapads'],
+          },
+        },
+        mockActor,
+      );
+
+      expect(app.adConfig).toBeDefined();
+      expect(app.adConfig?.admob?.enabled).toBe(true);
+      expect(app.adConfig?.mediationPriority).toEqual(['admob', 'wapads']);
+
+      // Update mediation waterfall priority and add Meta placement
+      await updateApp(
+        app.id,
+        {
+          adConfig: {
+            ...app.adConfig,
+            meta: {
+              appId: 'meta_app_999',
+              enabled: true,
+              placements: [
+                {
+                  id: 'p1',
+                  name: 'Meta Interstitial',
+                  type: 'interstitial',
+                  placementId: 'meta_place_123',
+                },
+              ],
+            },
+            mediationPriority: ['meta', 'admob', 'wapads'],
+          },
+        },
+        mockActor,
+      );
+
+      let loadedApps: any[] = [];
+      const unsub = subscribeApps((apps) => {
+        loadedApps = apps;
+      });
+      unsub();
+
+      const updated = loadedApps.find((a) => a.id === app.id);
+      expect(updated?.adConfig?.mediationPriority).toEqual(['meta', 'admob', 'wapads']);
+      expect(updated?.adConfig?.meta?.placements).toHaveLength(1);
+    });
   });
 
   describe('Campaigns Service', () => {

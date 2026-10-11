@@ -1,9 +1,10 @@
-import type { Response, NextFunction } from 'express';
-import type { AuthenticatedRequest } from '../types/auth.js';
-import type { UserRole } from '@wapcentral/types';
 import { ROLE_HIERARCHY } from '@wapcentral/config';
+import type { UserRole } from '@wapcentral/types';
+import type { Response, NextFunction } from 'express';
 
-export function requireRole(requiredRole: UserRole) {
+import type { AuthenticatedRequest } from '../types/auth.js';
+
+export function requireRole(_requiredRole: UserRole = 'super_admin') {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({
@@ -17,15 +18,12 @@ export function requireRole(requiredRole: UserRole) {
       return;
     }
 
-    const userLevel = ROLE_HIERARCHY[req.user.role] ?? 0;
-    const requiredLevel = ROLE_HIERARCHY[requiredRole] ?? 99;
-
-    if (userLevel < requiredLevel) {
+    if (req.user.role !== 'super_admin') {
       res.status(403).json({
         success: false,
         error: {
           code: 'FORBIDDEN',
-          message: `Insufficient permissions. Operation requires '${requiredRole}' role or higher. Current role: '${req.user.role}'.`,
+          message: "Insufficient permissions. WAPCentral requires 'super_admin' access.",
         },
         timestamp: new Date().toISOString(),
       });

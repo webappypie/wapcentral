@@ -1,4 +1,7 @@
 import type { GatewayResponse, HealthStatus, CostEstimate } from '@wapcentral/types';
+
+import { estimateCost } from '../costEstimator.js';
+import { ProviderError } from '../errors.js';
 import type {
   IProvider,
   GenerateParams,
@@ -7,8 +10,6 @@ import type {
   CostParams,
   ProviderConfig,
 } from '../types.js';
-import { ProviderError } from '../errors.js';
-import { estimateCost } from '../costEstimator.js';
 
 export class AnthropicProvider implements IProvider {
   public readonly providerId: string;
@@ -31,7 +32,9 @@ export class AnthropicProvider implements IProvider {
     const startTime = Date.now();
     const timeout = params.timeoutMs || this.timeoutMs;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeout);
 
     const messages = params.payload.messages
       ? params.payload.messages.map((m) => ({
@@ -72,7 +75,7 @@ export class AnthropicProvider implements IProvider {
 
       const data = (await res.json()) as {
         id?: string;
-        content?: Array<{ text?: string }>;
+        content?: { text?: string }[];
         usage?: { input_tokens?: number; output_tokens?: number };
       };
 
@@ -122,13 +125,15 @@ export class AnthropicProvider implements IProvider {
     const startTime = Date.now();
     const timeout = params.timeoutMs || this.timeoutMs;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeout);
 
     let rawBase64 = params.payload.imageData || '';
     let mediaType = 'image/jpeg';
 
     if (rawBase64.startsWith('data:')) {
-      const match = rawBase64.match(/^data:([^;]+);base64,(.+)$/);
+      const match = /^data:([^;]+);base64,(.+)$/.exec(rawBase64);
       if (match) {
         mediaType = match[1] || 'image/jpeg';
         rawBase64 = match[2] || '';
@@ -180,7 +185,7 @@ export class AnthropicProvider implements IProvider {
 
       const data = (await res.json()) as {
         id?: string;
-        content?: Array<{ text?: string }>;
+        content?: { text?: string }[];
         usage?: { input_tokens?: number; output_tokens?: number };
       };
 
@@ -226,7 +231,7 @@ export class AnthropicProvider implements IProvider {
     }
   }
 
-  async embed(params: EmbedParams): Promise<EmbeddingResponse> {
+  async embed(_params: EmbedParams): Promise<EmbeddingResponse> {
     // Anthropic does not have a dedicated embeddings endpoint; inform caller
     throw new ProviderError(
       this.providerId,
@@ -239,7 +244,9 @@ export class AnthropicProvider implements IProvider {
   async healthCheck(): Promise<HealthStatus> {
     const startTime = Date.now();
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 5000);
 
     try {
       // Lightweight message check

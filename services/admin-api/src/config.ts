@@ -25,6 +25,10 @@ export const ALLOWED_SECRET_NAMES = [
 
 export type AllowedSecretName = (typeof ALLOWED_SECRET_NAMES)[number];
 
-export function isAllowedSecretName(name: string): name is AllowedSecretName {
-  return (ALLOWED_SECRET_NAMES as readonly string[]).includes(name);
+export function isAllowedSecretName(name: string): boolean {
+  return (
+    (ALLOWED_SECRET_NAMES as readonly string[]).includes(name) ||
+    /^FCM_(CREDENTIALS|SERVICE_ACCOUNT)_[A-Z0-9_]+$/.test(name) ||
+    /^FIREBASE_SERVICE_ACCOUNT_[A-Z0-9_]+$/.test(name)
+  );
 }

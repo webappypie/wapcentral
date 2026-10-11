@@ -85,6 +85,42 @@ void main() {
           appKey: 'wap_test_key_001',
           enabled: true,
         ),
+        inmobi: const InMobiConfig(
+          accountId: 'inmobi_acc_123',
+          enabled: true,
+          placements: [
+            AdPlacement(
+              id: 'inmobi_b1',
+              name: 'InMobi Banner',
+              type: AdFormat.banner,
+              placementId: '1612345678901',
+            ),
+            AdPlacement(
+              id: 'inmobi_i1',
+              name: 'InMobi Interstitial',
+              type: AdFormat.interstitial,
+              placementId: '1612345678902',
+            ),
+          ],
+        ),
+        unity: const UnityAdsConfig(
+          gameId: 'unity_game_456',
+          enabled: true,
+          placements: [
+            AdPlacement(
+              id: 'unity_b1',
+              name: 'Unity Banner',
+              type: AdFormat.banner,
+              placementId: 'Banner_Android',
+            ),
+            AdPlacement(
+              id: 'unity_r1',
+              name: 'Unity Rewarded',
+              type: AdFormat.rewarded,
+              placementId: 'Rewarded_Android',
+            ),
+          ],
+        ),
       );
     });
 
@@ -209,6 +245,54 @@ void main() {
       final res2 = await adapterCapped.loadAd(AdFormat.banner);
       expect(res2.isSuccess, isFalse);
       expect(res2.status, equals(AdLoadStatus.noFill));
+    });
+
+    test('InMobiAdapter should initialize and resolve placements for InMobi', () async {
+      final adapter = InMobiAdapter();
+      expect(adapter.isInitialized, isFalse);
+      final initSuccess = await adapter.initialize(testConfig);
+      expect(initSuccess, isTrue);
+      expect(adapter.isInitialized, isTrue);
+
+      final result = await adapter.loadAd(AdFormat.banner);
+      expect(result.isSuccess, isTrue);
+      expect(result.network, equals(AdNetwork.inmobi));
+      expect(result.adUnitId, equals('1612345678901'));
+
+      // Unsupported/unconfigured format should return skipped
+      final appOpenResult = await adapter.loadAd(AdFormat.appOpen);
+      expect(appOpenResult.status, equals(AdLoadStatus.skipped));
+    });
+
+    test('UnityAdapter should initialize and resolve placements for Unity Ads', () async {
+      final adapter = UnityAdapter();
+      expect(adapter.isInitialized, isFalse);
+      final initSuccess = await adapter.initialize(testConfig);
+      expect(initSuccess, isTrue);
+      expect(adapter.isInitialized, isTrue);
+
+      final result = await adapter.loadAd(AdFormat.rewarded);
+      expect(result.isSuccess, isTrue);
+      expect(result.network, equals(AdNetwork.unity));
+      expect(result.adUnitId, equals('Rewarded_Android'));
+
+      // Native not supported on Unity Ads
+      final nativeResult = await adapter.loadAd(AdFormat.native);
+      expect(nativeResult.status, equals(AdLoadStatus.skipped));
+    });
+
+    test('InMobiProvider and UnityAdsProvider should initialize and expose correct network ids', () async {
+      final inmobiProvider = InMobiProvider();
+      expect(inmobiProvider.id, equals('inmobi'));
+      expect(inmobiProvider.name, equals('InMobi'));
+      expect(inmobiProvider.isFormatSupported(AdFormat.banner), isTrue);
+      expect(inmobiProvider.isFormatSupported(AdFormat.appOpen), isFalse);
+
+      final unityProvider = UnityAdsProvider();
+      expect(unityProvider.id, equals('unity'));
+      expect(unityProvider.name, equals('Unity Ads'));
+      expect(unityProvider.isFormatSupported(AdFormat.rewarded), isTrue);
+      expect(unityProvider.isFormatSupported(AdFormat.native), isFalse);
     });
   });
 }

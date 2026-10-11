@@ -1,3 +1,4 @@
+import { auth } from '../lib/firebase.js';
 import { recordAuditLog } from './auditService.js';
 
 export interface SecretItem {
@@ -9,21 +10,21 @@ export interface SecretItem {
   category: 'ai' | 'ads' | 'security';
 }
 
-let memorySecrets: SecretItem[] = [
+const memorySecrets: SecretItem[] = [
   {
     name: 'OPENAI_API_KEY',
     description: 'Private API key for OpenAI GPT-4o models',
-    configured: true,
-    version: 2,
-    lastUpdated: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
+    configured: false,
+    version: null,
+    lastUpdated: null,
     category: 'ai',
   },
   {
     name: 'GEMINI_API_KEY',
     description: 'Google AI Studio / Vertex AI Gemini API key',
-    configured: true,
-    version: 1,
-    lastUpdated: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
+    configured: false,
+    version: null,
+    lastUpdated: null,
     category: 'ai',
   },
   {
@@ -45,9 +46,9 @@ let memorySecrets: SecretItem[] = [
   {
     name: 'ADMOB_REPORTING_CREDENTIALS',
     description: 'Google AdMob Reporting API OAuth service credentials',
-    configured: true,
-    version: 1,
-    lastUpdated: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString(),
+    configured: false,
+    version: null,
+    lastUpdated: null,
     category: 'ads',
   },
   {
@@ -61,17 +62,17 @@ let memorySecrets: SecretItem[] = [
   {
     name: 'APPLOVIN_API_KEY',
     description: 'AppLovin MAX Management & Reporting API key',
-    configured: true,
-    version: 1,
-    lastUpdated: new Date(Date.now() - 1000 * 60 * 60 * 24 * 21).toISOString(),
+    configured: false,
+    version: null,
+    lastUpdated: null,
     category: 'ads',
   },
   {
     name: 'PROMOTION_SIGNING_SECRET',
     description: 'HMAC-SHA256 master key for signing mobile promo payloads',
-    configured: true,
-    version: 3,
-    lastUpdated: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+    configured: false,
+    version: null,
+    lastUpdated: null,
     category: 'security',
   },
   {
@@ -86,21 +87,37 @@ let memorySecrets: SecretItem[] = [
 
 export async function fetchSecretStatusList(): Promise<SecretItem[]> {
   try {
-    const res = await fetch('/api/admin/v1/secrets/status');
+    const headers: Record<string, string> = {};
+    if (auth.currentUser) {
+      const idToken = await auth.currentUser.getIdToken();
+      if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
+    }
+
+    const res = await fetch('/api/admin/v1/secrets/status', { headers });
     if (res.ok) {
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         return memorySecrets.map((s) => {
           const apiItem = data.data.find((item: any) => item.name === s.name);
-          return apiItem ? { ...s, ...apiItem } : s;
+          return {
+            ...s,
+            configured: apiItem ? Boolean(apiItem.configured) : false,
+            version: apiItem?.version ?? null,
+            lastUpdated: apiItem?.lastUpdated ?? null,
+          };
         });
       }
     }
   } catch {
-    // Offline / demo fallback
+    // Unreachable backend: return strictly unconfigured rather than fake demo data
   }
 
-  return [...memorySecrets];
+  return memorySecrets.map((s) => ({
+    ...s,
+    configured: false,
+    version: null,
+    lastUpdated: null,
+  }));
 }
 
 export async function rotateSecret(

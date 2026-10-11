@@ -1,10 +1,11 @@
+import type { Campaign, CampaignStatus } from '@wapcentral/types';
+import { CreateCampaignSchema, UpdateCampaignSchema } from '@wapcentral/validation';
 import { Router } from 'express';
 import type { Response } from 'express';
-import type { AuthenticatedRequest } from '../types/auth.js';
+
 import { requireRole } from '../middleware/rbac.js';
-import { CreateCampaignSchema, UpdateCampaignSchema } from '@wapcentral/validation';
-import type { Campaign, CampaignStatus } from '@wapcentral/types';
 import { logAdminAction } from '../services/auditService.js';
+import type { AuthenticatedRequest } from '../types/auth.js';
 
 export const campaignsRouter: Router = Router();
 

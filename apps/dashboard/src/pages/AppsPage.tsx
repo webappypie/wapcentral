@@ -17,7 +17,8 @@ import {
 } from '@wapcentral/ui';
 import { useAuth } from '../contexts/AuthContext.js';
 import { RoleGuard } from '../components/RoleGuard.js';
-import { Plus, Smartphone, Trash2, Edit2, Search } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Smartphone, Trash2, Edit2, Search, Sliders, ChevronRight } from 'lucide-react';
 import type { App } from '@wapcentral/types';
 import type { CreateAppInput } from '@wapcentral/validation';
 import { subscribeApps, createApp, updateApp, deleteApp } from '../services/appsService.js';
@@ -26,6 +27,7 @@ import { AppModal } from '../components/modals/AppModal.js';
 type ViewState = 'content' | 'loading' | 'empty' | 'error';
 
 export const AppsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [viewState, setViewState] = useState<ViewState>('content');
   const [showRoleDeniedPreview, setShowRoleDeniedPreview] = useState(false);
   const [apps, setApps] = useState<App[]>([]);
@@ -35,18 +37,40 @@ export const AppsPage: React.FC = () => {
   const [editingApp, setEditingApp] = useState<App | null>(null);
   const { user, hasRole } = useAuth();
 
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
+
   useEffect(() => {
+    if (!user) {
+      setApps([]);
+      setViewState('empty');
+      setErrorMessage(null);
+      return;
+    }
+
+    setViewState('loading');
     const unsubscribe = subscribeApps(
       (loadedApps) => {
         setApps(loadedApps);
+        setViewState(loadedApps.length === 0 ? 'empty' : 'content');
+        setErrorMessage(null);
       },
-      () => {
-        // Handled gracefully with fallback in service
+      (err) => {
+        setErrorMessage(err.message);
+        setViewState('error');
       },
     );
 
-    return () => unsubscribe();
-  }, []);
+    return () => {
+      unsubscribe();
+    };
+  }, [user, retryNonce]);
+
+  const handleRetry = () => {
+    setErrorMessage(null);
+    setViewState('loading');
+    setRetryNonce((prev) => prev + 1);
+  };
 
   const handleOpenAddModal = () => {
     setEditingApp(null);
@@ -58,7 +82,7 @@ export const AppsPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleModalSubmit = async (data: CreateAppInput) => {
+  const handleModalSubmit = async (data: CreateAppInput): Promise<App | void> => {
     const actor = {
       uid: user?.uid || 'usr_admin',
       email: user?.email || 'admin@webappypie.com',
@@ -67,7 +91,8 @@ export const AppsPage: React.FC = () => {
     if (editingApp) {
       await updateApp(editingApp.id, data, actor);
     } else {
-      await createApp(data, actor);
+      const created = await createApp(data, actor);
+      return created;
     }
   };
 
@@ -77,9 +102,14 @@ export const AppsPage: React.FC = () => {
         uid: user?.uid || 'usr_admin',
         email: user?.email || 'admin@webappypie.com',
       };
-      await deleteApp(appId, actor);
+      try {
+        await deleteApp(appId, actor);
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Failed to archive application');
+      }
     }
   };
+
 
   if (showRoleDeniedPreview) {
     return (
@@ -108,34 +138,11 @@ export const AppsPage: React.FC = () => {
         title="App Registry"
         description="Register and configure WebAppyPie mobile applications and enabled modules"
         actions={
-          <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-lg border border-slate-200 bg-white p-1 text-xs dark:border-slate-800 dark:bg-slate-900">
-              {(['content', 'loading', 'empty', 'error'] as ViewState[]).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setViewState(s)}
-                  className={`rounded px-2 py-1 capitalize transition-colors ${
-                    viewState === s
-                      ? 'bg-indigo-600 font-semibold text-white'
-                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-              <button
-                onClick={() => setShowRoleDeniedPreview(true)}
-                className="rounded px-2 py-1 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-              >
-                403 State
-              </button>
-            </div>
-            {hasRole('editor') && (
-              <Button size="sm" onClick={handleOpenAddModal}>
-                <Plus className="mr-1.5 h-4 w-4" /> Add App
-              </Button>
-            )}
-          </div>
+          hasRole('editor') && (
+            <Button size="sm" onClick={handleOpenAddModal}>
+              <Plus className="mr-1.5 h-4 w-4" /> Add App
+            </Button>
+          )
         }
       />
 
@@ -164,8 +171,8 @@ export const AppsPage: React.FC = () => {
       {viewState === 'error' && (
         <ErrorState
           title="Failed to load app registry"
-          message="There was an error communicating with the Firestore database. Local fallback was engaged."
-          onRetry={() => setViewState('content')}
+          message={errorMessage || 'There was an error communicating with the Firestore database.'}
+          onRetry={handleRetry}
         />
       )}
 
@@ -227,19 +234,22 @@ export const AppsPage: React.FC = () => {
                     filteredApps.map((app) => (
                       <TableRow key={app.id}>
                         <TableCell className="font-medium text-slate-900 dark:text-slate-100">
-                          <div className="flex items-center gap-2">
-                            <div className="h-8 w-8 rounded-lg bg-brand-500/10 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400 flex items-center justify-center font-bold text-xs">
+                          <button
+                            onClick={() => navigate(`/apps/${app.id}`)}
+                            className="flex items-center gap-2 text-left hover:text-indigo-600 dark:hover:text-indigo-400 group"
+                          >
+                            <div className="h-8 w-8 rounded-lg bg-brand-500/10 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400 flex items-center justify-center font-bold text-xs group-hover:bg-brand-500/20">
                               {app.name.charAt(0)}
                             </div>
                             <div>
-                              <span>{app.name}</span>
+                              <span className="font-semibold underline-offset-2 group-hover:underline">{app.name}</span>
                               {app.status === 'archived' && (
                                 <Badge variant="secondary" className="ml-2 text-[10px]">
                                   Archived
                                 </Badge>
                               )}
                             </div>
-                          </div>
+                          </button>
                         </TableCell>
                         <TableCell className="font-mono text-xs text-slate-500 dark:text-slate-400">
                           {app.packageId}
@@ -284,31 +294,41 @@ export const AppsPage: React.FC = () => {
                             ))}
                           </div>
                         </TableCell>
-                        {hasRole('editor') && (
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => navigate(`/apps/${app.id}`)}
+                              className="text-xs h-7 px-2.5 flex items-center gap-1 text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+                            >
+                              <Sliders className="h-3 w-3" />
+                              Manage
+                            </Button>
+                            {hasRole('editor') && (
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleOpenEditModal(app)}
                                 aria-label="Edit app"
+                                className="h-7 w-7 p-0"
                               >
                                 <Edit2 className="h-3.5 w-3.5" />
                               </Button>
-                              {hasRole('admin') && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-rose-500 hover:text-rose-600 dark:text-rose-400"
-                                  onClick={() => handleDeleteApp(app.id)}
-                                  aria-label="Delete app"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        )}
+                            )}
+                            {hasRole('admin') && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-rose-500 hover:text-rose-600 dark:text-rose-400 h-7 w-7 p-0"
+                                onClick={() => handleDeleteApp(app.id)}
+                                aria-label="Delete app"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -325,6 +345,7 @@ export const AppsPage: React.FC = () => {
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleModalSubmit}
         initialApp={editingApp}
+        onNavigateToDetail={(id) => navigate(`/apps/${id}`)}
       />
     </div>
   );

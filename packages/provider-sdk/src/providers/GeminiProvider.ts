@@ -1,4 +1,7 @@
 import type { GatewayResponse, HealthStatus, CostEstimate } from '@wapcentral/types';
+
+import { estimateCost } from '../costEstimator.js';
+import { ProviderError } from '../errors.js';
 import type {
   IProvider,
   GenerateParams,
@@ -7,8 +10,6 @@ import type {
   CostParams,
   ProviderConfig,
 } from '../types.js';
-import { ProviderError } from '../errors.js';
-import { estimateCost } from '../costEstimator.js';
 
 export class GeminiProvider implements IProvider {
   public readonly providerId: string;
@@ -41,9 +42,11 @@ export class GeminiProvider implements IProvider {
     const startTime = Date.now();
     const timeout = params.timeoutMs || this.timeoutMs;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeout);
 
-    const parts: Array<{ text: string }> = [];
+    const parts: { text: string }[] = [];
     if (params.payload.messages && params.payload.messages.length > 0) {
       for (const m of params.payload.messages) {
         parts.push({ text: `${m.role.toUpperCase()}: ${m.content}` });
@@ -84,7 +87,7 @@ export class GeminiProvider implements IProvider {
       }
 
       const data = (await res.json()) as {
-        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+        candidates?: { content?: { parts?: { text?: string }[] } }[];
         usageMetadata?: {
           promptTokenCount?: number;
           candidatesTokenCount?: number;
@@ -139,13 +142,15 @@ export class GeminiProvider implements IProvider {
     const startTime = Date.now();
     const timeout = params.timeoutMs || this.timeoutMs;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeout);
 
     let rawBase64 = params.payload.imageData || '';
     let mimeType = 'image/jpeg';
 
     if (rawBase64.startsWith('data:')) {
-      const match = rawBase64.match(/^data:([^;]+);base64,(.+)$/);
+      const match = /^data:([^;]+);base64,(.+)$/.exec(rawBase64);
       if (match) {
         mimeType = match[1] || 'image/jpeg';
         rawBase64 = match[2] || '';
@@ -185,7 +190,7 @@ export class GeminiProvider implements IProvider {
       }
 
       const data = (await res.json()) as {
-        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+        candidates?: { content?: { parts?: { text?: string }[] } }[];
         usageMetadata?: {
           promptTokenCount?: number;
           candidatesTokenCount?: number;
@@ -240,7 +245,9 @@ export class GeminiProvider implements IProvider {
     const timeout = params.timeoutMs || this.timeoutMs;
     const model = params.modelId || 'text-embedding-004';
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeout);
 
     try {
       const url = this.buildUrl(`/models/${model}:embedContent`);
@@ -298,7 +305,9 @@ export class GeminiProvider implements IProvider {
   async healthCheck(): Promise<HealthStatus> {
     const startTime = Date.now();
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 5000);
 
     try {
       const url = this.buildUrl('/models');

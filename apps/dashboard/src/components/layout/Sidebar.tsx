@@ -1,12 +1,15 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { cn } from '@wapcentral/ui';
+import { APP_VERSION, resolveEnvironment, formatReleaseVersion } from '@wapcentral/config';
 import {
   type LucideIcon,
   LayoutDashboard,
   Smartphone,
+  Cpu,
   Sparkles,
   Megaphone,
+  Bell,
   Tag,
   Sliders,
   Server,
@@ -25,9 +28,11 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'Overview', to: '/', icon: LayoutDashboard },
+  { name: 'Platform', to: '/platform', icon: Cpu, badge: 'v1' },
   { name: 'Apps', to: '/apps', icon: Smartphone },
   { name: 'AI Gateway', to: '/ai', icon: Sparkles },
-  { name: 'Ad Networks', to: '/ads', icon: Megaphone },
+  { name: 'Ads & Monetization', to: '/ads', icon: Megaphone },
+  { name: 'Notifications', to: '/notifications', icon: Bell },
   { name: 'Promotions', to: '/promotions', icon: Tag },
   { name: 'Feature Flags', to: '/config', icon: Sliders },
   { name: 'Infrastructure', to: '/infrastructure', icon: Server },
@@ -37,6 +42,24 @@ const navItems: NavItem[] = [
 ];
 
 export const Sidebar: React.FC = () => {
+  const envInfo = resolveEnvironment(
+    typeof window !== 'undefined' ? window.location.hostname : undefined,
+    import.meta.env.VITE_APP_ENV || (import.meta.env.PROD ? 'production' : 'development'),
+  );
+
+  const versionStr = formatReleaseVersion(import.meta.env.VITE_APP_VERSION || APP_VERSION);
+  const commitSha = import.meta.env.VITE_COMMIT_SHA || '';
+  const buildTime = import.meta.env.VITE_BUILD_TIME || '';
+
+  const formatBuildDate = (isoStr: string) => {
+    try {
+      const d = new Date(isoStr);
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      return isoStr;
+    }
+  };
+
   return (
     <aside className="flex h-screen w-64 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 transition-colors">
       {/* Brand Header */}
@@ -97,14 +120,38 @@ export const Sidebar: React.FC = () => {
         <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-950/40 dark:text-slate-400">
           <div className="flex items-center justify-between font-medium">
             <span>Environment</span>
-            <span className="font-semibold text-indigo-600 dark:text-indigo-400 uppercase">
-              {import.meta.env.VITE_APP_ENV || 'dev'}
+            <span
+              className={cn(
+                'font-semibold text-xs',
+                envInfo.environment === 'production' && 'text-emerald-600 dark:text-emerald-400',
+                envInfo.environment === 'staging' && 'text-amber-600 dark:text-amber-400',
+                envInfo.environment === 'development' && 'text-indigo-600 dark:text-indigo-400',
+              )}
+            >
+              {envInfo.environmentLabel}
             </span>
           </div>
           <div className="mt-1 flex items-center justify-between">
             <span>Version</span>
-            <span>v0.2.0</span>
+            <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
+              {versionStr}
+            </span>
           </div>
+          {commitSha && commitSha !== 'unknown' && (
+            <div className="mt-1 flex items-center justify-between text-[11px] text-slate-400">
+              <span>Commit</span>
+              <span className="font-mono">{commitSha}</span>
+            </div>
+          )}
+          {buildTime && (
+            <div
+              className="mt-1 flex items-center justify-between text-[10px] text-slate-400"
+              title={buildTime}
+            >
+              <span>Build</span>
+              <span>{formatBuildDate(buildTime)}</span>
+            </div>
+          )}
         </div>
       </div>
     </aside>

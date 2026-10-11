@@ -4,6 +4,20 @@
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       {
+        "source": "/api/admin/**",
+        "run": {
+          "serviceId": "wapcentral-admin-api",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "/api/platform/**",
+        "run": {
+          "serviceId": "wapcentral-admin-api",
+          "region": "asia-south1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
@@ -58,6 +72,7 @@
       }
     ]
   },
+  "auth": {},
   "firestore": {
     "rules": "infrastructure/firebase/firestore.rules",
     "indexes": "infrastructure/firebase/firestore.indexes.json"

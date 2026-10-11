@@ -21,29 +21,12 @@ export interface RecordAuditParams {
   metadata?: Record<string, unknown>;
 }
 
-// In-memory fallback for development or offline mode
-const memoryLogs: AuditLog[] = [
-  {
-    id: 'log_01',
-    action: 'campaign.publish',
-    actorUid: 'usr_admin',
-    actorEmail: 'admin@webappypie.com',
-    resourceType: 'campaign',
-    resourceId: 'camp_01',
-    timestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-    ipAddress: '127.0.0.1',
-  },
-  {
-    id: 'log_02',
-    action: 'flag.update',
-    actorUid: 'usr_editor',
-    actorEmail: 'editor@webappypie.com',
-    resourceType: 'featureFlag',
-    resourceId: 'promotion_enabled',
-    timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-    ipAddress: '127.0.0.1',
-  },
-];
+// In-memory test store (used exclusively in offline unit test environment)
+let testLogs: AuditLog[] = [];
+
+export function resetTestLogs(initial: AuditLog[] = []): void {
+  testLogs = [...initial];
+}
 
 export async function recordAuditLog(params: RecordAuditParams): Promise<void> {
   const newLog: AuditLog = {
@@ -59,9 +42,9 @@ export async function recordAuditLog(params: RecordAuditParams): Promise<void> {
     ipAddress: '127.0.0.1',
   };
 
-  memoryLogs.unshift(newLog);
-
-  if (!isOfflineMode) {
+  if (isOfflineMode) {
+    testLogs.unshift(newLog);
+  } else {
     try {
       const colRef = collection(db, COLLECTIONS.AUDIT_LOGS);
       await addDoc(colRef, {
@@ -70,7 +53,8 @@ export async function recordAuditLog(params: RecordAuditParams): Promise<void> {
         createdAt: serverTimestamp(),
       });
     } catch {
-      // Graceful offline fallback: log recorded in memory
+      // In production, direct client writes to auditLogs are blocked by Firestore security rules
+      // (immutable audit logs are recorded by admin-api backend service with Admin SDK authority).
     }
   }
 }
@@ -80,7 +64,7 @@ export function subscribeAuditLogs(
   onError?: (err: Error) => void,
 ): () => void {
   if (isOfflineMode) {
-    onData(memoryLogs);
+    onData([...testLogs]);
     return () => {};
   }
 
@@ -91,36 +75,34 @@ export function subscribeAuditLogs(
     return onSnapshot(
       q,
       (snapshot) => {
-        if (snapshot.empty && memoryLogs.length > 0) {
-          onData(memoryLogs);
-          return;
-        }
         const logs: AuditLog[] = snapshot.docs.map((docSnap) => {
           const data = docSnap.data();
           const log: AuditLog = {
             id: docSnap.id,
-            action: data.action,
-            actorUid: data.actorUid,
-            actorEmail: data.actorEmail,
-            resourceType: data.resourceType,
-            resourceId: data.resourceId,
-            ...(data.changes ? { changes: data.changes } : {}),
-            ...(data.metadata ? { metadata: data.metadata } : {}),
-            timestamp: data.timestamp?.toDate?.()?.toISOString() || new Date().toISOString(),
-            ipAddress: data.ipAddress,
+            action: data['action'],
+            actorUid: data['actorUid'],
+            actorEmail: data['actorEmail'],
+            resourceType: data['resourceType'],
+            resourceId: data['resourceId'],
+            ...(data['changes'] ? { changes: data['changes'] } : {}),
+            ...(data['metadata'] ? { metadata: data['metadata'] } : {}),
+            timestamp:
+              data['timestamp']?.toDate?.()?.toISOString() ||
+              (typeof data['timestamp'] === 'string' ? data['timestamp'] : new Date().toISOString()),
+            ipAddress: data['ipAddress'] || '127.0.0.1',
           };
           return log;
         });
-        onData(logs.length > 0 ? logs : memoryLogs);
+
+        // Load strictly from Firestore
+        onData(logs);
       },
       (err) => {
-        // Fallback to in-memory logs on permission error or offline
-        onData(memoryLogs);
         if (onError) onError(err);
       },
     );
   } catch (err) {
-    onData(memoryLogs);
+    if (onError && err instanceof Error) onError(err);
     return () => {};
   }
 }

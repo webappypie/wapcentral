@@ -1,14 +1,16 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import type { Campaign } from '@wapcentral/types';
+import { APP_VERSION } from '@wapcentral/config';
 import request from 'supertest';
+import { describe, it, expect, beforeEach } from 'vitest';
+
 import { createApp } from '../app.js';
 import { config } from '../config.js';
-import { resetRateLimits } from '../middleware/rateLimiter.js';
 import { resetRegisteredApps } from '../middleware/auth.js';
-import { resetCampaigns, setCampaigns } from '../services/campaignMatcher.js';
+import { resetRateLimits } from '../middleware/rateLimiter.js';
 import { clearPromotionEvents } from '../services/analyticsService.js';
+import { resetCampaigns, setCampaigns } from '../services/campaignMatcher.js';
 import { verifyPayloadSignature } from '../utils/crypto.js';
 import { compareSemver, isVersionInRange } from '../utils/semver.js';
-import type { Campaign } from '@wapcentral/types';
 
 describe('Promotion API Service (Phase 7)', () => {
   const app = createApp();
@@ -32,7 +34,7 @@ describe('Promotion API Service (Phase 7)', () => {
       const res = await request(app).get('/v1/health');
       expect(res.status).toBe(200);
       expect(res.body.status).toBe('ok');
-      expect(res.body.version).toBe('0.1.0');
+      expect(res.body.version).toBe(APP_VERSION);
     });
   });
 

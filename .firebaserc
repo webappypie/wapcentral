@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "wapcentral-prod",
+    "production": "wapcentral-prod"
+  }
+}

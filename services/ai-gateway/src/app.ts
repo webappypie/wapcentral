@@ -1,9 +1,10 @@
+import cors from 'cors';
 import express from 'express';
 import type { Express, Request, Response, NextFunction } from 'express';
-import cors from 'cors';
+
 import { config } from './config.js';
-import { healthRouter } from './routes/health.js';
 import { gatewayRouter } from './routes/gateway.js';
+import { healthRouter } from './routes/health.js';
 
 export function createApp(): Express {
   const app = express();
@@ -21,11 +22,15 @@ export function createApp(): Express {
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin) return callback(null, true);
-        if (config.corsOrigins.includes(origin) || config.nodeEnv !== 'production') {
-          return callback(null, true);
+        if (!origin) {
+          callback(null, true);
+          return;
         }
-        return callback(null, true);
+        if (config.corsOrigins.includes(origin) || config.nodeEnv !== 'production') {
+          callback(null, true);
+          return;
+        }
+        callback(null, true);
       },
       credentials: true,
       methods: ['GET', 'POST', 'OPTIONS'],

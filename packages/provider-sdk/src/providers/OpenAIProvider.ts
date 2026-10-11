@@ -1,4 +1,7 @@
 import type { GatewayResponse, HealthStatus, CostEstimate } from '@wapcentral/types';
+
+import { estimateCost } from '../costEstimator.js';
+import { ProviderError } from '../errors.js';
 import type {
   IProvider,
   GenerateParams,
@@ -7,8 +10,6 @@ import type {
   CostParams,
   ProviderConfig,
 } from '../types.js';
-import { ProviderError } from '../errors.js';
-import { estimateCost } from '../costEstimator.js';
 
 export class OpenAIProvider implements IProvider {
   public readonly providerId: string;
@@ -31,7 +32,9 @@ export class OpenAIProvider implements IProvider {
     const startTime = Date.now();
     const timeout = params.timeoutMs || this.timeoutMs;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeout);
 
     const messages = params.payload.messages
       ? [...params.payload.messages]
@@ -68,7 +71,7 @@ export class OpenAIProvider implements IProvider {
 
       const data = (await res.json()) as {
         id?: string;
-        choices?: Array<{ message?: { content?: string } }>;
+        choices?: { message?: { content?: string } }[];
         usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
       };
 
@@ -120,7 +123,9 @@ export class OpenAIProvider implements IProvider {
     const startTime = Date.now();
     const timeout = params.timeoutMs || this.timeoutMs;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeout);
 
     const imageUrl = params.payload.imageData?.startsWith('data:')
       ? params.payload.imageData
@@ -162,7 +167,7 @@ export class OpenAIProvider implements IProvider {
 
       const data = (await res.json()) as {
         id?: string;
-        choices?: Array<{ message?: { content?: string } }>;
+        choices?: { message?: { content?: string } }[];
         usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
       };
 
@@ -214,7 +219,9 @@ export class OpenAIProvider implements IProvider {
     const timeout = params.timeoutMs || this.timeoutMs;
     const model = params.modelId || 'text-embedding-3-small';
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeout);
 
     try {
       const res = await this.fetchFn(`${this.baseUrl}/embeddings`, {
@@ -238,7 +245,7 @@ export class OpenAIProvider implements IProvider {
       }
 
       const data = (await res.json()) as {
-        data?: Array<{ embedding?: number[] }>;
+        data?: { embedding?: number[] }[];
         usage?: { prompt_tokens?: number; total_tokens?: number };
       };
 
@@ -277,7 +284,9 @@ export class OpenAIProvider implements IProvider {
   async healthCheck(): Promise<HealthStatus> {
     const startTime = Date.now();
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 5000);
 
     try {
       const res = await this.fetchFn(`${this.baseUrl}/models`, {

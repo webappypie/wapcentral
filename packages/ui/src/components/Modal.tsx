@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
-import { cn } from '../lib/utils.js';
+
 import { Button } from './Button.js';
+import { cn } from '../lib/utils.js';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -29,7 +30,9 @@ export const Modal: React.FC<ModalProps> = ({
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isOpen, onClose]);
 
   // Prevent scroll when open

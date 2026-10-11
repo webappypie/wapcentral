@@ -6,9 +6,12 @@ import { AuthGuard } from './components/AuthGuard.js';
 import { DashboardLayout } from './components/layout/DashboardLayout.js';
 
 import { OverviewPage } from './pages/OverviewPage.js';
+import { PlatformPage } from './pages/PlatformPage.js';
 import { AppsPage } from './pages/AppsPage.js';
+import { ApplicationDetailPage } from './pages/ApplicationDetailPage.js';
 import { AiPage } from './pages/AiPage.js';
 import { AdsPage } from './pages/AdsPage.js';
+import { NotificationsPage } from './pages/NotificationsPage.js';
 import { PromotionsPage } from './pages/PromotionsPage.js';
 import { ConfigPage } from './pages/ConfigPage.js';
 import { InfrastructurePage } from './pages/InfrastructurePage.js';
@@ -39,9 +42,12 @@ export const App: React.FC = () => {
               }
             >
               <Route index element={<OverviewPage />} />
+              <Route path="platform" element={<PlatformPage />} />
               <Route path="apps" element={<AppsPage />} />
+              <Route path="apps/:appId" element={<ApplicationDetailPage />} />
               <Route path="ai" element={<AiPage />} />
               <Route path="ads" element={<AdsPage />} />
+              <Route path="notifications" element={<NotificationsPage />} />
               <Route path="promotions" element={<PromotionsPage />} />
               <Route path="config" element={<ConfigPage />} />
               <Route path="infrastructure" element={<InfrastructurePage />} />

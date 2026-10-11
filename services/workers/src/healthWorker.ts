@@ -1,3 +1,4 @@
+import { HEALTH_MONITORING } from '@wapcentral/config';
 import type {
   DetailedServiceHealth,
   AiServerMetrics,
@@ -7,7 +8,6 @@ import type {
   HealthStatusLevel,
   ServiceCategory,
 } from '@wapcentral/types';
-import { HEALTH_MONITORING } from '@wapcentral/config';
 
 // ============================================================
 // Service Definitions
@@ -180,7 +180,9 @@ export async function probeServiceHeartbeat(
     if (fetchToUse) {
       const startTime = Date.now();
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      const timer = setTimeout(() => {
+        controller.abort();
+      }, timeoutMs);
 
       try {
         const response = await fetchToUse(def.endpoint, {

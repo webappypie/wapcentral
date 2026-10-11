@@ -4,7 +4,7 @@ export class ProviderRegistry {
   private readonly providers = new Map<string, IProvider>();
 
   registerProvider(provider: IProvider): void {
-    if (!provider || !provider.providerId) {
+    if (!provider?.providerId) {
       throw new Error('Cannot register provider with undefined or empty providerId');
     }
     this.providers.set(provider.providerId, provider);

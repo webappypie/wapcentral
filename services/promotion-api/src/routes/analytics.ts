@@ -1,10 +1,11 @@
-import { Router } from 'express';
-import type { Response } from 'express';
-import type { AppAuthenticatedRequest } from '../types/auth.js';
 import { PromotionEventSchema } from '@wapcentral/validation';
+import type { Response } from 'express';
+import { Router } from 'express';
+
 import { authenticateAppKey } from '../middleware/auth.js';
 import { promotionRateLimiter } from '../middleware/rateLimiter.js';
 import { recordPromotionEvent, getPromotionEvents } from '../services/analyticsService.js';
+import type { AppAuthenticatedRequest } from '../types/auth.js';
 
 export const analyticsRouter: Router = Router();
 
@@ -118,7 +119,7 @@ analyticsRouter.post(
       appId: validated.appId,
       deviceId: validated.deviceId,
       timestamp: validated.timestamp,
-      metadata: validated.metadata as Record<string, unknown> | undefined,
+      metadata: validated.metadata,
     });
 
     res.status(202).json({
@@ -134,9 +135,8 @@ analyticsRouter.post(
  * Telemetry query endpoint for inspection and testing.
  */
 analyticsRouter.get('/events', (req: AppAuthenticatedRequest, res: Response) => {
-  const campaignId =
-    typeof req.query['campaignId'] === 'string' ? req.query['campaignId'] : undefined;
-  const appId = typeof req.query['appId'] === 'string' ? req.query['appId'] : undefined;
+  const campaignId = typeof req.query.campaignId === 'string' ? req.query.campaignId : undefined;
+  const appId = typeof req.query.appId === 'string' ? req.query.appId : undefined;
 
   const events = getPromotionEvents({ campaignId, appId });
   res.json({

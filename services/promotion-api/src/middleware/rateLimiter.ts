@@ -1,13 +1,14 @@
 import type { Response, NextFunction } from 'express';
-import type { AppAuthenticatedRequest } from '../types/auth.js';
+
 import { config } from '../config.js';
+import type { AppAuthenticatedRequest } from '../types/auth.js';
 
 interface ClientWindow {
   timestamps: number[];
   blockedUntil?: number;
 }
 
-const rateLimitMap: Map<string, ClientWindow> = new Map();
+const rateLimitMap = new Map<string, ClientWindow>();
 
 /**
  * Resets rate limiter memory state (useful for tests).

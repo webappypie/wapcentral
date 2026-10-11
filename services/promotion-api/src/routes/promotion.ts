@@ -1,14 +1,15 @@
-import { Router } from 'express';
-import type { Response } from 'express';
-import type { AppAuthenticatedRequest } from '../types/auth.js';
 import type { PromotionPayload, EmptyPromotionPayload } from '@wapcentral/types';
 import { PromotionQuerySchema } from '@wapcentral/validation';
+import { Router } from 'express';
+import type { Response } from 'express';
+
+import { config } from '../config.js';
 import { authenticateAppKey } from '../middleware/auth.js';
 import { promotionRateLimiter } from '../middleware/rateLimiter.js';
-import { matchCampaign } from '../services/campaignMatcher.js';
 import { recordPromotionEvent } from '../services/analyticsService.js';
+import { matchCampaign } from '../services/campaignMatcher.js';
+import type { AppAuthenticatedRequest } from '../types/auth.js';
 import { generatePayloadSignature } from '../utils/crypto.js';
-import { config } from '../config.js';
 
 export const promotionRouter: Router = Router();
 
@@ -65,10 +66,7 @@ promotionRouter.get(
         cacheTtlSeconds,
       };
 
-      const signature = generatePayloadSignature(
-        basePayload as Record<string, unknown>,
-        config.signingSecret,
-      );
+      const signature = generatePayloadSignature(basePayload, config.signingSecret);
 
       const payload: PromotionPayload = {
         ...basePayload,
@@ -87,10 +85,7 @@ promotionRouter.get(
       cacheTtlSeconds: config.cache.emptyTtlSeconds,
     };
 
-    const signature = generatePayloadSignature(
-      emptyBase as Record<string, unknown>,
-      config.signingSecret,
-    );
+    const signature = generatePayloadSignature(emptyBase, config.signingSecret);
 
     const emptyPayload: EmptyPromotionPayload = {
       ...emptyBase,

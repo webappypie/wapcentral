@@ -129,11 +129,8 @@ describe('Security Hardening & Penetration Testing Suite (Phase 12)', () => {
   // 3. RBAC Hierarchy & Immutability Contract
   // ============================================================
   describe('3. RBAC Hierarchy & Immutability Contract', () => {
-    it('should define exact 4-tier RBAC role hierarchy', () => {
-      expect(ALLOWED_ROLES).toEqual(['viewer', 'editor', 'admin', 'super_admin']);
-      expect(ROLES.VIEWER).toBe('viewer');
-      expect(ROLES.EDITOR).toBe('editor');
-      expect(ROLES.ADMIN).toBe('admin');
+    it('should enforce single Super Admin authority in production V1', () => {
+      expect(ALLOWED_ROLES).toEqual(['super_admin']);
       expect(ROLES.SUPER_ADMIN).toBe('super_admin');
     });
 

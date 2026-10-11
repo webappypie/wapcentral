@@ -1,6 +1,7 @@
 import React from 'react';
-import { cn } from '../lib/utils.js';
+
 import { Button } from './Button.js';
+import { cn } from '../lib/utils.js';
 
 export interface ErrorStateProps extends React.HTMLAttributes<HTMLDivElement> {
   title?: string;

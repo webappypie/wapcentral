@@ -2,11 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.js';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button } from '@wapcentral/ui';
-import { Layers, ShieldCheck, KeyRound } from 'lucide-react';
-import type { AdminRole } from '@wapcentral/types';
+import { Layers, ShieldCheck } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const { user, signInWithEmail, loginAsDemo } = useAuth();
+  const { user, signInWithEmail } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState('');
@@ -35,11 +34,6 @@ export const LoginPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDemoLogin = (role: AdminRole) => {
-    loginAsDemo(role);
-    navigate(from, { replace: true });
   };
 
   return (
@@ -90,47 +84,6 @@ export const LoginPage: React.FC = () => {
               Sign In
             </Button>
           </form>
-
-          {/* Quick RBAC Demo Login (Development & Local Review) */}
-          <div className="border-t border-slate-200 pt-4 dark:border-slate-800">
-            <span className="text-xs font-semibold text-slate-500 flex items-center justify-center gap-1.5 mb-2.5">
-              <KeyRound className="h-3.5 w-3.5" /> Quick Demo Role Login
-            </span>
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDemoLogin('super_admin')}
-                className="text-xs text-rose-600 dark:text-rose-400"
-              >
-                Super Admin (L4)
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDemoLogin('admin')}
-                className="text-xs text-amber-600 dark:text-amber-400"
-              >
-                Admin (L3)
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDemoLogin('editor')}
-                className="text-xs text-indigo-600 dark:text-indigo-400"
-              >
-                Editor (L2)
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDemoLogin('viewer')}
-                className="text-xs text-slate-600 dark:text-slate-400"
-              >
-                Viewer (L1)
-              </Button>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>

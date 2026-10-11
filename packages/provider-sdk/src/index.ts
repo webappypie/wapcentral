@@ -13,5 +13,6 @@ export * from './providers/GeminiProvider.js';
 export * from './providers/AnthropicProvider.js';
 export * from './providers/SelfHostedProvider.js';
 export * from './registry.js';
+export * from './catalog.js';
 
 export const PROVIDER_SDK_VERSION = '0.5.0';

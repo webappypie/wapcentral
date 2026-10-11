@@ -31,7 +31,7 @@ export function aggregateUsageDaily(events: UsageEvent[]): DailyUsage[] {
   >();
 
   for (const event of events) {
-    const dateStr = event.timestamp.split('T')[0] || new Date().toISOString().split('T')[0]!;
+    const dateStr = event.timestamp.split('T')[0] ?? new Date().toISOString().split('T')[0] ?? '';
     const key = `${event.appId}_${event.providerId}_${dateStr}`;
 
     const existing = map.get(key) || {
@@ -86,11 +86,25 @@ export function aggregateUsageBreakdowns(
   events: UsageEvent[],
   daysLookback?: number,
   referenceDate = new Date(),
+  filterOptions?: {
+    appId?: string | undefined;
+    providerId?: string | undefined;
+    modelId?: string | undefined;
+  },
 ): UsageAggregationSummary {
   let filteredEvents = events;
   if (daysLookback && daysLookback > 0) {
     const cutoff = referenceDate.getTime() - daysLookback * 24 * 60 * 60 * 1000;
-    filteredEvents = events.filter((e) => new Date(e.timestamp).getTime() >= cutoff);
+    filteredEvents = filteredEvents.filter((e) => new Date(e.timestamp).getTime() >= cutoff);
+  }
+  if (filterOptions?.appId && filterOptions.appId !== 'all') {
+    filteredEvents = filteredEvents.filter((e) => e.appId === filterOptions.appId);
+  }
+  if (filterOptions?.providerId && filterOptions.providerId !== 'all') {
+    filteredEvents = filteredEvents.filter((e) => e.providerId === filterOptions.providerId);
+  }
+  if (filterOptions?.modelId && filterOptions.modelId !== 'all') {
+    filteredEvents = filteredEvents.filter((e) => e.modelId === filterOptions.modelId);
   }
 
   let totalRequests = 0;
@@ -115,9 +129,21 @@ export function aggregateUsageBreakdowns(
   const byApp: Record<string, { requests: number; tokens: number; costEstimateUsd: number }> = {};
   const byFeature: Record<string, { requests: number; tokens: number; costEstimateUsd: number }> =
     {};
+  const byModel: Record<
+    string,
+    {
+      providerId: string;
+      requests: number;
+      tokens: number;
+      costEstimateUsd: number;
+      errorCount: number;
+      avgLatencyMs: number;
+      totalLatency: number;
+    }
+  > = {};
   const trendsMap = new Map<
     string,
-    { requests: number; tokens: number; costEstimateUsd: number }
+    { requests: number; tokens: number; costEstimateUsd: number; errorCount: number; totalLatency: number }
   >();
 
   for (const event of filteredEvents) {
@@ -151,6 +177,24 @@ export function aggregateUsageBreakdowns(
     p.avgLatencyMs = Math.round(p.totalLatency / p.requests);
     byProvider[event.providerId] = p;
 
+    // Model Breakdown
+    const m = byModel[event.modelId] || {
+      providerId: event.providerId,
+      requests: 0,
+      tokens: 0,
+      costEstimateUsd: 0,
+      errorCount: 0,
+      avgLatencyMs: 0,
+      totalLatency: 0,
+    };
+    m.requests += 1;
+    m.tokens += tokens;
+    m.costEstimateUsd += cost;
+    m.totalLatency += event.latencyMs;
+    if (!event.success) m.errorCount += 1;
+    m.avgLatencyMs = Math.round(m.totalLatency / m.requests);
+    byModel[event.modelId] = m;
+
     // App Breakdown
     const a = byApp[event.appId] || { requests: 0, tokens: 0, costEstimateUsd: 0 };
     a.requests += 1;
@@ -166,10 +210,12 @@ export function aggregateUsageBreakdowns(
     byFeature[event.feature] = f;
 
     // Daily Trend
-    const t = trendsMap.get(dateStr) || { requests: 0, tokens: 0, costEstimateUsd: 0 };
+    const t = trendsMap.get(dateStr) || { requests: 0, tokens: 0, costEstimateUsd: 0, errorCount: 0, totalLatency: 0 };
     t.requests += 1;
     t.tokens += tokens;
     t.costEstimateUsd += cost;
+    t.totalLatency += event.latencyMs;
+    if (!event.success) t.errorCount += 1;
     trendsMap.set(dateStr, t);
   }
 
@@ -179,6 +225,8 @@ export function aggregateUsageBreakdowns(
       requests: val.requests,
       tokens: val.tokens,
       costEstimateUsd: Number(val.costEstimateUsd.toFixed(4)),
+      errorCount: val.errorCount,
+      avgLatencyMs: val.requests > 0 ? Math.round(val.totalLatency / val.requests) : 0,
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -186,6 +234,19 @@ export function aggregateUsageBreakdowns(
   const finalByProvider: UsageAggregationSummary['byProvider'] = {};
   for (const [key, val] of Object.entries(byProvider)) {
     finalByProvider[key] = {
+      requests: val.requests,
+      tokens: val.tokens,
+      costEstimateUsd: Number(val.costEstimateUsd.toFixed(4)),
+      errorCount: val.errorCount,
+      avgLatencyMs: val.avgLatencyMs,
+    };
+  }
+
+  // Clean up internal helper fields from byModel
+  const finalByModel: NonNullable<UsageAggregationSummary['byModel']> = {};
+  for (const [key, val] of Object.entries(byModel)) {
+    finalByModel[key] = {
+      providerId: val.providerId,
       requests: val.requests,
       tokens: val.tokens,
       costEstimateUsd: Number(val.costEstimateUsd.toFixed(4)),
@@ -213,6 +274,10 @@ export function aggregateUsageBreakdowns(
     };
   }
 
+  const recentEvents = [...filteredEvents]
+    .sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''))
+    .slice(0, 50);
+
   return {
     totalRequests,
     totalInputTokens,
@@ -225,7 +290,9 @@ export function aggregateUsageBreakdowns(
     byProvider: finalByProvider,
     byApp: finalByApp,
     byFeature: finalByFeature,
+    byModel: finalByModel,
     dailyTrends,
+    recentEvents,
   };
 }
 
@@ -239,7 +306,7 @@ export function evaluateCostAlerts(
   referenceDate = new Date(),
 ): CostAlertTrigger[] {
   const triggers: CostAlertTrigger[] = [];
-  const todayStr = referenceDate.toISOString().split('T')[0]!;
+  const todayStr = referenceDate.toISOString().split('T')[0] ?? '';
   const monthStartStr = `${todayStr.slice(0, 7)}-01`;
 
   for (const rule of rules) {

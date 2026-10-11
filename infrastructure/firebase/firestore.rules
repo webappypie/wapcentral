@@ -29,7 +29,7 @@ service cloud.firestore {
 
     // Role resolution: checks custom claims first, falls back to roles/{uid} document
     function getUserRole() {
-      return request.auth.token.role != null
+      return ('role' in request.auth.token && request.auth.token.role != null)
         ? request.auth.token.role
         : (exists(/databases/$(database)/documents/roles/$(request.auth.uid))
             ? get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role
@@ -37,19 +37,22 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      return isSignedIn() && getUserRole() == 'super_admin';
+      return isSignedIn() && (
+        getUserRole() == 'super_admin' ||
+        ('admin' in request.auth.token && request.auth.token.admin == true)
+      );
     }
 
     function isAdmin() {
-      return isSignedIn() && (getUserRole() in ['admin', 'super_admin']);
+      return isSignedIn() && (getUserRole() in ['admin', 'super_admin'] || isSuperAdmin());
     }
 
     function isEditor() {
-      return isSignedIn() && (getUserRole() in ['editor', 'admin', 'super_admin']);
+      return isSignedIn() && (getUserRole() in ['editor', 'admin', 'super_admin'] || isAdmin());
     }
 
     function isViewer() {
-      return isSignedIn() && (getUserRole() in ['viewer', 'editor', 'admin', 'super_admin']);
+      return isSignedIn() && (getUserRole() in ['viewer', 'editor', 'admin', 'super_admin'] || isEditor());
     }
 
     // Verify document contains no private credentials or raw secret keys
@@ -235,6 +238,258 @@ service cloud.firestore {
     // Client write is FORBIDDEN. Only health-worker/node agent writes.
     // ============================================================
     match /aiServerMetrics/{serverId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    // ============================================================
+    // 19. Ad Networks Registry (/adNetworks/{networkId})
+    // ============================================================
+    match /adNetworks/{networkId} {
+      allow read: if isViewer();
+      allow create, update: if isAdmin()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isSuperAdmin();
+    }
+
+    // ============================================================
+    // 20. App-wise Ad Configuration (/adApps/{appId})
+    // ============================================================
+    match /adApps/{appId} {
+      allow read: if isViewer();
+      allow create, update: if isEditor()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // 21. Ad Units Registry (/adUnits/{unitId})
+    // ============================================================
+    match /adUnits/{unitId} {
+      allow read: if isViewer();
+      allow create, update: if isEditor()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // 22. Ad Placements Registry (/adPlacements/{placementId})
+    // ============================================================
+    match /adPlacements/{placementId} {
+      allow read: if isViewer();
+      allow create, update: if isEditor()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // 23. Ad Rotation & Mediation Policies (/adRotationPolicies/{policyId})
+    // ============================================================
+    match /adRotationPolicies/{policyId} {
+      allow read: if isViewer();
+      allow create, update: if isEditor()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // 24. Ad Frequency Policies (/adFrequencyPolicies/{policyId})
+    // ============================================================
+    match /adFrequencyPolicies/{policyId} {
+      allow read: if isViewer();
+      allow create, update: if isEditor()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // 25. Ad Safety Policies (/adSafetyPolicies/{policyId})
+    // ============================================================
+    match /adSafetyPolicies/{policyId} {
+      allow read: if isViewer();
+      allow create, update: if isEditor()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // 26. Custom Ad Campaigns (/customAdCampaigns/{campaignId})
+    // ============================================================
+    match /customAdCampaigns/{campaignId} {
+      allow read: if isViewer();
+      allow create, update: if isEditor()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // 27. Custom Ad Creatives (/customAdCreatives/{creativeId})
+    // ============================================================
+    match /customAdCreatives/{creativeId} {
+      allow read: if isViewer();
+      allow create, update: if isEditor()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // 28. Ad Kill Switches (/adKillSwitches/{switchId})
+    // ============================================================
+    match /adKillSwitches/{switchId} {
+      allow read: if isViewer();
+      allow create, update: if isAdmin()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isSuperAdmin();
+    }
+
+    // ============================================================
+    // 29. Ad Audit Logs (/adAuditLogs/{logId})
+    // Client write is FORBIDDEN. Only backend admin-api writes.
+    // ============================================================
+    match /adAuditLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ============================================================
+    // 30. Notification Templates (/notificationTemplates/{templateId})
+    // ============================================================
+    match /notificationTemplates/{templateId} {
+      allow read: if isViewer();
+      allow create, update: if isEditor()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // 31. Notifications (/notifications/{notificationId})
+    // ============================================================
+    match /notifications/{notificationId} {
+      allow read: if isViewer();
+      allow create, update: if isEditor()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // 32. Notification Recipients (/notificationRecipients/{recipientId})
+    // Write-protected: Written exclusively by backend / Admin SDK.
+    // ============================================================
+    match /notificationRecipients/{recipientId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    // ============================================================
+    // 33. Notification Devices (/notificationDevices/{deviceId})
+    // Write-protected: Managed exclusively via platform API.
+    // ============================================================
+    match /notificationDevices/{deviceId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    // ============================================================
+    // 34. Notification Preferences (/notificationPreferences/{prefId})
+    // Write-protected: Managed exclusively via platform API.
+    // ============================================================
+    match /notificationPreferences/{prefId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    // ============================================================
+    // 35. Notification Categories (/notificationCategories/{categoryId})
+    // ============================================================
+    match /notificationCategories/{categoryId} {
+      allow read: if isViewer();
+      allow create, update: if isEditor()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // 36. Notification Delivery Logs (/notificationDeliveryLogs/{logId})
+    // Append-only for backend; read-only for admins.
+    // ============================================================
+    match /notificationDeliveryLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ============================================================
+    // 37. Notification Audit Logs (/notificationAuditLogs/{logId})
+    // Append-only for backend; read-only for admins.
+    // ============================================================
+    match /notificationAuditLogs/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ============================================================
+    // 38. Notification Settings (/notificationSettings/{settingId})
+    // ============================================================
+    match /notificationSettings/{settingId} {
+      allow read: if isViewer();
+      allow create, update: if isAdmin()
+                            && hasNoPrivateSecrets(request.resource.data);
+      allow delete: if isSuperAdmin();
+    }
+
+    // ============================================================
+    // 39. Ad Telemetry Raw Events
+    // Client direct write is FORBIDDEN. Only backend platform/admin API writes.
+    // ============================================================
+    match /adImpressionEvents/{eventId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    match /adClickEvents/{eventId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    match /adRequestEvents/{eventId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    match /adFillEvents/{eventId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    match /adFailureEvents/{eventId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    match /adRewardEvents/{eventId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    match /adProviderEvents/{eventId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    match /customAdAnalytics/{eventId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    match /notificationAnalytics/{eventId} {
+      allow read: if isViewer();
+      allow write: if false;
+    }
+
+    // ============================================================
+    // 40. Analytics Daily Aggregates (/analyticsDailyAggregates/{docId})
+    // Client write is FORBIDDEN. Only backend aggregation worker writes.
+    // ============================================================
+    match /analyticsDailyAggregates/{docId} {
       allow read: if isViewer();
       allow write: if false;
     }

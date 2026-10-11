@@ -1,6 +1,7 @@
 import type { Response, NextFunction } from 'express';
-import type { GatewayAuthenticatedRequest } from '../types/auth.js';
+
 import { config } from '../config.js';
+import type { GatewayAuthenticatedRequest } from '../types/auth.js';
 
 export function authenticateGateway(
   req: GatewayAuthenticatedRequest,
@@ -9,7 +10,7 @@ export function authenticateGateway(
 ): void {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader?.startsWith('Bearer ')) {
     res.status(401).json({
       success: false,
       error: {
@@ -23,15 +24,15 @@ export function authenticateGateway(
 
   const token = authHeader.substring(7).trim();
 
-  // Test / Local Development Token Handling
-  if (config.isTest || config.nodeEnv !== 'production') {
-    if (token.startsWith('mock-token-') || token.startsWith('test-token-')) {
+  // Test harness authorization strictly scoped to test runner
+  if (config.isTest) {
+    if (token.startsWith('test-token-') || token === 'test-gateway-token') {
       const parts = token.split('-');
-      const roleOrType = parts[2] || 'app';
+      const roleOrType = parts[2] || 'super_admin';
       req.caller = {
-        uid: `uid_${roleOrType}_${Date.now()}`,
+        uid: `uid_${roleOrType}_test`,
         appId: req.body?.appId || 'app_01',
-        email: `${roleOrType}@webappypie.com`,
+        email: 'admin@webappypie.com',
         role: roleOrType,
       };
       next();

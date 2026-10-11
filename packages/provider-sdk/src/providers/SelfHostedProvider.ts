@@ -1,4 +1,7 @@
 import type { GatewayResponse, HealthStatus, CostEstimate } from '@wapcentral/types';
+
+import { estimateCost } from '../costEstimator.js';
+import { ProviderError } from '../errors.js';
 import type {
   IProvider,
   GenerateParams,
@@ -7,8 +10,6 @@ import type {
   CostParams,
   ProviderConfig,
 } from '../types.js';
-import { ProviderError } from '../errors.js';
-import { estimateCost } from '../costEstimator.js';
 
 export interface SelfHostedConfig extends ProviderConfig {
   format?: 'openai_compatible' | 'ollama';
@@ -37,7 +38,9 @@ export class SelfHostedProvider implements IProvider {
     const startTime = Date.now();
     const timeout = params.timeoutMs || this.timeoutMs;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeout);
 
     const promptText =
       params.payload.prompt ||
@@ -110,7 +113,7 @@ export class SelfHostedProvider implements IProvider {
         }
 
         const data = (await res.json()) as {
-          choices?: Array<{ message?: { content?: string } }>;
+          choices?: { message?: { content?: string } }[];
           usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
         };
 
@@ -167,7 +170,9 @@ export class SelfHostedProvider implements IProvider {
     const timeout = params.timeoutMs || this.timeoutMs;
     const model = params.modelId || 'llama-3.1-8b';
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeout);
 
     try {
       const res = await this.fetchFn(`${this.baseUrl}/api/embeddings`, {
@@ -215,7 +220,9 @@ export class SelfHostedProvider implements IProvider {
   async healthCheck(): Promise<HealthStatus> {
     const startTime = Date.now();
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 5000);
 
     try {
       const endpoint =

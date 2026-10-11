@@ -1,6 +1,6 @@
 {
   "name": "@wapcentral/dashboard",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "private": true,
   "description": "WAPCentral Admin Dashboard — Phase 2",
   "type": "module",
@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@wapcentral/config": "workspace:*",
+    "@wapcentral/provider-sdk": "workspace:*",
     "@wapcentral/types": "workspace:*",
     "@wapcentral/ui": "workspace:*",
     "@wapcentral/validation": "workspace:*",

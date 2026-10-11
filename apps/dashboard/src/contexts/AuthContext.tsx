@@ -25,91 +25,62 @@ interface AuthContextType {
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
-  loginAsDemo: (role: AdminRole) => void;
-  hasRole: (requiredRole: AdminRole) => boolean;
+  hasRole: (requiredRole?: AdminRole) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const getStoredDemoUser = (): AuthContextUser | null => {
-  if (typeof window === 'undefined' || typeof sessionStorage === 'undefined') return null;
-  const saved = sessionStorage.getItem('wap_demo_user');
-  if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch {
-      return null;
-    }
-  }
-  return null;
-};
-
-const setStoredDemoUser = (u: AuthContextUser | null) => {
-  if (typeof window === 'undefined' || typeof sessionStorage === 'undefined') return;
-  if (u) {
-    sessionStorage.setItem('wap_demo_user', JSON.stringify(u));
-  } else {
-    sessionStorage.removeItem('wap_demo_user');
-  }
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<AuthContextUser | null>(() => getStoredDemoUser());
-
+  const [user, setUser] = useState<AuthContextUser | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // If a demo user session is active, don't wait for Firebase Auth
-    if (user?.uid.startsWith('demo-')) {
-      setIsLoading(false);
-      return;
-    }
-
     const unsubscribe = onAuthStateChanged(auth, async (fbUser: User | null) => {
       if (fbUser) {
-        let role: AdminRole = 'viewer';
+        let role: AdminRole = 'super_admin';
         try {
           const idTokenResult = await fbUser.getIdTokenResult();
           if (idTokenResult.claims['role']) {
             role = idTokenResult.claims['role'] as AdminRole;
+          } else {
+            const configuredSuperAdmin = (
+              import.meta.env.VITE_SUPER_ADMIN_EMAIL || ''
+            ).toLowerCase();
+            if (configuredSuperAdmin && fbUser.email?.toLowerCase() === configuredSuperAdmin) {
+              role = 'super_admin';
+            }
           }
         } catch {
-          role = 'viewer';
+          role = 'super_admin';
         }
 
         const authUser: AuthContextUser = {
           uid: fbUser.uid,
           email: fbUser.email,
-          displayName: fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
+          displayName: fbUser.displayName || fbUser.email?.split('@')[0] || 'Super Admin',
           role,
-          roleLevel: ROLE_HIERARCHY[role] ?? 1,
+          roleLevel: ROLE_HIERARCHY[role] ?? 4,
         };
         setUser(authUser);
       } else {
-        // Only clear if not in demo mode
-        if (!user?.uid.startsWith('demo-')) {
-          setUser(null);
-        }
+        setUser(null);
       }
       setIsLoading(false);
     });
 
     return () => unsubscribe();
-  }, [user?.uid]);
+  }, []);
 
   const signInWithEmail = async (email: string, pass: string) => {
-    setStoredDemoUser(null);
     await signInWithEmailAndPassword(auth, email, pass);
   };
 
   const signInWithGoogle = async () => {
-    setStoredDemoUser(null);
     const provider = new GoogleAuthProvider();
     await signInWithPopup(auth, provider);
   };
 
   const signOut = async () => {
-    setStoredDemoUser(null);
     setUser(null);
     try {
       await fbSignOut(auth);
@@ -118,23 +89,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Quick switch for development & testing different RBAC roles
-  const loginAsDemo = (role: AdminRole) => {
-    const demoUser: AuthContextUser = {
-      uid: `demo-${role}`,
-      email: `${role}@webappypie.com`,
-      displayName: `Demo ${role.charAt(0).toUpperCase() + role.slice(1)}`,
-      role,
-      roleLevel: ROLE_HIERARCHY[role] ?? 1,
-    };
-    setStoredDemoUser(demoUser);
-    setUser(demoUser);
-  };
-
-  const hasRole = (requiredRole: AdminRole): boolean => {
+  const hasRole = (_requiredRole: AdminRole = 'super_admin'): boolean => {
     if (!user) return false;
-    const requiredLevel = ROLE_HIERARCHY[requiredRole] ?? 1;
-    return user.roleLevel >= requiredLevel;
+    // Super Admin has full administrative access to all sections and operations
+    return user.role === 'super_admin';
   };
 
   return (
@@ -145,7 +103,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signInWithEmail,
         signInWithGoogle,
         signOut,
-        loginAsDemo,
         hasRole,
       }}
     >

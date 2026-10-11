@@ -188,7 +188,7 @@ describe('Phase 1 — Firebase Foundation', () => {
     });
 
     it('should allow public read for campaign assets to support non-blocking mobile display', () => {
-      expect(storageRules).toContain('match /campaign-assets/{campaignId}/{assetName}');
+      expect(storageRules).toMatch(/match \/campaign-assets\/\{campaignId\}\/(\{assetName\}|\{allPaths=\*\*\})/);
       expect(storageRules).toContain('allow read: if true;');
     });
 

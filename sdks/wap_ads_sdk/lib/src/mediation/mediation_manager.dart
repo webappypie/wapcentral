@@ -3,7 +3,9 @@ import 'package:flutter/widgets.dart';
 import '../adapters/ad_provider_adapter.dart';
 import '../adapters/admob_adapter.dart';
 import '../adapters/applovin_adapter.dart';
+import '../adapters/inmobi_adapter.dart';
 import '../adapters/meta_adapter.dart';
+import '../adapters/unity_adapter.dart';
 import '../adapters/wapads_adapter.dart';
 import '../hooks/wap_promo_hook.dart';
 import '../models/ad_config.dart';
@@ -121,10 +123,12 @@ class MediationManager {
   Future<void> initialize(AdConfig config) async {
     _config = config;
 
-    // Ensure all 4 core adapters are present if not already customized
+    // Ensure core adapters are present if not already customized
     _adapters.putIfAbsent(AdNetwork.admob, () => AdMobAdapter());
     _adapters.putIfAbsent(AdNetwork.meta, () => MetaAdapter());
     _adapters.putIfAbsent(AdNetwork.applovin, () => AppLovinAdapter());
+    _adapters.putIfAbsent(AdNetwork.inmobi, () => InMobiAdapter());
+    _adapters.putIfAbsent(AdNetwork.unity, () => UnityAdapter());
     _adapters.putIfAbsent(
       AdNetwork.wapads,
       () => WapAdsAdapter(promoHook: _promoHook),

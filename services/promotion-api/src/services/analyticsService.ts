@@ -1,4 +1,5 @@
 import type { PromotionEvent, PromotionEventType } from '@wapcentral/types';
+
 import { getAllCampaigns, setCampaigns } from './campaignMatcher.js';
 
 let memoryPromotionEvents: PromotionEvent[] = [];

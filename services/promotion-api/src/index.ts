@@ -12,7 +12,7 @@ export * from './middleware/rateLimiter.js';
 
 const app = createApp();
 
-if (process.env['NODE_ENV'] !== 'test') {
+if (process.env.NODE_ENV !== 'test') {
   const server = app.listen(config.port, () => {
     // eslint-disable-next-line no-console
     console.log(`[promotion-api] Listening on port ${config.port} (env: ${config.nodeEnv})`);
@@ -28,6 +28,10 @@ if (process.env['NODE_ENV'] !== 'test') {
     });
   };
 
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => {
+    shutdown('SIGTERM');
+  });
+  process.on('SIGINT', () => {
+    shutdown('SIGINT');
+  });
 }

@@ -1,6 +1,6 @@
 {
   "name": "@wapcentral/promotion-api",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "private": true,
   "description": "WAPCentral Promotion Delivery API — Phase 7",
   "type": "module",

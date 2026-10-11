@@ -18,6 +18,7 @@ import 'src/hooks/wap_promo_hook.dart';
 import 'src/mediation/mediation_manager.dart';
 import 'src/models/ad_config.dart';
 
+export 'wap_ads.dart';
 export 'src/models/ad_network.dart';
 export 'src/models/ad_format.dart';
 export 'src/models/ad_unit_config.dart';
@@ -30,6 +31,8 @@ export 'src/adapters/ad_provider_adapter.dart';
 export 'src/adapters/admob_adapter.dart';
 export 'src/adapters/meta_adapter.dart';
 export 'src/adapters/applovin_adapter.dart';
+export 'src/adapters/inmobi_adapter.dart';
+export 'src/adapters/unity_adapter.dart';
 export 'src/adapters/wapads_adapter.dart';
 export 'src/mediation/mediation_manager.dart';
 export 'src/widgets/wap_ad_banner.dart';

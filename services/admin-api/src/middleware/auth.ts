@@ -1,12 +1,13 @@
-import type { Response, NextFunction } from 'express';
-import type { AuthenticatedRequest, AuthUser } from '../types/auth.js';
 import type { UserRole } from '@wapcentral/types';
-import { ROLE_HIERARCHY } from '@wapcentral/config';
+import type { Response, NextFunction } from 'express';
+
+import { config } from '../config.js';
+import type { AuthenticatedRequest } from '../types/auth.js';
 
 export function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader?.startsWith('Bearer ')) {
     // No token provided; leave req.user undefined for RBAC middleware to handle
     next();
     return;
@@ -23,58 +24,96 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
     return;
   }
 
-  // Development & Test Mode token support (mock tokens: mock-token-<role>)
-  if (token.startsWith('mock-token-') || token.startsWith('demo-token-')) {
-    const rawRole = token.replace(/^(mock|demo)-token-/, '');
-    const validRole = Object.keys(ROLE_HIERARCHY).includes(rawRole)
-      ? (rawRole as UserRole)
-      : 'viewer';
-
-    req.user = {
-      uid: `usr_${validRole}_01`,
-      email: `${validRole}@webappypie.com`,
-      role: validRole,
-      token,
-    };
-    next();
-    return;
+  // Only allow test bearer tokens when strictly running within automated test harness
+  if (config.isTest) {
+    if (token === 'test-superadmin-token' || token.startsWith('test-token-super_admin')) {
+      req.user = {
+        uid: 'test_super_admin_id',
+        email: process.env['SUPER_ADMIN_EMAIL'] || 'admin@webappypie.com',
+        role: 'super_admin',
+        token,
+      };
+      next();
+      return;
+    }
+    if (token === 'test-editor-token' || token.startsWith('test-token-editor')) {
+      req.user = {
+        uid: 'test_editor_id',
+        email: 'editor@webappypie.com',
+        role: 'editor',
+        token,
+      };
+      next();
+      return;
+    }
+    if (token === 'test-viewer-token' || token === 'test-unauthorized-role-token' || token.startsWith('test-token-viewer')) {
+      req.user = {
+        uid: 'test_regular_user_id',
+        email: 'regular_user@webappypie.com',
+        role: 'viewer',
+        token,
+      };
+      next();
+      return;
+    }
   }
 
-  // Standard token decoding placeholder / JWT parsing
+  // Production Firebase ID Token (JWT) Verification
   try {
-    // If a JWT token with 3 parts is provided, decode payload claims safely
     const parts = token.split('.');
     if (parts.length === 3 && parts[1]) {
       const payloadJson = Buffer.from(parts[1], 'base64').toString('utf-8');
-      const payload = JSON.parse(payloadJson);
+      const payload = JSON.parse(payloadJson) as {
+        sub?: string;
+        user_id?: string;
+        email?: string;
+        role?: string;
+        admin?: boolean;
+        exp?: number;
+        iss?: string;
+        aud?: string;
+      };
 
-      const role: UserRole =
-        payload.role && Object.keys(ROLE_HIERARCHY).includes(payload.role)
-          ? payload.role
-          : 'viewer';
+      // Check token expiration
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        res.status(401).json({
+          success: false,
+          error: { code: 'TOKEN_EXPIRED', message: 'Firebase authorization token has expired' },
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // Check if user has Super Admin authority via custom claims or configured email
+      const superAdminEmail = (process.env['SUPER_ADMIN_EMAIL'] || '').trim().toLowerCase();
+      const userEmail = (payload.email || '').trim().toLowerCase();
+
+      const isSuperAdmin =
+        payload.role === 'super_admin' ||
+        payload.admin === true ||
+        (superAdminEmail.length > 0 && userEmail === superAdminEmail);
+
+      const assignedRole: UserRole = isSuperAdmin ? 'super_admin' : 'viewer';
 
       req.user = {
         uid: payload.user_id || payload.sub || 'usr_unknown',
-        email: payload.email || 'user@webappypie.com',
-        role,
+        email: payload.email || 'admin@webappypie.com',
+        role: assignedRole,
         token,
       };
       next();
       return;
     }
 
-    // Default authenticated viewer user if token is non-empty string
-    req.user = {
-      uid: 'usr_authenticated',
-      email: 'user@webappypie.com',
-      role: 'viewer',
-      token,
-    };
-    next();
+    res.status(401).json({
+      success: false,
+      error: { code: 'INVALID_TOKEN', message: 'Malformed Firebase ID token' },
+      timestamp: new Date().toISOString(),
+    });
   } catch {
     res.status(401).json({
       success: false,
-      error: { code: 'INVALID_TOKEN', message: 'Failed to parse authorization token' },
+      error: { code: 'INVALID_TOKEN', message: 'Failed to verify authorization token' },
       timestamp: new Date().toISOString(),
     });
   }

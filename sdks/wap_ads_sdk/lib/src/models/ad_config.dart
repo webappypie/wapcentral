@@ -138,6 +138,80 @@ class WapAdsConfig {
       };
 }
 
+/// Configuration for InMobi network.
+class InMobiConfig {
+  final String accountId;
+  final List<AdPlacement> placements;
+  final bool enabled;
+
+  const InMobiConfig({
+    required this.accountId,
+    this.placements = const [],
+    this.enabled = true,
+  });
+
+  factory InMobiConfig.fromJson(Map<String, dynamic> json) {
+    final placementsRaw = json['placements'];
+    final List<AdPlacement> list = [];
+    if (placementsRaw is List) {
+      for (final p in placementsRaw) {
+        if (p is Map<String, dynamic>) {
+          list.add(AdPlacement.fromJson(p));
+        }
+      }
+    }
+
+    return InMobiConfig(
+      accountId: json['accountId'] as String? ?? '',
+      placements: list,
+      enabled: json['enabled'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'accountId': accountId,
+        'placements': placements.map((p) => p.toJson()).toList(),
+        'enabled': enabled,
+      };
+}
+
+/// Configuration for Unity Ads network.
+class UnityAdsConfig {
+  final String gameId;
+  final List<AdPlacement> placements;
+  final bool enabled;
+
+  const UnityAdsConfig({
+    required this.gameId,
+    this.placements = const [],
+    this.enabled = true,
+  });
+
+  factory UnityAdsConfig.fromJson(Map<String, dynamic> json) {
+    final placementsRaw = json['placements'];
+    final List<AdPlacement> list = [];
+    if (placementsRaw is List) {
+      for (final p in placementsRaw) {
+        if (p is Map<String, dynamic>) {
+          list.add(AdPlacement.fromJson(p));
+        }
+      }
+    }
+
+    return UnityAdsConfig(
+      gameId: json['gameId'] as String? ?? '',
+      placements: list,
+      enabled: json['enabled'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'gameId': gameId,
+        'placements': placements.map((p) => p.toJson()).toList(),
+        'enabled': enabled,
+      };
+}
+
 /// Top-level ad configuration delivered to the mobile application.
 class AdConfig {
   /// Target App identifier registered in WAPCentral.
@@ -155,6 +229,12 @@ class AdConfig {
   /// First-party WAPAds configuration.
   final WapAdsConfig? wapads;
 
+  /// InMobi configuration.
+  final InMobiConfig? inmobi;
+
+  /// Unity Ads configuration.
+  final UnityAdsConfig? unity;
+
   /// Mediation waterfall priority.
   final MediationPriority mediationPriority;
 
@@ -166,6 +246,8 @@ class AdConfig {
     this.admob,
     this.meta,
     this.applovin,
+    this.inmobi,
+    this.unity,
     this.wapads,
     this.mediationPriority = MediationPriority.defaultPriority,
     this.testMode = false,
@@ -183,6 +265,12 @@ class AdConfig {
       applovin: json['applovin'] is Map<String, dynamic>
           ? AppLovinConfig.fromJson(json['applovin'] as Map<String, dynamic>)
           : null,
+      inmobi: json['inmobi'] is Map<String, dynamic>
+          ? InMobiConfig.fromJson(json['inmobi'] as Map<String, dynamic>)
+          : null,
+      unity: json['unity'] is Map<String, dynamic>
+          ? UnityAdsConfig.fromJson(json['unity'] as Map<String, dynamic>)
+          : null,
       wapads: json['wapads'] is Map<String, dynamic>
           ? WapAdsConfig.fromJson(json['wapads'] as Map<String, dynamic>)
           : null,
@@ -198,6 +286,8 @@ class AdConfig {
         if (admob != null) 'admob': admob!.toJson(),
         if (meta != null) 'meta': meta!.toJson(),
         if (applovin != null) 'applovin': applovin!.toJson(),
+        if (inmobi != null) 'inmobi': inmobi!.toJson(),
+        if (unity != null) 'unity': unity!.toJson(),
         if (wapads != null) 'wapads': wapads!.toJson(),
         'mediationPriority': mediationPriority.toJson(),
         'testMode': testMode,
@@ -230,6 +320,36 @@ class AdConfig {
           platform: 'all',
           adUnitId: p.placementId,
           network: AdNetwork.meta,
+        );
+      case AdNetwork.inmobi:
+        if (inmobi == null || !inmobi!.enabled) return null;
+        final p = inmobi!.placements.firstWhere(
+          (pl) => pl.type == format,
+          orElse: () => const AdPlacement(id: '', name: '', type: AdFormat.banner, placementId: ''),
+        );
+        if (p.placementId.isEmpty) return null;
+        return AdUnitConfig(
+          id: p.id,
+          name: p.name,
+          type: p.type,
+          platform: 'all',
+          adUnitId: p.placementId,
+          network: AdNetwork.inmobi,
+        );
+      case AdNetwork.unity:
+        if (unity == null || !unity!.enabled) return null;
+        final p = unity!.placements.firstWhere(
+          (pl) => pl.type == format,
+          orElse: () => const AdPlacement(id: '', name: '', type: AdFormat.banner, placementId: ''),
+        );
+        if (p.placementId.isEmpty) return null;
+        return AdUnitConfig(
+          id: p.id,
+          name: p.name,
+          type: p.type,
+          platform: 'all',
+          adUnitId: p.placementId,
+          network: AdNetwork.unity,
         );
       case AdNetwork.wapads:
         if (wapads == null || !wapads!.enabled) return null;

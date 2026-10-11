@@ -6,6 +6,7 @@ import { ProviderError } from '@wapcentral/provider-sdk';
 import { registerMockAdapter, clearMockAdapters } from '../services/router.js';
 import { resetQuotasForTest, setPolicy } from '../services/policyEngine.js';
 import { clearUsageEventsForTest, getUsageEvents } from '../services/usageRecorder.js';
+import { circuitBreaker } from '../services/circuitBreaker.js';
 
 describe('AI Gateway Service Endpoints', () => {
   const app = createApp();
@@ -14,6 +15,58 @@ describe('AI Gateway Service Endpoints', () => {
     clearMockAdapters();
     resetQuotasForTest();
     clearUsageEventsForTest();
+    circuitBreaker.resetAll();
+
+    setPolicy({
+      id: 'policy_chat_01',
+      appId: 'app_01',
+      feature: 'chat_assistant',
+      primaryProviderId: 'gemini',
+      primaryModelId: 'gemini-1.5-flash',
+      fallbackChain: [
+        {
+          providerId: 'openai',
+          modelId: 'gpt-4o-mini',
+          priority: 1,
+        },
+      ],
+      quotas: {
+        dailyRequestLimit: 50000,
+        dailyTokenLimit: 10000000,
+        maxInputTokensPerRequest: 8192,
+        maxOutputTokensPerRequest: 2048,
+      },
+      circuitBreaker: {
+        failureThreshold: 3,
+        timeoutMs: 10000,
+        recoveryTimeMs: 1000,
+      },
+      priority: 50,
+      enabled: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    setPolicy({
+      id: 'policy_image_01',
+      appId: 'app_01',
+      feature: 'image_analysis',
+      primaryProviderId: 'openai',
+      primaryModelId: 'gpt-4o',
+      fallbackChain: [],
+      quotas: {
+        dailyRequestLimit: 10000,
+      },
+      circuitBreaker: {
+        failureThreshold: 3,
+        timeoutMs: 10000,
+        recoveryTimeMs: 1000,
+      },
+      priority: 50,
+      enabled: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
   });
 
   describe('Health Checks', () => {
@@ -242,6 +295,7 @@ describe('AI Gateway Service Endpoints', () => {
         quotas: {
           dailyRequestLimit: 2,
         },
+        priority: 100,
         enabled: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -323,6 +377,448 @@ describe('AI Gateway Service Endpoints', () => {
 
       expect(res.status).toBe(503);
       expect(res.body.error.code).toBe('KILL_SWITCH_ACTIVE');
+    });
+  });
+
+  describe('AI Playground Direct Inference Endpoint', () => {
+    it('should reject unauthenticated request with 401', async () => {
+      const res = await request(app)
+        .post('/v1/gateway/playground')
+        .send({
+          providerId: 'gemini',
+          modelId: 'gemini-1.5-flash',
+          prompt: 'Hello from unauthenticated test',
+        });
+
+      expect(res.status).toBe(401);
+      expect(res.body.error.code).toBe('UNAUTHENTICATED');
+    });
+
+    it('should execute playground request on adapter, calculate tokens and cost estimate, and record usage', async () => {
+      const mockGemini: IProvider = {
+        providerId: 'gemini',
+        providerType: 'gemini',
+        generate: async (params) => ({
+          requestId: 'test_playground_gemini',
+          providerId: 'gemini',
+          modelId: params.modelId,
+          content: 'Hello! This is Gemini answering in Playground.',
+          usage: { inputTokens: 20, outputTokens: 30, totalTokens: 50 },
+          costEstimate: { amountUsd: 0.00015, isEstimate: true, currency: 'USD' },
+          latencyMs: 75,
+          cached: false,
+        }),
+        analyzeImage: async () => {
+          throw new Error('Not used');
+        },
+        embed: async () => {
+          throw new Error('Not used');
+        },
+        healthCheck: async () => ({ status: 'healthy', lastCheckedAt: new Date().toISOString() }),
+        estimateCost: () => ({ amountUsd: 0.00015, isEstimate: true, currency: 'USD' }),
+      };
+
+      registerMockAdapter('gemini', mockGemini);
+
+      const res = await request(app)
+        .post('/v1/gateway/playground')
+        .set('Authorization', 'Bearer mock-token-super_admin')
+        .send({
+          providerId: 'gemini',
+          modelId: 'gemini-1.5-flash',
+          prompt: 'Tell me about AI Gateway',
+          systemPrompt: 'Be concise',
+          temperature: 0.7,
+          maxTokens: 1024,
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.content).toBe('Hello! This is Gemini answering in Playground.');
+      expect(res.body.data.providerId).toBe('gemini');
+      expect(res.body.data.modelId).toBe('gemini-1.5-flash');
+      expect(res.body.data.usage.inputTokens).toBe(20);
+      expect(res.body.data.usage.outputTokens).toBe(30);
+      expect(res.body.data.costEstimate.amountUsd).toBe(0.00015);
+      expect(res.body.data.raw).toBeDefined();
+
+      // Check telemetry
+      const events = getUsageEvents();
+      const last = events.find((e) => e.feature === 'ai_playground');
+      expect(last).toBeDefined();
+      expect(last?.providerId).toBe('gemini');
+      expect(last?.success).toBe(true);
+    });
+
+    it('should reject invalid payload with 400 validation error', async () => {
+      const res = await request(app)
+        .post('/v1/gateway/playground')
+        .set('Authorization', 'Bearer mock-token-super_admin')
+        .send({
+          // missing prompt
+          providerId: 'gemini',
+          modelId: 'gemini-1.5-flash',
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    });
+  });
+
+  describe('Circuit Breakers & Advanced Policy Routing', () => {
+    it('should trip circuit breaker to OPEN after consecutive failures and bypass to fallback', async () => {
+      let geminiCallCount = 0;
+      const failingGemini: IProvider = {
+        providerId: 'gemini',
+        providerType: 'gemini',
+        generate: async () => {
+          geminiCallCount++;
+          throw new ProviderError('gemini', 'PROVIDER_ERROR', 'Service outage', false);
+        },
+        analyzeImage: async () => {
+          throw new Error('Not used');
+        },
+        embed: async () => {
+          throw new Error('Not used');
+        },
+        healthCheck: async () => ({ status: 'unhealthy', lastCheckedAt: new Date().toISOString() }),
+        estimateCost: () => ({ amountUsd: 0, isEstimate: true, currency: 'USD' }),
+      };
+
+      let openAICallCount = 0;
+      const fallbackOpenAI: IProvider = {
+        providerId: 'openai',
+        providerType: 'openai',
+        generate: async (params) => {
+          openAICallCount++;
+          return {
+            requestId: 'fb_cb_req',
+            providerId: 'openai',
+            modelId: params.modelId,
+            content: 'OpenAI Fallback Success',
+            usage: { inputTokens: 5, outputTokens: 10, totalTokens: 15 },
+            costEstimate: { amountUsd: 0.0001, isEstimate: true, currency: 'USD' },
+            latencyMs: 30,
+            cached: false,
+          };
+        },
+        analyzeImage: async () => {
+          throw new Error('Not used');
+        },
+        embed: async () => {
+          throw new Error('Not used');
+        },
+        healthCheck: async () => ({ status: 'healthy', lastCheckedAt: new Date().toISOString() }),
+        estimateCost: () => ({ amountUsd: 0.0001, isEstimate: true, currency: 'USD' }),
+      };
+
+      registerMockAdapter('gemini', failingGemini);
+      registerMockAdapter('openai', fallbackOpenAI);
+
+      const sendReq = (uuid: string) =>
+        request(app)
+          .post('/v1/gateway')
+          .set('Authorization', 'Bearer mock-token-app')
+          .send({
+            appId: 'app_01',
+            version: '1.0.0',
+            environment: 'production',
+            feature: 'chat_assistant',
+            payload: { type: 'generate', prompt: 'CB test' },
+            requestId: uuid,
+          });
+
+      // Request 1: Gemini fails, trips count = 1. OpenAI fallback succeeds.
+      const r1 = await sendReq('10000000-0000-0000-0000-000000000001');
+      expect(r1.status).toBe(200);
+      expect(geminiCallCount).toBe(1);
+      expect(openAICallCount).toBe(1);
+
+      // Request 2: Gemini fails, trips count = 2. OpenAI fallback succeeds.
+      const r2 = await sendReq('10000000-0000-0000-0000-000000000002');
+      expect(r2.status).toBe(200);
+      expect(geminiCallCount).toBe(2);
+      expect(openAICallCount).toBe(2);
+
+      // Request 3: Gemini fails, trips count = 3 -> Circuit Breaker trips to OPEN!
+      const r3 = await sendReq('10000000-0000-0000-0000-000000000003');
+      expect(r3.status).toBe(200);
+      expect(geminiCallCount).toBe(3);
+      expect(openAICallCount).toBe(3);
+
+      // Verify circuit is now OPEN
+      const cbState = circuitBreaker.getSnapshot('policy_chat_01:gemini:gemini-1.5-flash');
+      expect(cbState.status).toBe('open');
+
+      // Request 4: Circuit is OPEN! Gemini adapter is NOT even called! Fast fails to OpenAI!
+      const r4 = await sendReq('10000000-0000-0000-0000-000000000004');
+      expect(r4.status).toBe(200);
+      expect(geminiCallCount).toBe(3); // Unchanged! Fast fail bypass!
+      expect(openAICallCount).toBe(4);
+    });
+
+    it('should fail immediately when primary fails and fallback chain is empty (no automatic fallback without config)', async () => {
+      // image_analysis policy has fallbackChain: []
+      const failingOpenAI: IProvider = {
+        providerId: 'openai',
+        providerType: 'openai',
+        generate: async () => {
+          throw new ProviderError('openai', 'PROVIDER_ERROR', 'OpenAI down', false);
+        },
+        analyzeImage: async () => {
+          throw new ProviderError('openai', 'PROVIDER_ERROR', 'OpenAI down', false);
+        },
+        embed: async () => {
+          throw new Error('Not used');
+        },
+        healthCheck: async () => ({ status: 'unhealthy', lastCheckedAt: new Date().toISOString() }),
+        estimateCost: () => ({ amountUsd: 0, isEstimate: true, currency: 'USD' }),
+      };
+      registerMockAdapter('openai', failingOpenAI);
+
+      const res = await request(app)
+        .post('/v1/gateway')
+        .set('Authorization', 'Bearer mock-token-app')
+        .send({
+          appId: 'app_01',
+          version: '1.0.0',
+          environment: 'production',
+          feature: 'image_analysis',
+          payload: { type: 'generate', prompt: 'No fallback test' },
+          requestId: '20000000-0000-0000-0000-000000000001',
+        });
+
+      // Must return 502 BAD_GATEWAY without falling back to any random provider
+      expect(res.status).toBe(502);
+      expect(res.body.error.code).toBe('BAD_GATEWAY');
+      expect(res.body.error.message).toContain('OpenAI down');
+    });
+
+    it('should enforce rate limits (RPM) with HTTP 429 RATE_LIMIT_EXCEEDED', async () => {
+      setPolicy({
+        id: 'policy_rate_limited',
+        appId: 'app_01',
+        feature: 'chat_assistant',
+        primaryProviderId: 'gemini',
+        primaryModelId: 'gemini-1.5-flash',
+        fallbackChain: [],
+        quotas: {
+          rateLimitRpm: 2, // Only 2 requests per minute allowed
+        },
+        priority: 100,
+        enabled: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      const mockGemini: IProvider = {
+        providerId: 'gemini',
+        providerType: 'gemini',
+        generate: async () => ({
+          requestId: 'test_rpm',
+          providerId: 'gemini',
+          modelId: 'gemini-1.5-flash',
+          content: 'OK',
+          latencyMs: 10,
+          cached: false,
+        }),
+        analyzeImage: async () => {
+          throw new Error('Not used');
+        },
+        embed: async () => {
+          throw new Error('Not used');
+        },
+        healthCheck: async () => ({ status: 'healthy', lastCheckedAt: new Date().toISOString() }),
+        estimateCost: () => ({ amountUsd: 0, isEstimate: true, currency: 'USD' }),
+      };
+      registerMockAdapter('gemini', mockGemini);
+
+      const sendReq = (uuid: string) =>
+        request(app)
+          .post('/v1/gateway')
+          .set('Authorization', 'Bearer mock-token-app')
+          .send({
+            appId: 'app_01',
+            version: '1.0.0',
+            environment: 'production',
+            feature: 'chat_assistant',
+            payload: { type: 'generate', prompt: 'RPM test' },
+            requestId: uuid,
+          });
+
+      // Request 1: OK
+      const r1 = await sendReq('30000000-0000-0000-0000-000000000001');
+      expect(r1.status).toBe(200);
+
+      // Request 2: OK
+      const r2 = await sendReq('30000000-0000-0000-0000-000000000002');
+      expect(r2.status).toBe(200);
+
+      // Request 3: Exceeds 2 RPM limit
+      const r3 = await sendReq('30000000-0000-0000-0000-000000000003');
+      expect(r3.status).toBe(429);
+      expect(r3.body.error.code).toBe('RATE_LIMIT_EXCEEDED');
+      expect(r3.body.error.message).toContain('requests/minute');
+    });
+
+    it('should enforce monthly request limit with HTTP 429 QUOTA_EXCEEDED', async () => {
+      setPolicy({
+        id: 'policy_monthly_limited',
+        appId: 'app_01',
+        feature: 'chat_assistant',
+        primaryProviderId: 'gemini',
+        primaryModelId: 'gemini-1.5-flash',
+        fallbackChain: [],
+        quotas: {
+          monthlyRequestLimit: 1, // Only 1 request allowed this month
+        },
+        priority: 100,
+        enabled: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      const mockGemini: IProvider = {
+        providerId: 'gemini',
+        providerType: 'gemini',
+        generate: async () => ({
+          requestId: 'test_month',
+          providerId: 'gemini',
+          modelId: 'gemini-1.5-flash',
+          content: 'OK',
+          latencyMs: 10,
+          cached: false,
+        }),
+        analyzeImage: async () => {
+          throw new Error('Not used');
+        },
+        embed: async () => {
+          throw new Error('Not used');
+        },
+        healthCheck: async () => ({ status: 'healthy', lastCheckedAt: new Date().toISOString() }),
+        estimateCost: () => ({ amountUsd: 0, isEstimate: true, currency: 'USD' }),
+      };
+      registerMockAdapter('gemini', mockGemini);
+
+      const sendReq = (uuid: string) =>
+        request(app)
+          .post('/v1/gateway')
+          .set('Authorization', 'Bearer mock-token-app')
+          .send({
+            appId: 'app_01',
+            version: '1.0.0',
+            environment: 'production',
+            feature: 'chat_assistant',
+            payload: { type: 'generate', prompt: 'Month test' },
+            requestId: uuid,
+          });
+
+      const r1 = await sendReq('40000000-0000-0000-0000-000000000001');
+      expect(r1.status).toBe(200);
+
+      const r2 = await sendReq('40000000-0000-0000-0000-000000000002');
+      expect(r2.status).toBe(429);
+      expect(r2.body.error.code).toBe('QUOTA_EXCEEDED');
+      expect(r2.body.error.message).toContain('Monthly request quota');
+    });
+
+    it('should prioritize higher priority policy when multiple policies match', async () => {
+      // Low priority policy (priority 10)
+      setPolicy({
+        id: 'policy_low_priority',
+        appId: 'app_01',
+        feature: 'chat_assistant',
+        primaryProviderId: 'openai',
+        primaryModelId: 'gpt-4o',
+        fallbackChain: [],
+        quotas: {},
+        priority: 10,
+        enabled: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      // High priority policy (priority 90)
+      setPolicy({
+        id: 'policy_high_priority',
+        appId: 'app_01',
+        feature: 'chat_assistant',
+        primaryProviderId: 'gemini',
+        primaryModelId: 'gemini-1.5-flash',
+        fallbackChain: [],
+        quotas: {},
+        priority: 90,
+        enabled: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      const mockGemini: IProvider = {
+        providerId: 'gemini',
+        providerType: 'gemini',
+        generate: async () => ({
+          requestId: 'test_prio',
+          providerId: 'gemini',
+          modelId: 'gemini-1.5-flash',
+          content: 'Gemini high priority',
+          latencyMs: 10,
+          cached: false,
+        }),
+        analyzeImage: async () => {
+          throw new Error('Not used');
+        },
+        embed: async () => {
+          throw new Error('Not used');
+        },
+        healthCheck: async () => ({ status: 'healthy', lastCheckedAt: new Date().toISOString() }),
+        estimateCost: () => ({ amountUsd: 0, isEstimate: true, currency: 'USD' }),
+      };
+      registerMockAdapter('gemini', mockGemini);
+
+      const res = await request(app)
+        .post('/v1/gateway')
+        .set('Authorization', 'Bearer mock-token-app')
+        .send({
+          appId: 'app_01',
+          version: '1.0.0',
+          environment: 'production',
+          feature: 'chat_assistant',
+          payload: { type: 'generate', prompt: 'Priority test' },
+          requestId: '50000000-0000-0000-0000-000000000001',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.providerId).toBe('gemini'); // Chose Gemini (priority 90) over OpenAI (priority 10)
+    });
+
+    it('should reject request with HTTP 503 when policy is disabled', async () => {
+      setPolicy({
+        id: 'policy_disabled',
+        appId: 'app_01',
+        feature: 'disabled_feature',
+        primaryProviderId: 'gemini',
+        primaryModelId: 'gemini-1.5-flash',
+        fallbackChain: [],
+        quotas: {},
+        enabled: false, // Disabled
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      const res = await request(app)
+        .post('/v1/gateway')
+        .set('Authorization', 'Bearer mock-token-app')
+        .send({
+          appId: 'app_01',
+          version: '1.0.0',
+          environment: 'production',
+          feature: 'disabled_feature',
+          payload: { type: 'generate', prompt: 'Disabled test' },
+          requestId: '60000000-0000-0000-0000-000000000001',
+        });
+
+      expect(res.status).toBe(503);
+      expect(res.body.error.code).toBe('POLICY_DISABLED');
     });
   });
 });

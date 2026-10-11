@@ -2,8 +2,8 @@
  * Semantic version comparison utility for targeting rules.
  */
 export function compareSemver(v1: string, v2: string): number {
-  const clean1 = v1.replace(/^v/i, '').split('-')[0] || '';
-  const clean2 = v2.replace(/^v/i, '').split('-')[0] || '';
+  const clean1 = v1.replace(/^v/i, '').split('-')[0] ?? '';
+  const clean2 = v2.replace(/^v/i, '').split('-')[0] ?? '';
 
   const p1 = clean1.split('.').map((n) => parseInt(n, 10) || 0);
   const p2 = clean2.split('.').map((n) => parseInt(n, 10) || 0);

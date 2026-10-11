@@ -1,0 +1,21 @@
+name: wap_image_sdk
+description: >
+  Image Intelligence SDK for WebAppyPie mobile applications (OptiLens AI, etc.).
+  Provides local-first image enhancement, super-resolution, denoise, HDR, and quality analysis
+  orchestrated centrally via WAPCentral.
+version: 0.1.0
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  wap_core_sdk:
+    path: ../wap_core_sdk
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  http: ^1.2.0

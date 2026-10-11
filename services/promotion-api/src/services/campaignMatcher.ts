@@ -1,59 +1,55 @@
 import type { Campaign, Platform, Environment } from '@wapcentral/types';
+
 import { isVersionInRange } from '../utils/semver.js';
 
-let campaigns: Campaign[] = [
-  {
-    id: 'camp_notes_to_calc',
-    name: 'Pie Calc Pro for Engineers',
-    promotedAppId: 'app_02',
-    targetAppIds: ['app_01', 'test-app'],
-    title: 'Unlock Advanced Math & Calculus',
-    description: 'Solve matrix transformations and graphs instantly with Pie Calc Pro',
-    ctaText: 'Get Free Trial',
-    storeUrl: 'https://play.google.com/store/apps/details?id=com.webappypie.calc',
-    imageUrl: 'https://storage.googleapis.com/wapcentral/creatives/calc_banner.png',
-    layoutVariant: 'banner',
-    priority: 85,
-    enabled: true,
-    status: 'published',
-    targetingRules: {
-      minAppVersion: '1.0.0',
-      platforms: ['android', 'ios'],
-      environments: ['production', 'staging', 'development'],
-    },
-    frequencyCap: {
-      maxImpressions: 5,
-      periodHours: 24,
-    },
-    analytics: {
-      impressions: 1240,
-      clicks: 98,
-      ctr: 0.079,
-    },
-    createdAt: new Date('2026-09-01T00:00:00Z').toISOString(),
-    updatedAt: new Date('2026-09-01T00:00:00Z').toISOString(),
-  },
-  {
-    id: 'camp_calc_to_notes',
-    name: 'WAP Notes AI Promo',
-    promotedAppId: 'app_01',
-    targetAppIds: ['app_02'],
-    title: 'Transcribe Audio Lectures',
-    description: 'Generate study summaries and flashcards in seconds',
-    ctaText: 'Install App',
-    storeUrl: 'https://play.google.com/store/apps/details?id=com.webappypie.notes',
-    imageUrl: 'https://storage.googleapis.com/wapcentral/creatives/notes_banner.png',
-    layoutVariant: 'banner',
-    priority: 70,
-    enabled: true,
-    status: 'published',
-    targetingRules: {
-      platforms: ['android', 'ios'],
-    },
-    createdAt: new Date('2026-09-01T00:00:00Z').toISOString(),
-    updatedAt: new Date('2026-09-01T00:00:00Z').toISOString(),
-  },
-];
+let campaigns: Campaign[] = [];
+
+/**
+ * Resets campaigns (seeded only during test harness runs).
+ */
+export function resetCampaigns(): void {
+  if (process.env['NODE_ENV'] === 'test') {
+    campaigns = [
+      {
+        id: 'camp_notes_to_calc',
+        name: 'Pie Calc Pro for Engineers',
+        promotedAppId: 'app_02',
+        targetAppIds: ['app_01', 'test-app'],
+        title: 'Unlock Advanced Math & Calculus',
+        description: 'Solve matrix transformations and graphs instantly with Pie Calc Pro',
+        ctaText: 'Get Free Trial',
+        storeUrl: 'https://play.google.com/store/apps/details?id=com.webappypie.calc',
+        imageUrl: 'https://storage.googleapis.com/wapcentral/creatives/calc_banner.png',
+        layoutVariant: 'banner',
+        priority: 85,
+        enabled: true,
+        status: 'published',
+        targetingRules: {
+          minAppVersion: '1.0.0',
+          platforms: ['android', 'ios'],
+          environments: ['production', 'staging', 'development'],
+        },
+        frequencyCap: {
+          maxImpressions: 5,
+          periodHours: 24,
+        },
+        analytics: {
+          impressions: 1240,
+          clicks: 98,
+          ctr: 0.079,
+        },
+        createdAt: new Date('2026-09-01T00:00:00Z').toISOString(),
+        updatedAt: new Date('2026-09-01T00:00:00Z').toISOString(),
+      },
+    ];
+  } else {
+    campaigns = [];
+  }
+}
+
+if (process.env['NODE_ENV'] === 'test') {
+  resetCampaigns();
+}
 
 export interface MatchParams {
   appId: string;
@@ -74,45 +70,6 @@ export function getAllCampaigns(): Campaign[] {
  */
 export function setCampaigns(newCampaigns: Campaign[]): void {
   campaigns = [...newCampaigns];
-}
-
-/**
- * Resets campaigns to initial default list.
- */
-export function resetCampaigns(): void {
-  campaigns = [
-    {
-      id: 'camp_notes_to_calc',
-      name: 'Pie Calc Pro for Engineers',
-      promotedAppId: 'app_02',
-      targetAppIds: ['app_01', 'test-app'],
-      title: 'Unlock Advanced Math & Calculus',
-      description: 'Solve matrix transformations and graphs instantly with Pie Calc Pro',
-      ctaText: 'Get Free Trial',
-      storeUrl: 'https://play.google.com/store/apps/details?id=com.webappypie.calc',
-      imageUrl: 'https://storage.googleapis.com/wapcentral/creatives/calc_banner.png',
-      layoutVariant: 'banner',
-      priority: 85,
-      enabled: true,
-      status: 'published',
-      targetingRules: {
-        minAppVersion: '1.0.0',
-        platforms: ['android', 'ios'],
-        environments: ['production', 'staging', 'development'],
-      },
-      frequencyCap: {
-        maxImpressions: 5,
-        periodHours: 24,
-      },
-      analytics: {
-        impressions: 1240,
-        clicks: 98,
-        ctr: 0.079,
-      },
-      createdAt: new Date('2026-09-01T00:00:00Z').toISOString(),
-      updatedAt: new Date('2026-09-01T00:00:00Z').toISOString(),
-    },
-  ];
 }
 
 /**

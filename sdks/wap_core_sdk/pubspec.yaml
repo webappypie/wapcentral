@@ -1,0 +1,20 @@
+name: wap_core_sdk
+description: >
+  Core foundation SDK for WebAppyPie mobile applications (FileZen, OptiLens AI, etc.).
+  Provides authenticated API client, request orchestration, retry, error handling,
+  and local-first configuration for WAPCentral Platform Services.
+version: 0.1.0
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0

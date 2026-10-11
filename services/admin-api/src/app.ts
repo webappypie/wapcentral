@@ -1,16 +1,24 @@
-import express from 'express';
-import type { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import express, { Router } from 'express';
+import type { Express, Request, Response, NextFunction } from 'express';
+
 import { config } from './config.js';
 import { authenticate } from './middleware/auth.js';
-import { healthRouter } from './routes/health.js';
-import { secretsRouter } from './routes/secrets.js';
+import { requireRole } from './middleware/rbac.js';
+import { aiPoliciesRouter } from './routes/aiPolicies.js';
+import { aiProvidersRouter, handlePlaygroundInference } from './routes/aiProviders.js';
 import { appsRouter } from './routes/apps.js';
+import { auditLogsRouter } from './routes/auditLogs.js';
 import { campaignsRouter } from './routes/campaigns.js';
 import { flagsRouter } from './routes/flags.js';
-import { auditLogsRouter } from './routes/auditLogs.js';
-import { aiProvidersRouter } from './routes/aiProviders.js';
-import { aiPoliciesRouter } from './routes/aiPolicies.js';
+import { healthRouter } from './routes/health.js';
+import { infrastructureRouter } from './routes/infrastructure.js';
+import { secretsRouter } from './routes/secrets.js';
+import { analyticsRouter } from './routes/analytics.js';
+import { adsRouter } from './routes/ads.js';
+import { notificationsRouter } from './routes/notifications.js';
+import { platformRouter } from './platform/routes/index.js';
+import type { AuthenticatedRequest } from './types/auth.js';
 
 export function createApp(): Express {
   const app = express();
@@ -29,11 +37,15 @@ export function createApp(): Express {
     cors({
       origin: (origin, callback) => {
         // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
-        if (!origin) return callback(null, true);
-        if (config.corsOrigins.includes(origin) || config.nodeEnv !== 'production') {
-          return callback(null, true);
+        if (!origin) {
+          callback(null, true);
+          return;
         }
-        return callback(null, true); // Permissive in dev/staging
+        if (config.corsOrigins.includes(origin) || config.nodeEnv !== 'production') {
+          callback(null, true);
+          return;
+        }
+        callback(null, true); // Permissive in dev/staging
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -47,16 +59,49 @@ export function createApp(): Express {
   // Global Authentication Middleware
   app.use(authenticate);
 
-  // Routes
-  app.use('/health', healthRouter);
-  app.use('/v1/health', healthRouter);
-  app.use('/v1/secrets', secretsRouter);
-  app.use('/v1/apps', appsRouter);
-  app.use('/v1/campaigns', campaignsRouter);
-  app.use('/v1/flags', flagsRouter);
-  app.use('/v1/audit-logs', auditLogsRouter);
-  app.use('/v1/ai/providers', aiProvidersRouter);
-  app.use('/v1/ai/policies', aiPoliciesRouter);
+  const aiPlaygroundRouter = Router();
+  aiPlaygroundRouter.post(
+    '/infer',
+    requireRole('super_admin'),
+    async (req: AuthenticatedRequest, res: Response) => {
+      await handlePlaygroundInference(req, res);
+    },
+  );
+  aiPlaygroundRouter.post(
+    '/',
+    requireRole('super_admin'),
+    async (req: AuthenticatedRequest, res: Response) => {
+      await handlePlaygroundInference(req, res);
+    },
+  );
+
+  // Routes - Support direct calls (/v1/...) and Firebase Hosting proxied calls (/api/admin/v1/...)
+  const mountRoutes = (prefix: string) => {
+    app.use(`${prefix}/health`, healthRouter);
+    app.use(`${prefix}/v1/health`, healthRouter);
+    app.use(`${prefix}/v1/secrets`, secretsRouter);
+    app.use(`${prefix}/v1/apps`, appsRouter);
+    app.use(`${prefix}/v1/campaigns`, campaignsRouter);
+    app.use(`${prefix}/v1/flags`, flagsRouter);
+    app.use(`${prefix}/v1/audit-logs`, auditLogsRouter);
+    app.use(`${prefix}/v1/infrastructure`, infrastructureRouter);
+    app.use(`${prefix}/v1/ai/providers`, aiProvidersRouter);
+    app.use(`${prefix}/v1/ai/models`, aiProvidersRouter);
+    app.use(`${prefix}/v1/ai/policies`, aiPoliciesRouter);
+    app.use(`${prefix}/v1/ai/playground`, aiPlaygroundRouter);
+    app.use(`${prefix}/v1/analytics`, analyticsRouter);
+    app.use(`${prefix}/v1/ads`, adsRouter);
+    app.use(`${prefix}/v1/notifications`, notificationsRouter);
+    app.use(`${prefix}/v1/platform`, platformRouter);
+  };
+
+  mountRoutes('');
+  mountRoutes('/api/admin');
+
+  // Platform Services API Gateway direct mounts
+  app.use('/api/platform/v1', platformRouter);
+  app.use('/api/platform', platformRouter);
+  app.use('/v1/platform', platformRouter);
 
   // 404 Handler
   app.use((req: Request, res: Response) => {

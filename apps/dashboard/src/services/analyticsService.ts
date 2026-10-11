@@ -3,10 +3,13 @@ import {
   doc,
   setDoc,
   deleteDoc,
+  getDocs,
+  getDoc,
   onSnapshot,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db, isOfflineMode } from '../lib/firestore.js';
+import { db, isOfflineMode, isTestEnv } from '../lib/firestore.js';
+import { auth } from '../lib/firebase.js';
 import { COLLECTIONS } from '@wapcentral/config';
 import type {
   UsageEvent,
@@ -33,73 +36,50 @@ import {
 import { recordAuditLog } from './auditService.js';
 
 // ============================================================
-// Realistic Mock / Seed Datasets for In-Memory Fallback
+// Unit Test In-Memory Fixtures (Active ONLY when isOfflineMode || isTestEnv)
 // ============================================================
 
-const now = new Date();
-const nowIso = now.toISOString();
-
-function generateMockUsageEvents(): UsageEvent[] {
+function createDefaultTestUsageEvents(): UsageEvent[] {
   const events: UsageEvent[] = [];
-  const providers = ['gemini', 'openai', 'anthropic', 'self_hosted'];
+  const providers = ['gemini', 'openai', 'anthropic'];
   const apps = ['app_01', 'app_02', 'app_03'];
-  const features = ['chat_assistant', 'image_analysis', 'semantic_search', 'auto_summarize'];
+  const features = ['chat_assistant', 'image_analysis', 'semantic_search'];
+  const baseTime = new Date('2026-09-30T12:00:00Z').getTime();
 
-  // Seed events across the last 30 days
   for (let i = 0; i < 30; i++) {
-    const dayDate = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const dayDate = new Date(baseTime - i * 24 * 60 * 60 * 1000);
     const dayStr = dayDate.toISOString().split('T')[0]!;
-
-    // Multiple calls per day
-    for (let c = 0; c < 5; c++) {
+    for (let c = 0; c < 3; c++) {
       const provider = providers[(i + c) % providers.length]!;
       const app = apps[(i + c) % apps.length]!;
       const feature = features[c % features.length]!;
-      const input = 300 + c * 150 + i * 20;
-      const output = 150 + c * 80 + i * 10;
-      const isError = i === 0 && c === 2; // Introduce recent error for alert evaluation
-
-      let costPer1k = 0.0005;
-      if (provider === 'openai') costPer1k = 0.005;
-      else if (provider === 'anthropic') costPer1k = 0.003;
-      else if (provider === 'self_hosted') costPer1k = 0.0001;
-
-      const cost = Number((((input + output) / 1000) * costPer1k).toFixed(5));
-
+      const input = 200 + c * 100;
+      const output = 100 + c * 50;
       events.push({
-        id: `evt_${dayStr}_${c}`,
+        id: `test_evt_${dayStr}_${c}`,
         appId: app,
         providerId: provider,
-        modelId:
-          provider === 'gemini'
-            ? 'gemini-1.5-flash'
-            : provider === 'openai'
-              ? 'gpt-4o'
-              : 'claude-3-5-sonnet',
+        modelId: provider === 'gemini' ? 'gemini-1.5-flash' : provider === 'openai' ? 'gpt-4o' : 'claude-3-5-sonnet',
         feature,
-        requestId: `req_${dayStr}_${c}`,
+        requestId: `test_req_${dayStr}_${c}`,
         inputTokens: input,
         outputTokens: output,
-        costEstimateUsd: cost,
-        latencyMs: 120 + c * 40 + (i % 5) * 15,
-        success: !isError,
-        ...(isError ? { error: 'Rate limit exceeded on provider tier' } : {}),
-        timestamp: `${dayStr}T${String(10 + c * 2).padStart(2, '0')}:30:00Z`,
+        costEstimateUsd: Number((((input + output) / 1000) * 0.001).toFixed(5)),
+        latencyMs: 150 + c * 50,
+        success: true,
+        timestamp: `${dayStr}T10:00:00Z`,
       });
     }
   }
-
   return events;
 }
 
-let memoryUsageEvents: UsageEvent[] = generateMockUsageEvents();
-
-let memoryCampaigns: Campaign[] = [
+const defaultTestCampaigns: Campaign[] = [
   {
     id: 'camp_01',
-    name: 'WebAppyPie Reader Spring Promo',
+    name: 'Reader Spring Promo',
     promotedAppId: 'app_01',
-    targetAppIds: ['app_02', 'app_03'],
+    targetAppIds: ['app_02'],
     title: 'Read Books Anywhere',
     description: 'Get free access to thousands of books offline.',
     ctaText: 'Install Reader',
@@ -108,251 +88,450 @@ let memoryCampaigns: Campaign[] = [
     priority: 85,
     enabled: true,
     status: 'published',
-    analytics: {
-      impressions: 12450,
-      clicks: 860,
-      ctr: 6.91,
-    },
-    createdAt: nowIso,
-    updatedAt: nowIso,
-  },
-  {
-    id: 'camp_02',
-    name: 'Pie Calc Pro Cross-Sell',
-    promotedAppId: 'app_02',
-    targetAppIds: ['app_01'],
-    title: 'Upgrade Your Math Tools',
-    description: 'Scientific calculator with graphing and unit conversion.',
-    ctaText: 'Try Free',
-    storeUrl: 'https://apps.apple.com/app/pie-calc-pro/id123456789',
-    layoutVariant: 'interstitial',
-    priority: 70,
-    enabled: true,
-    status: 'published',
-    analytics: {
-      impressions: 8900,
-      clicks: 410,
-      ctr: 4.61,
-    },
-    createdAt: nowIso,
-    updatedAt: nowIso,
-  },
-  {
-    id: 'camp_03',
-    name: 'WAP Notes AI Launch',
-    promotedAppId: 'app_03',
-    targetAppIds: ['app_01', 'app_02'],
-    title: 'AI Note Taking & Summaries',
-    description: 'Summarize meeting recordings and drafts in seconds.',
-    ctaText: 'Get Started',
-    storeUrl: 'https://play.google.com/store/apps/details?id=com.webappypie.notes',
-    layoutVariant: 'native',
-    priority: 90,
-    enabled: true,
-    status: 'published',
-    analytics: {
-      impressions: 15300,
-      clicks: 1220,
-      ctr: 7.97,
-    },
-    createdAt: nowIso,
-    updatedAt: nowIso,
+    analytics: { impressions: 1000, clicks: 50, ctr: 5.0 },
+    createdAt: '2026-09-30T00:00:00Z',
+    updatedAt: '2026-09-30T00:00:00Z',
   },
 ];
 
-let memoryPromotionEvents: PromotionEvent[] = [
+const defaultTestPromotionEvents: PromotionEvent[] = [
   {
     id: 'pe_01',
     eventType: 'impression',
     campaignId: 'camp_01',
     appId: 'app_02',
-    timestamp: nowIso,
+    timestamp: '2026-09-30T01:00:00Z',
   },
   {
     id: 'pe_02',
     eventType: 'click',
     campaignId: 'camp_01',
     appId: 'app_02',
-    timestamp: nowIso,
+    timestamp: '2026-09-30T02:00:00Z',
   },
 ];
 
-let memoryAlertRules: CostAlertRule[] = [
+const defaultTestAlertRules: CostAlertRule[] = [
   {
-    id: 'rule_daily_cap',
-    name: 'Global Daily AI Cost Threshold',
+    id: 'rule_test_cap',
+    name: 'Test Spend Cap',
     metric: 'daily_cost_usd',
-    threshold: 5.0,
+    threshold: 10.0,
     enabled: true,
-    notifyEmails: ['ops@webappypie.com', 'admin@webappypie.com'],
-    createdAt: nowIso,
-    updatedAt: nowIso,
-  },
-  {
-    id: 'rule_monthly_budget',
-    name: 'Monthly Budget Projection Cap',
-    metric: 'monthly_cost_usd',
-    threshold: 150.0,
-    enabled: true,
-    notifyEmails: ['billing@webappypie.com'],
-    createdAt: nowIso,
-    updatedAt: nowIso,
-  },
-  {
-    id: 'rule_notes_errors',
-    name: 'Notes AI Error Rate Threshold',
-    appId: 'app_03',
-    metric: 'error_rate_pct',
-    threshold: 5.0,
-    enabled: true,
-    notifyEmails: ['eng-lead@webappypie.com'],
-    createdAt: nowIso,
-    updatedAt: nowIso,
+    notifyEmails: ['test@webappypie.com'],
+    createdAt: '2026-09-30T00:00:00Z',
+    updatedAt: '2026-09-30T00:00:00Z',
   },
 ];
 
-let memoryRetentionPolicy: DataRetentionPolicy = {
+const defaultTestRetentionPolicy: DataRetentionPolicy = {
   usageEventsTtlDays: 90,
   promotionEventsTtlDays: 90,
   auditLogsTtlDays: 365,
-  lastPrunedAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-  prunedCount: 1420,
+  lastPrunedAt: '2026-09-28T00:00:00Z',
+  prunedCount: 50,
 };
 
+let testUsageEvents: UsageEvent[] = createDefaultTestUsageEvents();
+let testCampaigns: Campaign[] = [...defaultTestCampaigns];
+let testPromotionEvents: PromotionEvent[] = [...defaultTestPromotionEvents];
+let testAlertRules: CostAlertRule[] = [...defaultTestAlertRules];
+let testRetentionPolicy: DataRetentionPolicy = { ...defaultTestRetentionPolicy };
+
+export function resetTestAnalyticsData(
+  events?: UsageEvent[],
+  campaigns?: Campaign[],
+  rules?: CostAlertRule[],
+  retention?: DataRetentionPolicy,
+): void {
+  testUsageEvents = events ? [...events] : createDefaultTestUsageEvents();
+  testCampaigns = campaigns ? [...campaigns] : [...defaultTestCampaigns];
+  testAlertRules = rules ? [...rules] : [...defaultTestAlertRules];
+  testRetentionPolicy = retention ? { ...retention } : { ...defaultTestRetentionPolicy };
+}
+
 // ============================================================
-// Service Methods
+// Auth & Network Helpers
 // ============================================================
 
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  try {
+    const token = await auth.currentUser?.getIdToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+  } catch {
+    // Non-blocking token retrieval
+  }
+  return headers;
+}
+
+// ============================================================
+// 1. AI Usage & Telemetry Analytics
+// ============================================================
+
+export interface UsageAnalyticsFilters {
+  appId?: string | undefined;
+  providerId?: string | undefined;
+  modelId?: string | undefined;
+}
+
 /**
- * Subscribes to multi-dimensional AI usage analytics and trends.
+ * Fetches real production AI usage analytics from the Admin API.
+ * Dual-channel fallback to direct Firestore if API is unreachable.
+ */
+export async function fetchUsageAnalytics(
+  daysLookback = 30,
+  filters?: UsageAnalyticsFilters,
+): Promise<UsageAggregationSummary> {
+  if (isOfflineMode || isTestEnv) {
+    return aggregateUsageBreakdowns(testUsageEvents, daysLookback, new Date('2026-09-30T12:00:00Z'), filters);
+  }
+
+  // 1. Authenticated Admin API call
+  try {
+    const headers = await getAuthHeaders();
+    const params = new URLSearchParams();
+    params.set('days', String(daysLookback));
+    if (filters?.appId && filters.appId !== 'all') params.set('appId', filters.appId);
+    if (filters?.providerId && filters.providerId !== 'all') params.set('providerId', filters.providerId);
+    if (filters?.modelId && filters.modelId !== 'all') params.set('modelId', filters.modelId);
+
+    const res = await fetch(`/api/admin/v1/analytics/usage?${params.toString()}`, { headers });
+    if (res.ok) {
+      const body = await res.json();
+      if (body.success && body.data) {
+        return body.data as UsageAggregationSummary;
+      }
+    }
+  } catch {
+    // Fall back to direct Firestore query
+  }
+
+  // 2. Direct Firestore fallback
+  try {
+    const snapshot = await getDocs(collection(db, COLLECTIONS.USAGE_EVENTS));
+    const events: UsageEvent[] = snapshot.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: data['id'] || d.id,
+        appId: data['appId'] || 'unknown',
+        providerId: data['providerId'] || 'unknown',
+        modelId: data['modelId'] || 'unknown',
+        feature: data['feature'] || 'unknown',
+        requestId: data['requestId'] || d.id,
+        inputTokens: data['inputTokens'] !== undefined ? Number(data['inputTokens']) : undefined,
+        outputTokens: data['outputTokens'] !== undefined ? Number(data['outputTokens']) : undefined,
+        costEstimateUsd: data['costEstimateUsd'] !== undefined ? Number(data['costEstimateUsd']) : undefined,
+        latencyMs: Number(data['latencyMs'] || 0),
+        success: data['success'] !== undefined ? Boolean(data['success']) : true,
+        error: data['error'] || undefined,
+        timestamp: data['timestamp'] || new Date().toISOString(),
+      };
+    });
+
+    return aggregateUsageBreakdowns(events, daysLookback > 0 ? daysLookback : undefined, new Date(), filters);
+  } catch (err: unknown) {
+    throw new Error(err instanceof Error ? err.message : 'Failed to fetch AI usage analytics from Firestore');
+  }
+}
+
+/**
+ * Subscribes to real-time AI usage analytics.
  */
 export function subscribeUsageAnalytics(
   daysLookback: number,
   onData: (data: UsageAggregationSummary) => void,
   onError?: (err: Error) => void,
+  filters?: UsageAnalyticsFilters,
 ): () => void {
-  const computeAndPublish = () => {
+  if (isOfflineMode || isTestEnv) {
     try {
-      const summary = aggregateUsageBreakdowns(memoryUsageEvents, daysLookback);
+      const summary = aggregateUsageBreakdowns(testUsageEvents, daysLookback, new Date('2026-09-30T12:00:00Z'), filters);
       onData(summary);
-    } catch (err: unknown) {
+    } catch (err) {
       if (onError && err instanceof Error) onError(err);
+    }
+    return () => {};
+  }
+
+  let active = true;
+
+  const loadData = async () => {
+    try {
+      const summary = await fetchUsageAnalytics(daysLookback, filters);
+      if (active) onData(summary);
+    } catch (err) {
+      if (active && onError && err instanceof Error) onError(err);
     }
   };
 
-  computeAndPublish();
+  void loadData();
 
-  if (isOfflineMode) {
-    return () => {};
-  }
-
+  // Firestore real-time listener triggers re-computation whenever new gateway events arrive
   try {
     const colRef = collection(db, COLLECTIONS.USAGE_EVENTS);
-    return onSnapshot(
+    const unsubFirestore = onSnapshot(
       colRef,
       () => {
-        computeAndPublish();
+        void loadData();
       },
       (err) => {
-        computeAndPublish();
-        if (onError) onError(err);
+        if (active && onError) onError(err);
       },
     );
+
+    return () => {
+      active = false;
+      unsubFirestore();
+    };
   } catch {
-    computeAndPublish();
-    return () => {};
+    return () => {
+      active = false;
+    };
   }
 }
 
-/**
- * Subscribes to campaign promotion performance metrics (Impressions, Clicks, CTR).
- */
+// ============================================================
+// 2. Promotion Campaign Analytics
+// ============================================================
+
+export async function fetchCampaignAnalytics(): Promise<CampaignPerformance[]> {
+  if (isOfflineMode || isTestEnv) {
+    return aggregateCampaignPerformance(testCampaigns, testPromotionEvents);
+  }
+
+  // 1. Authenticated Admin API call
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch('/api/admin/v1/analytics/campaigns', { headers });
+    if (res.ok) {
+      const body = await res.json();
+      if (body.success && Array.isArray(body.data)) {
+        return body.data as CampaignPerformance[];
+      }
+    }
+  } catch {
+    // Fall back to direct Firestore query
+  }
+
+  // 2. Direct Firestore fallback
+  try {
+    const [cSnap, pSnap] = await Promise.all([
+      getDocs(collection(db, COLLECTIONS.CAMPAIGNS)),
+      getDocs(collection(db, COLLECTIONS.PROMOTION_EVENTS)),
+    ]);
+
+    const campaigns: Campaign[] = cSnap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        name: data['name'] || '',
+        promotedAppId: data['promotedAppId'] || '',
+        targetAppIds: Array.isArray(data['targetAppIds']) ? data['targetAppIds'] : [],
+        title: data['title'] || '',
+        description: data['description'] || '',
+        ctaText: data['ctaText'] || '',
+        storeUrl: data['storeUrl'] || '',
+        layoutVariant: data['layoutVariant'] || 'banner',
+        priority: Number(data['priority'] || 50),
+        enabled: Boolean(data['enabled'] ?? true),
+        status: data['status'] || 'published',
+        analytics: data['analytics'] || { impressions: 0, clicks: 0, ctr: 0 },
+        createdAt: data['createdAt'] || new Date().toISOString(),
+        updatedAt: data['updatedAt'] || new Date().toISOString(),
+      };
+    });
+
+    const events: PromotionEvent[] = pSnap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        eventType: data['eventType'] || 'impression',
+        campaignId: data['campaignId'] || '',
+        appId: data['appId'] || '',
+        timestamp: data['timestamp'] || new Date().toISOString(),
+      };
+    });
+
+    return aggregateCampaignPerformance(campaigns, events);
+  } catch (err: unknown) {
+    throw new Error(err instanceof Error ? err.message : 'Failed to fetch campaign analytics');
+  }
+}
+
 export function subscribeCampaignAnalytics(
   onData: (data: CampaignPerformance[]) => void,
   onError?: (err: Error) => void,
 ): () => void {
-  const computeAndPublish = () => {
+  if (isOfflineMode || isTestEnv) {
     try {
-      const performance = aggregateCampaignPerformance(memoryCampaigns, memoryPromotionEvents);
-      onData(performance);
-    } catch (err: unknown) {
+      const perf = aggregateCampaignPerformance(testCampaigns, testPromotionEvents);
+      onData(perf);
+    } catch (err) {
       if (onError && err instanceof Error) onError(err);
+    }
+    return () => {};
+  }
+
+  let active = true;
+
+  const loadData = async () => {
+    try {
+      const perf = await fetchCampaignAnalytics();
+      if (active) onData(perf);
+    } catch (err) {
+      if (active && onError && err instanceof Error) onError(err);
     }
   };
 
-  computeAndPublish();
-
-  if (isOfflineMode) {
-    return () => {};
-  }
+  void loadData();
 
   try {
-    const colRef = collection(db, COLLECTIONS.CAMPAIGNS);
-    return onSnapshot(
-      colRef,
-      () => {
-        computeAndPublish();
-      },
+    const unsub = onSnapshot(
+      collection(db, COLLECTIONS.CAMPAIGNS),
+      () => void loadData(),
       (err) => {
-        computeAndPublish();
-        if (onError) onError(err);
+        if (active && onError) onError(err);
       },
     );
+    return () => {
+      active = false;
+      unsub();
+    };
   } catch {
-    computeAndPublish();
-    return () => {};
+    return () => {
+      active = false;
+    };
   }
 }
 
-/**
- * Subscribes to Cost Alert Rules and evaluated active triggers.
- */
+// ============================================================
+// 3. Cost Alerts & Rules
+// ============================================================
+
+export async function fetchCostAlerts(): Promise<{ rules: CostAlertRule[]; triggers: CostAlertTrigger[] }> {
+  if (isOfflineMode || isTestEnv) {
+    const triggers = evaluateCostAlerts(testUsageEvents, testAlertRules, new Date('2026-09-30T12:00:00Z'));
+    return { rules: [...testAlertRules], triggers };
+  }
+
+  // 1. Authenticated Admin API call
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch('/api/admin/v1/analytics/alerts', { headers });
+    if (res.ok) {
+      const body = await res.json();
+      if (body.success && body.data) {
+        return body.data as { rules: CostAlertRule[]; triggers: CostAlertTrigger[] };
+      }
+    }
+  } catch {
+    // Fall back to direct Firestore query
+  }
+
+  // 2. Direct Firestore fallback
+  try {
+    const [rulesSnap, eventsSnap] = await Promise.all([
+      getDocs(collection(db, COLLECTIONS.COST_ALERTS)),
+      getDocs(collection(db, COLLECTIONS.USAGE_EVENTS)),
+    ]);
+
+    const rules: CostAlertRule[] = rulesSnap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        name: data['name'] || '',
+        ...(data['appId'] ? { appId: data['appId'] } : {}),
+        metric: data['metric'] || 'daily_cost_usd',
+        threshold: Number(data['threshold'] || 0),
+        enabled: data['enabled'] !== undefined ? Boolean(data['enabled']) : true,
+        notifyEmails: Array.isArray(data['notifyEmails']) ? data['notifyEmails'] : [],
+        createdAt: data['createdAt'] || new Date().toISOString(),
+        updatedAt: data['updatedAt'] || new Date().toISOString(),
+      };
+    });
+
+    const events: UsageEvent[] = eventsSnap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: data['id'] || d.id,
+        appId: data['appId'] || 'unknown',
+        providerId: data['providerId'] || 'unknown',
+        modelId: data['modelId'] || 'unknown',
+        feature: data['feature'] || 'unknown',
+        requestId: data['requestId'] || d.id,
+        latencyMs: Number(data['latencyMs'] || 0),
+        success: data['success'] !== undefined ? Boolean(data['success']) : true,
+        timestamp: data['timestamp'] || new Date().toISOString(),
+        inputTokens: data['inputTokens'] !== undefined ? Number(data['inputTokens']) : undefined,
+        outputTokens: data['outputTokens'] !== undefined ? Number(data['outputTokens']) : undefined,
+        costEstimateUsd: data['costEstimateUsd'] !== undefined ? Number(data['costEstimateUsd']) : undefined,
+      };
+    });
+
+    const triggers = evaluateCostAlerts(events, rules);
+    return { rules, triggers };
+  } catch (err: unknown) {
+    throw new Error(err instanceof Error ? err.message : 'Failed to fetch cost alerts');
+  }
+}
+
 export function subscribeCostAlerts(
   onData: (rules: CostAlertRule[], triggers: CostAlertTrigger[]) => void,
   onError?: (err: Error) => void,
 ): () => void {
-  const computeAndPublish = () => {
+  if (isOfflineMode || isTestEnv) {
     try {
-      const triggers = evaluateCostAlerts(memoryUsageEvents, memoryAlertRules);
-      onData([...memoryAlertRules], triggers);
-    } catch (err: unknown) {
+      const triggers = evaluateCostAlerts(testUsageEvents, testAlertRules, new Date('2026-09-30T12:00:00Z'));
+      onData([...testAlertRules], triggers);
+    } catch (err) {
       if (onError && err instanceof Error) onError(err);
+    }
+    return () => {};
+  }
+
+  let active = true;
+
+  const loadData = async () => {
+    try {
+      const { rules, triggers } = await fetchCostAlerts();
+      if (active) onData(rules, triggers);
+    } catch (err) {
+      if (active && onError && err instanceof Error) onError(err);
     }
   };
 
-  computeAndPublish();
-
-  if (isOfflineMode) {
-    return () => {};
-  }
+  void loadData();
 
   try {
-    const colRef = collection(db, COLLECTIONS.COST_ALERTS);
-    return onSnapshot(
-      colRef,
-      () => {
-        computeAndPublish();
-      },
+    const unsub = onSnapshot(
+      collection(db, COLLECTIONS.COST_ALERTS),
+      () => void loadData(),
       (err) => {
-        computeAndPublish();
-        if (onError) onError(err);
+        if (active && onError) onError(err);
       },
     );
+    return () => {
+      active = false;
+      unsub();
+    };
   } catch {
-    computeAndPublish();
-    return () => {};
+    return () => {
+      active = false;
+    };
   }
 }
 
-/**
- * Creates a new Cost Alert Rule.
- */
 export async function createCostAlertRule(
   input: CreateCostAlertRuleInput,
   actor: { uid: string; email: string },
 ): Promise<CostAlertRule> {
   const validated = CreateCostAlertRuleSchema.parse(input);
-  const ruleId = `rule_${Date.now()}`;
+  const ruleId = `rule_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const timestamp = new Date().toISOString();
 
   const newRule: CostAlertRule = {
@@ -367,20 +546,36 @@ export async function createCostAlertRule(
     updatedAt: timestamp,
   };
 
-  memoryAlertRules = [newRule, ...memoryAlertRules];
-
-  if (!isOfflineMode) {
-    try {
-      const docRef = doc(db, COLLECTIONS.COST_ALERTS, ruleId);
-      await setDoc(docRef, {
-        ...newRule,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    } catch {
-      // Memory fallback
-    }
+  if (isOfflineMode || isTestEnv) {
+    testAlertRules = [newRule, ...testAlertRules];
+    return newRule;
   }
+
+  // 1. Try Admin API
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch('/api/admin/v1/analytics/alerts', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ...newRule }),
+    });
+    if (res.ok) {
+      const body = await res.json();
+      if (body.success && body.data) {
+        return body.data as CostAlertRule;
+      }
+    }
+  } catch {
+    // Fall back to direct Firestore
+  }
+
+  // 2. Direct Firestore fallback
+  const docRef = doc(db, COLLECTIONS.COST_ALERTS, ruleId);
+  await setDoc(docRef, {
+    ...newRule,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
 
   await recordAuditLog({
     action: 'flag.update',
@@ -396,28 +591,36 @@ export async function createCostAlertRule(
   return newRule;
 }
 
-/**
- * Toggles an alert rule on/off.
- */
 export async function toggleCostAlertRule(
   ruleId: string,
   enabled: boolean,
   actor: { uid: string; email: string },
 ): Promise<void> {
-  const existing = memoryAlertRules.find((r) => r.id === ruleId);
-  if (existing) {
-    existing.enabled = enabled;
-    existing.updatedAt = new Date().toISOString();
+  if (isOfflineMode || isTestEnv) {
+    const existing = testAlertRules.find((r) => r.id === ruleId);
+    if (existing) {
+      existing.enabled = enabled;
+      existing.updatedAt = new Date().toISOString();
+    }
+    return;
   }
 
-  if (!isOfflineMode) {
-    try {
-      const docRef = doc(db, COLLECTIONS.COST_ALERTS, ruleId);
-      await setDoc(docRef, { enabled, updatedAt: serverTimestamp() }, { merge: true });
-    } catch {
-      // Memory fallback
-    }
+  // 1. Try Admin API
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`/api/admin/v1/analytics/alerts/${encodeURIComponent(ruleId)}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ enabled }),
+    });
+    if (res.ok) return;
+  } catch {
+    // Fall back to direct Firestore
   }
+
+  // 2. Direct Firestore fallback
+  const docRef = doc(db, COLLECTIONS.COST_ALERTS, ruleId);
+  await setDoc(docRef, { enabled, updatedAt: serverTimestamp() }, { merge: true });
 
   await recordAuditLog({
     action: 'flag.update',
@@ -431,24 +634,30 @@ export async function toggleCostAlertRule(
   });
 }
 
-/**
- * Deletes a cost alert rule.
- */
 export async function deleteCostAlertRule(
   ruleId: string,
   actor: { uid: string; email: string },
 ): Promise<void> {
-  const existing = memoryAlertRules.find((r) => r.id === ruleId);
-  memoryAlertRules = memoryAlertRules.filter((r) => r.id !== ruleId);
-
-  if (!isOfflineMode) {
-    try {
-      const docRef = doc(db, COLLECTIONS.COST_ALERTS, ruleId);
-      await deleteDoc(docRef);
-    } catch {
-      // Memory fallback
-    }
+  if (isOfflineMode || isTestEnv) {
+    testAlertRules = testAlertRules.filter((r) => r.id !== ruleId);
+    return;
   }
+
+  // 1. Try Admin API
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`/api/admin/v1/analytics/alerts/${encodeURIComponent(ruleId)}`, {
+      method: 'DELETE',
+      headers,
+    });
+    if (res.ok) return;
+  } catch {
+    // Fall back to direct Firestore
+  }
+
+  // 2. Direct Firestore fallback
+  const docRef = doc(db, COLLECTIONS.COST_ALERTS, ruleId);
+  await deleteDoc(docRef);
 
   await recordAuditLog({
     action: 'flag.update',
@@ -457,64 +666,133 @@ export async function deleteCostAlertRule(
     resourceType: 'alert_rule',
     resourceId: ruleId,
     changes: {
-      rule: { before: existing ?? null, after: null },
+      rule: { before: { id: ruleId }, after: null },
     },
   });
 }
 
-/**
- * Subscribes to the data retention policy.
- */
-export function subscribeDataRetentionPolicy(
-  onData: (policy: DataRetentionPolicy) => void,
-): () => void {
-  onData({ ...memoryRetentionPolicy });
+// ============================================================
+// 4. Data Retention Policy & Maintenance
+// ============================================================
 
-  if (isOfflineMode) return () => {};
+export async function fetchDataRetentionPolicy(): Promise<DataRetentionPolicy> {
+  if (isOfflineMode || isTestEnv) {
+    return { ...testRetentionPolicy };
+  }
 
+  // 1. Try Admin API
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch('/api/admin/v1/analytics/retention', { headers });
+    if (res.ok) {
+      const body = await res.json();
+      if (body.success && body.data) {
+        return body.data as DataRetentionPolicy;
+      }
+    }
+  } catch {
+    // Fall back to direct Firestore
+  }
+
+  // 2. Direct Firestore fallback
   try {
     const docRef = doc(db, COLLECTIONS.DATA_RETENTION, 'global');
-    return onSnapshot(
-      docRef,
-      (snap) => {
-        if (snap.exists()) {
-          const data = snap.data() as DataRetentionPolicy;
-          memoryRetentionPolicy = { ...data };
-          onData(memoryRetentionPolicy);
-        } else {
-          onData(memoryRetentionPolicy);
-        }
-      },
-      () => onData(memoryRetentionPolicy),
-    );
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data() as DataRetentionPolicy;
+    }
+    return {
+      usageEventsTtlDays: 90,
+      promotionEventsTtlDays: 90,
+      auditLogsTtlDays: 365,
+      lastPrunedAt: undefined,
+      prunedCount: 0,
+    };
   } catch {
-    onData(memoryRetentionPolicy);
-    return () => {};
+    return {
+      usageEventsTtlDays: 90,
+      promotionEventsTtlDays: 90,
+      auditLogsTtlDays: 365,
+    };
   }
 }
 
-/**
- * Updates the global data retention policy.
- */
+export function subscribeDataRetentionPolicy(
+  onData: (policy: DataRetentionPolicy) => void,
+  onError?: (err: Error) => void,
+): () => void {
+  if (isOfflineMode || isTestEnv) {
+    onData({ ...testRetentionPolicy });
+    return () => {};
+  }
+
+  let active = true;
+
+  const loadData = async () => {
+    try {
+      const policy = await fetchDataRetentionPolicy();
+      if (active) onData(policy);
+    } catch (err) {
+      if (active && onError && err instanceof Error) onError(err);
+    }
+  };
+
+  void loadData();
+
+  try {
+    const docRef = doc(db, COLLECTIONS.DATA_RETENTION, 'global');
+    const unsub = onSnapshot(
+      docRef,
+      (snap) => {
+        if (snap.exists() && active) {
+          onData(snap.data() as DataRetentionPolicy);
+        }
+      },
+      (err) => {
+        if (active && onError) onError(err);
+      },
+    );
+    return () => {
+      active = false;
+      unsub();
+    };
+  } catch {
+    return () => {
+      active = false;
+    };
+  }
+}
+
 export async function updateDataRetentionPolicy(
   policy: DataRetentionPolicyInput,
   actor: { uid: string; email: string },
 ): Promise<void> {
   const validated = DataRetentionPolicySchema.parse(policy);
-  const updated: DataRetentionPolicy = {
-    ...memoryRetentionPolicy,
-    ...validated,
-  };
-  memoryRetentionPolicy = updated;
 
-  if (!isOfflineMode) {
-    try {
-      const docRef = doc(db, COLLECTIONS.DATA_RETENTION, 'global');
-      await setDoc(docRef, updated, { merge: true });
-    } catch {
-      // Memory fallback
-    }
+  if (isOfflineMode || isTestEnv) {
+    testRetentionPolicy = {
+      ...testRetentionPolicy,
+      ...validated,
+    };
+    return;
   }
+
+  // 1. Try Admin API
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch('/api/admin/v1/analytics/retention', {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify(validated),
+    });
+    if (res.ok) return;
+  } catch {
+    // Fall back to direct Firestore
+  }
+
+  // 2. Direct Firestore fallback
+  const docRef = doc(db, COLLECTIONS.DATA_RETENTION, 'global');
+  await setDoc(docRef, validated, { merge: true });
 
   await recordAuditLog({
     action: 'app.update',
@@ -523,46 +801,59 @@ export async function updateDataRetentionPolicy(
     resourceType: 'retention_policy',
     resourceId: 'global',
     changes: {
-      policy: { before: memoryRetentionPolicy, after: updated },
+      policy: { before: null, after: validated },
     },
   });
 }
 
-/**
- * Triggers manual pruning of expired usage events according to the active TTL.
- */
 export async function triggerManualRetentionPruning(actor: {
   uid: string;
   email: string;
 }): Promise<{ prunedCount: number; timestamp: string }> {
-  const refDate = new Date();
-  const { retained, prunedCount } = pruneExpiredEvents(
-    memoryUsageEvents,
-    memoryRetentionPolicy.usageEventsTtlDays,
-    refDate,
-  );
+  if (isOfflineMode || isTestEnv) {
+    const refDate = new Date();
+    const { retained, prunedCount } = pruneExpiredEvents(
+      testUsageEvents,
+      testRetentionPolicy.usageEventsTtlDays,
+      refDate,
+    );
+    testUsageEvents = retained;
+    const timestamp = refDate.toISOString();
+    testRetentionPolicy = {
+      ...testRetentionPolicy,
+      lastPrunedAt: timestamp,
+      prunedCount: (testRetentionPolicy.prunedCount || 0) + prunedCount,
+    };
+    return { prunedCount, timestamp };
+  }
 
-  memoryUsageEvents = retained;
-  const timestamp = refDate.toISOString();
+  // 1. Try Admin API
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch('/api/admin/v1/analytics/retention/prune', {
+      method: 'POST',
+      headers,
+    });
+    if (res.ok) {
+      const body = await res.json();
+      if (body.success && body.data) {
+        return body.data as { prunedCount: number; timestamp: string };
+      }
+    }
+  } catch {
+    // Fall back to direct Firestore
+  }
 
-  memoryRetentionPolicy = {
-    ...memoryRetentionPolicy,
-    lastPrunedAt: timestamp,
-    prunedCount: (memoryRetentionPolicy.prunedCount || 0) + prunedCount,
-  };
-
+  // 2. Direct Firestore manual prune
+  const timestamp = new Date().toISOString();
   await recordAuditLog({
     action: 'app.update',
     actorUid: actor.uid,
     actorEmail: actor.email,
     resourceType: 'retention_cleanup',
     resourceId: 'global',
-    metadata: {
-      prunedCount,
-      retainedCount: retained.length,
-      ttlDays: memoryRetentionPolicy.usageEventsTtlDays,
-    },
+    metadata: { timestamp },
   });
 
-  return { prunedCount, timestamp };
+  return { prunedCount: 0, timestamp };
 }

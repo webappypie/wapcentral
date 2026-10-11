@@ -1,10 +1,11 @@
+import type { FeatureFlag } from '@wapcentral/types';
+import { UpsertFeatureFlagSchema } from '@wapcentral/validation';
 import { Router } from 'express';
 import type { Response } from 'express';
-import type { AuthenticatedRequest } from '../types/auth.js';
+
 import { requireRole } from '../middleware/rbac.js';
-import { UpsertFeatureFlagSchema } from '@wapcentral/validation';
-import type { FeatureFlag } from '@wapcentral/types';
 import { logAdminAction } from '../services/auditService.js';
+import type { AuthenticatedRequest } from '../types/auth.js';
 
 export const flagsRouter: Router = Router();
 

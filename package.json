@@ -1,6 +1,6 @@
 {
   "name": "wapcentral",
-  "version": "1.0.0",
+  "version": "0.2.1",
   "private": true,
   "description": "WebAppyPie Central Infrastructure — monorepo",
   "packageManager": "pnpm@9.15.9",
@@ -23,17 +23,25 @@
     "type-check": "turbo run type-check",
     "dev": "turbo run dev --parallel",
     "clean": "turbo run clean && rimraf node_modules",
+    "version:bump": "node scripts/bump-version.mjs",
+    "version:patch": "node scripts/bump-version.mjs patch",
+    "version:minor": "node scripts/bump-version.mjs minor",
+    "version:major": "node scripts/bump-version.mjs major",
+    "bootstrap:admin": "node scripts/bootstrap-superadmin.mjs",
     "prepare": "husky || true"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "@firebase/rules-unit-testing": "^5.0.2",
+    "@google-cloud/firestore": "^9.1.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "dotenv": "^18.0.5",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^9.0.0",
     "eslint-plugin-import": "^2.29.0",
     "firebase": "^12.19.0",
+    "firebase-admin": "^14.5.0",
     "husky": "^9.0.0",
     "lint-staged": "^15.0.0",
     "prettier": "^3.3.0",
@@ -51,5 +59,8 @@
     "*.{json,md,yaml,yml,css}": [
       "prettier --write"
     ]
+  },
+  "dependencies": {
+    "google-auth-library": "^11.1.0"
   }
 }

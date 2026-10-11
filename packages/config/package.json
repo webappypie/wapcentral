@@ -1,6 +1,6 @@
 {
   "name": "@wapcentral/config",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Shared configuration constants for WAPCentral",
   "type": "module",
@@ -13,10 +13,13 @@
     }
   },
   "scripts": {
+    "prebuild": "node ../../scripts/sync-version.mjs",
     "build": "tsc -p tsconfig.json",
+    "pretype-check": "node ../../scripts/sync-version.mjs",
     "type-check": "tsc --noEmit",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
+    "pretest": "node ../../scripts/sync-version.mjs",
     "test": "vitest run --passWithNoTests",
     "clean": "rimraf dist"
   },

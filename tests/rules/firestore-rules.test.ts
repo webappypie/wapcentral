@@ -27,15 +27,23 @@ const RULES_PATH = path.resolve(__dirname, '../../infrastructure/firebase/firest
 describe('Firestore Security Rules — RBAC & Data Protection', () => {
   let testEnv: RulesTestEnvironment;
 
+  let hasEmulator = false;
+
   beforeAll(async () => {
-    testEnv = await initializeTestEnvironment({
-      projectId: PROJECT_ID,
-      firestore: {
-        rules: fs.readFileSync(RULES_PATH, 'utf8'),
-        host: '127.0.0.1',
-        port: 8080,
-      },
-    });
+    try {
+      testEnv = await initializeTestEnvironment({
+        projectId: PROJECT_ID,
+        firestore: {
+          rules: fs.readFileSync(RULES_PATH, 'utf8'),
+          host: '127.0.0.1',
+          port: 8080,
+        },
+      });
+      hasEmulator = true;
+    } catch {
+      console.warn('Firestore emulator not running on 127.0.0.1:8080. Skipping live emulator tests.');
+      hasEmulator = false;
+    }
   });
 
   afterAll(async () => {
@@ -44,7 +52,11 @@ describe('Firestore Security Rules — RBAC & Data Protection', () => {
     }
   });
 
-  beforeEach(async () => {
+  beforeEach(async (ctx) => {
+    if (!hasEmulator) {
+      ctx.skip();
+      return;
+    }
     if (testEnv) {
       await testEnv.clearFirestore();
     }
@@ -418,6 +430,83 @@ describe('Firestore Security Rules — RBAC & Data Protection', () => {
       // Viewer cannot write to them
       await assertFails(setDoc(doc(viewerDb, 'costAlerts/viewer_unauth_write'), { name: 'Fail' }));
       await assertFails(setDoc(doc(viewerDb, 'dataRetention/global'), { usageEventsTtlDays: 1 }));
+    });
+  });
+
+  describe('7. Ads & Monetization Collections Protection', () => {
+    it('should deny unauthenticated read and write to all ad collections', async () => {
+      const db = getUnauthedDb();
+      await assertFails(getDoc(doc(db, 'adNetworks/admob')));
+      await assertFails(getDoc(doc(db, 'adApps/filezen')));
+      await assertFails(getDoc(doc(db, 'adUnits/unit-1')));
+      await assertFails(getDoc(doc(db, 'adKillSwitches/current')));
+      await assertFails(getDoc(doc(db, 'adAuditLogs/log-1')));
+      await assertFails(setDoc(doc(db, 'adNetworks/admob'), { name: 'AdMob' }));
+    });
+
+    it('should allow viewer to read adNetworks, adApps, adUnits, adKillSwitches', async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await setDoc(doc(context.firestore(), 'adNetworks/admob'), {
+          id: 'admob',
+          name: 'Google AdMob',
+          enabled: true,
+        });
+        await setDoc(doc(context.firestore(), 'adApps/filezen'), {
+          id: 'filezen',
+          masterEnabled: true,
+        });
+      });
+
+      const viewerDb = getViewerDb();
+      await assertSucceeds(getDoc(doc(viewerDb, 'adNetworks/admob')));
+      await assertSucceeds(getDoc(doc(viewerDb, 'adApps/filezen')));
+    });
+
+    it('should allow editor to configure adApps and adUnits without secrets', async () => {
+      const editorDb = getEditorDb();
+      await assertSucceeds(
+        setDoc(doc(editorDb, 'adApps/optilens'), {
+          id: 'optilens',
+          appId: 'optilens',
+          masterEnabled: true,
+        }),
+      );
+      await assertSucceeds(
+        setDoc(doc(editorDb, 'adUnits/optilens_banner_admob'), {
+          id: 'optilens_banner_admob',
+          appId: 'optilens',
+          networkId: 'admob',
+          format: 'banner',
+          adUnitId: 'ca-app-pub-123/456',
+        }),
+      );
+    });
+
+    it('should reject editor attempting to store raw secrets in ad configuration', async () => {
+      const editorDb = getEditorDb();
+      await assertFails(
+        setDoc(doc(editorDb, 'adApps/optilens_hacked'), {
+          id: 'optilens_hacked',
+          apiKey: 'AIzaSyHackedRawApiKey',
+        }),
+      );
+      await assertFails(
+        setDoc(doc(editorDb, 'adNetworks/meta_hacked'), {
+          id: 'meta_hacked',
+          secret: 'RAW_META_SECRET_KEY',
+        }),
+      );
+    });
+
+    it('should deny client-side write to adAuditLogs (write-protected)', async () => {
+      const adminDb = getAdminDb();
+      const superAdminDb = getSuperAdminDb();
+      await assertFails(
+        setDoc(doc(adminDb, 'adAuditLogs/log-1'), { action: 'ads.tampered' }),
+      );
+      await assertFails(
+        setDoc(doc(superAdminDb, 'adAuditLogs/log-2'), { action: 'ads.tampered' }),
+      );
     });
   });
 });

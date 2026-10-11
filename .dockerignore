@@ -1,0 +1,15 @@
+# Production Docker build ignore patterns
+node_modules
+**/node_modules
+dist
+**/dist
+.git
+.turbo
+coverage
+.env
+.env.local
+.env.production
+*.log
+*.tsbuildinfo
+**/*.tsbuildinfo
+sdks

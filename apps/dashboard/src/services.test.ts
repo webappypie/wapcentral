@@ -329,13 +329,56 @@ describe('Core Dashboard Services & In-Memory Fallback', () => {
   });
 
   describe('AI Management Service', () => {
-    it('should list providers and perform health checks', async () => {
-      const { fetchAiProviders, checkProviderHealth } = await import('./services/aiService.js');
-      const providers = await fetchAiProviders();
-      expect(providers.length).toBeGreaterThanOrEqual(2);
-      expect(providers.some((p) => p.id === 'openai')).toBe(true);
+    it('should start with empty provider list (zero mock data) and support provider registration, duplicate prevention, and health checks', async () => {
+      const { fetchAiProviders, createAiProvider, checkProviderHealth } = await import('./services/aiService.js');
+      // 1. Proves initial state is clean/empty with zero mock fallback
+      const initialProviders = await fetchAiProviders();
+      expect(initialProviders.length).toBe(0);
 
-      const health = await checkProviderHealth('openai');
+      // 2. Register production provider
+      const created = await createAiProvider(
+        {
+          id: 'openai-production',
+          name: 'OpenAI Production',
+          type: 'openai',
+          enabled: true,
+          models: [
+            {
+              id: 'm_gpt_4o_mini',
+              providerId: 'openai-production',
+              modelId: 'gpt-4o-mini',
+              name: 'GPT-4o Mini',
+              enabled: true,
+              inputCostPer1kTokens: 0.00015,
+              outputCostPer1kTokens: 0.0006,
+              maxInputTokens: 128000,
+            },
+          ],
+        },
+        mockActor,
+      );
+      expect(created.id).toBe('openai-production');
+
+      const providers = await fetchAiProviders();
+      expect(providers.length).toBe(1);
+      expect(providers[0]?.id).toBe('openai-production');
+
+      // 3. Proves duplicate provider types cannot be created
+      await expect(
+        createAiProvider(
+          {
+            id: 'openai-duplicate',
+            name: 'Duplicate OpenAI',
+            type: 'openai',
+            enabled: true,
+            models: [],
+          },
+          mockActor,
+        ),
+      ).rejects.toThrow(/already exists/i);
+
+      // 4. Provider health check
+      const health = await checkProviderHealth('openai-production');
       expect(health.status).toBe('healthy');
       expect(health.latencyMs).toBeGreaterThan(0);
     });

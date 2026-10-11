@@ -1,7 +1,13 @@
+import { COLLECTIONS } from '@wapcentral/config';
 import type { AiPolicy } from '@wapcentral/types';
+import { getFirestoreDb } from './firestore.js';
 
-// In-memory active routing policies
-const activePolicies = new Map<string, AiPolicy>();
+// Cached active routing policies mapped by policy ID
+const activePoliciesById = new Map<string, AiPolicy>();
+
+// Last sync timestamp
+let lastPoliciesSync = 0;
+const SYNC_CACHE_TTL_MS = 10000; // 10 seconds cache TTL
 
 // Global kill switch flag
 let globalKillSwitch = false;
@@ -9,95 +15,136 @@ let globalKillSwitch = false;
 // Provider-specific kill switch flags
 const providerKillSwitches = new Set<string>();
 
-// Daily request and token counters: key = "appId:feature:YYYY-MM-DD"
-interface DailyCounter {
+// Real Daily and Monthly request and token counters
+// Keys:
+// Daily:   "appId:feature:YYYY-MM-DD"
+// Monthly: "appId:feature:YYYY-MM"
+interface UsageCounter {
   requests: number;
   tokens: number;
 }
-const dailyCounters = new Map<string, DailyCounter>();
+const usageCounters = new Map<string, UsageCounter>();
+
+// Sliding-window request timestamps for Rate Limiting (RPM)
+// Key: policyId -> array of millisecond timestamps in the last 60 seconds
+const rateLimitWindows = new Map<string, number[]>();
 
 function getTodayKey(appId: string, feature: string): string {
-  const dateStr = new Date().toISOString().split('T')[0];
+  const dateStr = new Date().toISOString().split('T')[0]!;
   return `${appId}:${feature}:${dateStr}`;
 }
 
-// Pre-populate with default policies
-export function initializeDefaultPolicies(): void {
-  activePolicies.clear();
-
-  const chatPolicy: AiPolicy = {
-    id: 'policy_chat_01',
-    appId: 'app_01',
-    feature: 'chat_assistant',
-    primaryProviderId: 'gemini',
-    primaryModelId: 'gemini-1.5-flash',
-    fallbackChain: [
-      {
-        providerId: 'openai',
-        modelId: 'gpt-4o-mini',
-        priority: 1,
-      },
-      {
-        providerId: 'anthropic',
-        modelId: 'claude-3-5-haiku',
-        priority: 2,
-      },
-    ],
-    quotas: {
-      dailyRequestLimit: 50000,
-      dailyTokenLimit: 10000000,
-      maxInputTokensPerRequest: 8192,
-      maxOutputTokensPerRequest: 2048,
-    },
-    enabled: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-
-  const imagePolicy: AiPolicy = {
-    id: 'policy_image_01',
-    appId: 'app_01',
-    feature: 'image_analysis',
-    primaryProviderId: 'openai',
-    primaryModelId: 'gpt-4o',
-    fallbackChain: [
-      {
-        providerId: 'gemini',
-        modelId: 'gemini-1.5-pro',
-        priority: 1,
-      },
-    ],
-    quotas: {
-      dailyRequestLimit: 10000,
-      maxInputTokensPerRequest: 4096,
-      maxOutputTokensPerRequest: 2048,
-    },
-    enabled: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-
-  activePolicies.set(`app_01:chat_assistant`, chatPolicy);
-  activePolicies.set(`app_01:image_analysis`, imagePolicy);
+function getMonthKey(appId: string, feature: string): string {
+  const dateStr = new Date().toISOString().split('T')[0]!;
+  const monthStr = dateStr.substring(0, 7);
+  return `${appId}:${feature}:${monthStr}`;
 }
 
-// Seed on startup
-initializeDefaultPolicies();
+function mapDocToPolicy(id: string, data: Record<string, any> | undefined): AiPolicy {
+  const d = data || {};
+  return {
+    id,
+    appId: d['appId'] || '',
+    feature: d['feature'] || '',
+    primaryProviderId: d['primaryProviderId'] || '',
+    primaryModelId: d['primaryModelId'] || '',
+    fallbackChain: (d['fallbackChain'] || []).map((fb: any) => ({
+      providerId: fb.providerId,
+      modelId: fb.modelId,
+      priority: Number(fb.priority) || 1,
+    })),
+    quotas: d['quotas'] || {},
+    circuitBreaker: d['circuitBreaker']
+      ? {
+          failureThreshold: Number(d['circuitBreaker'].failureThreshold) || 3,
+          timeoutMs: Number(d['circuitBreaker'].timeoutMs) || 10000,
+          recoveryTimeMs: Number(d['circuitBreaker'].recoveryTimeMs) || 30000,
+        }
+      : undefined,
+    priority: Number(d['priority']) || 50,
+    enabled: d['enabled'] ?? true,
+    createdAt: typeof d['createdAt'] === 'string' ? d['createdAt'] : new Date().toISOString(),
+    updatedAt: typeof d['updatedAt'] === 'string' ? d['updatedAt'] : new Date().toISOString(),
+  };
+}
 
+/**
+ * Synchronizes active policies from Firestore into the in-memory cache.
+ * Strictly Firestore-backed: zero mock or static policies.
+ */
+export async function syncPoliciesFromFirestore(force = false): Promise<void> {
+  const now = Date.now();
+  if (!force && now - lastPoliciesSync < SYNC_CACHE_TTL_MS) {
+    return;
+  }
+
+  try {
+    const db = getFirestoreDb();
+    const snap = await db.collection(COLLECTIONS.AI_POLICIES).get();
+    activePoliciesById.clear();
+
+    for (const doc of snap.docs) {
+      const policy = mapDocToPolicy(doc.id, doc.data());
+      activePoliciesById.set(policy.id, policy);
+    }
+
+    lastPoliciesSync = now;
+  } catch {
+    // Non-blocking catch: preserve existing cache if transient network failure occurs
+  }
+}
+
+/**
+ * Resolves the matching active policy for a given appId and feature.
+ * Matches exact appId first, then falls back to global/wildcard ('global' or '*').
+ * In case of multiple matching policies, highest priority takes precedence.
+ */
 export function getPolicy(appId: string, feature: string): AiPolicy | null {
-  // Check exact app + feature
-  const exact = activePolicies.get(`${appId}:${feature}`);
-  if (exact) return exact;
+  const allPolicies = Array.from(activePoliciesById.values()).reverse();
 
-  // Check global fallback for feature
-  const globalMatch = activePolicies.get(`global:${feature}`);
-  if (globalMatch) return globalMatch;
+  // 1. Exact match on appId + feature
+  const exactMatches = allPolicies.filter(
+    (p) => p.appId === appId && p.feature === feature,
+  );
+
+  if (exactMatches.length > 0) {
+    exactMatches.sort((a, b) => {
+      const pDiff = (b.priority ?? 50) - (a.priority ?? 50);
+      if (pDiff !== 0) return pDiff;
+      return (b.updatedAt || '').localeCompare(a.updatedAt || '');
+    });
+    return exactMatches[0]!;
+  }
+
+  // 2. Global / wildcard fallback match
+  const globalMatches = allPolicies.filter(
+    (p) => (p.appId === 'global' || p.appId === '*') && p.feature === feature,
+  );
+
+  if (globalMatches.length > 0) {
+    globalMatches.sort((a, b) => {
+      const pDiff = (b.priority ?? 50) - (a.priority ?? 50);
+      if (pDiff !== 0) return pDiff;
+      return (b.updatedAt || '').localeCompare(a.updatedAt || '');
+    });
+    return globalMatches[0]!;
+  }
 
   return null;
 }
 
+/**
+ * Manually sets an active policy in cache (used for unit tests and local overrides).
+ */
 export function setPolicy(policy: AiPolicy): void {
-  activePolicies.set(`${policy.appId}:${policy.feature}`, policy);
+  activePoliciesById.set(policy.id, policy);
+}
+
+/**
+ * Deletes a policy from cache.
+ */
+export function removePolicy(policyId: string): void {
+  activePoliciesById.delete(policyId);
 }
 
 export function isGlobalKillSwitchActive(): boolean {
@@ -122,10 +169,24 @@ export function setProviderKillSwitch(providerId: string, disabled: boolean): vo
 
 export interface QuotaCheckResult {
   allowed: boolean;
-  code?: 'KILL_SWITCH_ACTIVE' | 'POLICY_DISABLED' | 'QUOTA_EXCEEDED' | 'TOKEN_LIMIT_EXCEEDED';
+  code?:
+    | 'KILL_SWITCH_ACTIVE'
+    | 'POLICY_DISABLED'
+    | 'QUOTA_EXCEEDED'
+    | 'RATE_LIMIT_EXCEEDED'
+    | 'TOKEN_LIMIT_EXCEEDED';
   reason?: string;
 }
 
+/**
+ * Validates request against:
+ * 1. Global kill switch
+ * 2. Policy-level enabled status
+ * 3. Rate limits (requests per minute)
+ * 4. Per-request input token cap
+ * 5. Daily request and token quotas
+ * 6. Monthly request and token quotas
+ */
 export function checkQuotas(policy: AiPolicy, estimatedInputTokens = 0): QuotaCheckResult {
   // 1. Global kill switch
   if (globalKillSwitch) {
@@ -145,7 +206,24 @@ export function checkQuotas(policy: AiPolicy, estimatedInputTokens = 0): QuotaCh
     };
   }
 
-  // 3. Per-request input token cap
+  // 3. Rate limits (RPM: Requests Per Minute)
+  if (policy.quotas.rateLimitRpm && policy.quotas.rateLimitRpm > 0) {
+    const now = Date.now();
+    const window = rateLimitWindows.get(policy.id) || [];
+    // Prune timestamps older than 60 seconds
+    const activeWindow = window.filter((t) => now - t < 60000);
+    rateLimitWindows.set(policy.id, activeWindow);
+
+    if (activeWindow.length >= policy.quotas.rateLimitRpm) {
+      return {
+        allowed: false,
+        code: 'RATE_LIMIT_EXCEEDED',
+        reason: `Rate limit of ${policy.quotas.rateLimitRpm} requests/minute for feature '${policy.feature}' has been exceeded.`,
+      };
+    }
+  }
+
+  // 4. Per-request input token cap
   if (
     policy.quotas.maxInputTokensPerRequest &&
     estimatedInputTokens > policy.quotas.maxInputTokensPerRequest
@@ -157,11 +235,11 @@ export function checkQuotas(policy: AiPolicy, estimatedInputTokens = 0): QuotaCh
     };
   }
 
-  // 4. Daily limits
-  const key = getTodayKey(policy.appId, policy.feature);
-  const current = dailyCounters.get(key) || { requests: 0, tokens: 0 };
+  // 5. Daily request and token limits
+  const dayKey = getTodayKey(policy.appId, policy.feature);
+  const currentDay = usageCounters.get(dayKey) || { requests: 0, tokens: 0 };
 
-  if (policy.quotas.dailyRequestLimit && current.requests >= policy.quotas.dailyRequestLimit) {
+  if (policy.quotas.dailyRequestLimit && currentDay.requests >= policy.quotas.dailyRequestLimit) {
     return {
       allowed: false,
       code: 'QUOTA_EXCEEDED',
@@ -169,33 +247,83 @@ export function checkQuotas(policy: AiPolicy, estimatedInputTokens = 0): QuotaCh
     };
   }
 
-  if (policy.quotas.dailyTokenLimit && current.tokens >= policy.quotas.dailyTokenLimit) {
+  if (policy.quotas.dailyTokenLimit && currentDay.tokens >= policy.quotas.dailyTokenLimit) {
     return {
       allowed: false,
       code: 'QUOTA_EXCEEDED',
-      reason: `Daily token budget for feature '${policy.feature}' has been exhausted.`,
+      reason: `Daily token budget for feature '${policy.feature}' (${policy.quotas.dailyTokenLimit}) has been exhausted.`,
+    };
+  }
+
+  // 6. Monthly request and token limits
+  const monthKey = getMonthKey(policy.appId, policy.feature);
+  const currentMonth = usageCounters.get(monthKey) || { requests: 0, tokens: 0 };
+
+  if (
+    policy.quotas.monthlyRequestLimit &&
+    currentMonth.requests >= policy.quotas.monthlyRequestLimit
+  ) {
+    return {
+      allowed: false,
+      code: 'QUOTA_EXCEEDED',
+      reason: `Monthly request quota for feature '${policy.feature}' (${policy.quotas.monthlyRequestLimit}) has been reached.`,
+    };
+  }
+
+  if (policy.quotas.monthlyTokenLimit && currentMonth.tokens >= policy.quotas.monthlyTokenLimit) {
+    return {
+      allowed: false,
+      code: 'QUOTA_EXCEEDED',
+      reason: `Monthly token budget for feature '${policy.feature}' (${policy.quotas.monthlyTokenLimit}) has been exhausted.`,
     };
   }
 
   return { allowed: true };
 }
 
+/**
+ * Increments internal counters and rate-limiter sliding windows.
+ */
 export function incrementUsage(
   appId: string,
   feature: string,
   inputTokens: number,
   outputTokens: number,
+  policyId?: string,
 ): void {
-  const key = getTodayKey(appId, feature);
-  const current = dailyCounters.get(key) || { requests: 0, tokens: 0 };
-  current.requests += 1;
-  current.tokens += inputTokens + outputTokens;
-  dailyCounters.set(key, current);
+  const now = Date.now();
+  const dayKey = getTodayKey(appId, feature);
+  const monthKey = getMonthKey(appId, feature);
+  const totalTokens = inputTokens + outputTokens;
+
+  // Daily
+  const day = usageCounters.get(dayKey) || { requests: 0, tokens: 0 };
+  day.requests += 1;
+  day.tokens += totalTokens;
+  usageCounters.set(dayKey, day);
+
+  // Monthly
+  const month = usageCounters.get(monthKey) || { requests: 0, tokens: 0 };
+  month.requests += 1;
+  month.tokens += totalTokens;
+  usageCounters.set(monthKey, month);
+
+  // Rate Limiting window
+  if (policyId) {
+    const window = rateLimitWindows.get(policyId) || [];
+    window.push(now);
+    rateLimitWindows.set(policyId, window);
+  }
 }
 
+/**
+ * Resets state for unit testing.
+ */
 export function resetQuotasForTest(): void {
-  dailyCounters.clear();
+  usageCounters.clear();
+  rateLimitWindows.clear();
   globalKillSwitch = false;
   providerKillSwitches.clear();
-  initializeDefaultPolicies();
+  activePoliciesById.clear();
+  lastPoliciesSync = 0;
 }

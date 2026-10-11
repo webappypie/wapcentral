@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import type { Response } from 'express';
-import type { AuthenticatedRequest } from '../types/auth.js';
+
 import { requireRole } from '../middleware/rbac.js';
 import { writeSecret, getSecretStatusList, deleteSecret } from '../services/secretVault.js';
+import type { AuthenticatedRequest } from '../types/auth.js';
 
 export const secretsRouter: Router = Router();
 

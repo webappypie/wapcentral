@@ -2,11 +2,17 @@
 # Environment files (NEVER commit real values)
 # ========================
 .env
+.env.*
 .env.local
 .env.*.local
+.env.development
 .env.development.local
+.env.staging
 .env.staging.local
+.env.production
 .env.production.local
+!apps/dashboard/.env.production
+
 
 # ========================
 # Firebase / Google Cloud (NEVER commit)

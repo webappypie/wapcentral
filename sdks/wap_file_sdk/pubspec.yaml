@@ -1,0 +1,21 @@
+name: wap_file_sdk
+description: >
+  File Intelligence SDK for WebAppyPie mobile applications (FileZen, etc.).
+  Provides local-first semantic search, natural language document discovery,
+  smart classification, and duplicate detection with strict zero-full-library upload privacy.
+version: 0.1.0
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  wap_core_sdk:
+    path: ../wap_core_sdk
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  http: ^1.2.0

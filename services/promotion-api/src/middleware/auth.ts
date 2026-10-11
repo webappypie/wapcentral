@@ -1,5 +1,6 @@
 import type { Response, NextFunction } from 'express';
-import type { AppAuthenticatedRequest, AppCaller } from '../types/auth.js';
+
+import type { AppAuthenticatedRequest } from '../types/auth.js';
 
 interface RegisteredApp {
   appId: string;
@@ -7,22 +8,52 @@ interface RegisteredApp {
   appKey: string;
 }
 
-// In-memory registered apps registry with initial seed data
-const registeredApps: Map<string, RegisteredApp> = new Map([
-  [
-    'wap_app_key_notes_dev',
-    { appId: 'app_01', appName: 'WAP Notes AI', appKey: 'wap_app_key_notes_dev' },
-  ],
-  [
-    'wap_app_key_calc_dev',
-    { appId: 'app_02', appName: 'Pie Calc Pro', appKey: 'wap_app_key_calc_dev' },
-  ],
-  [
-    'wap_app_key_habits_dev',
-    { appId: 'app_03', appName: 'Atomic Habits Tracker', appKey: 'wap_app_key_habits_dev' },
-  ],
-  ['test-app-key-123', { appId: 'test-app', appName: 'Test Mock App', appKey: 'test-app-key-123' }],
-]);
+// In-memory registered apps registry
+const registeredApps = new Map<string, RegisteredApp>();
+
+function initializeFromEnv(): void {
+  registeredApps.clear();
+  const envApps = process.env['APP_KEYS'];
+  if (envApps) {
+    try {
+      const parsed = JSON.parse(envApps) as RegisteredApp[];
+      if (Array.isArray(parsed)) {
+        for (const app of parsed) {
+          if (app.appId && app.appKey) {
+            registeredApps.set(app.appKey, app);
+          }
+        }
+      }
+    } catch {
+      // Ignored if invalid JSON
+    }
+  } else if (process.env['NODE_ENV'] === 'test') {
+    // Only in automated test runner
+    registeredApps.set('wap_app_key_notes_dev', {
+      appId: 'app_01',
+      appName: 'WAP Notes AI',
+      appKey: 'wap_app_key_notes_dev',
+    });
+    registeredApps.set('wap_app_key_calc_dev', {
+      appId: 'app_02',
+      appName: 'Pie Calc Pro',
+      appKey: 'wap_app_key_calc_dev',
+    });
+    registeredApps.set('wap_app_key_habits_dev', {
+      appId: 'app_03',
+      appName: 'Atomic Habits Tracker',
+      appKey: 'wap_app_key_habits_dev',
+    });
+    registeredApps.set('test-app-key-123', {
+      appId: 'test-app',
+      appName: 'Test Mock App',
+      appKey: 'test-app-key-123',
+    });
+  }
+}
+
+// Initialize on load
+initializeFromEnv();
 
 /**
  * Register or update an app key mapping (for testing or runtime registration).
@@ -32,30 +63,10 @@ export function registerAppKey(appId: string, appKey: string, appName: string): 
 }
 
 /**
- * Reset registered apps to default seed.
+ * Reset registered apps.
  */
 export function resetRegisteredApps(): void {
-  registeredApps.clear();
-  registeredApps.set('wap_app_key_notes_dev', {
-    appId: 'app_01',
-    appName: 'WAP Notes AI',
-    appKey: 'wap_app_key_notes_dev',
-  });
-  registeredApps.set('wap_app_key_calc_dev', {
-    appId: 'app_02',
-    appName: 'Pie Calc Pro',
-    appKey: 'wap_app_key_calc_dev',
-  });
-  registeredApps.set('wap_app_key_habits_dev', {
-    appId: 'app_03',
-    appName: 'Atomic Habits Tracker',
-    appKey: 'wap_app_key_habits_dev',
-  });
-  registeredApps.set('test-app-key-123', {
-    appId: 'test-app',
-    appName: 'Test Mock App',
-    appKey: 'test-app-key-123',
-  });
+  initializeFromEnv();
 }
 
 /**
@@ -68,12 +79,12 @@ export function authenticateAppKey(
   next: NextFunction,
 ): void {
   const headerKey = req.headers['x-app-key'];
-  const queryKey = req.query['appKey'];
+  const queryKey = req.query.appKey;
 
   const rawKey =
     typeof headerKey === 'string' ? headerKey : typeof queryKey === 'string' ? queryKey : null;
 
-  if (!rawKey || !rawKey.trim()) {
+  if (!rawKey?.trim()) {
     res.status(401).json({
       success: false,
       error: {
@@ -101,7 +112,7 @@ export function authenticateAppKey(
   }
 
   // If query specifies appId, verify it matches the app key
-  const requestedAppId = req.query['appId'];
+  const requestedAppId = req.query.appId;
   if (typeof requestedAppId === 'string' && requestedAppId !== registered.appId) {
     res.status(403).json({
       success: false,

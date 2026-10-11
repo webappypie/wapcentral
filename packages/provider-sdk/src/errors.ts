@@ -13,7 +13,7 @@ export class ProviderError extends Error {
     public readonly providerId: string,
     public readonly code: ProviderErrorCode,
     message: string,
-    public readonly retryable: boolean = false,
+    public readonly retryable = false,
     public readonly statusCode?: number,
     public readonly rawError?: unknown,
   ) {

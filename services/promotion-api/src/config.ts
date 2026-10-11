@@ -1,11 +1,11 @@
 import { PROMOTION } from '@wapcentral/config';
 
 export const config = {
-  port: parseInt(process.env['PROMOTION_API_PORT'] || process.env['PORT'] || '3003', 10),
-  nodeEnv: process.env['NODE_ENV'] || 'development',
-  corsOrigin: process.env['CORS_ORIGIN'] || '*',
+  port: parseInt(process.env.PROMOTION_API_PORT || process.env.PORT || '3003', 10),
+  nodeEnv: process.env.NODE_ENV || 'development',
+  corsOrigin: process.env.CORS_ORIGIN || '*',
   signingSecret:
-    process.env['PROMOTION_SIGNING_SECRET'] ||
+    process.env.PROMOTION_SIGNING_SECRET ||
     'wapcentral_dev_promotion_signing_secret_998877_secure!',
   rateLimit: {
     maxRequestsPerWindow: PROMOTION.RATE_LIMIT_REQUESTS_PER_MINUTE, // 60 req/min

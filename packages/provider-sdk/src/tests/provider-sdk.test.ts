@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
 import {
   OpenAIProvider,
   GeminiProvider,
@@ -7,7 +8,8 @@ import {
   ProviderRegistry,
   ProviderError,
   estimateCost,
-  DEFAULT_MODEL_RATES,
+  VERIFIED_MODEL_CATALOG,
+  buildDynamicCatalog,
 } from '../index.js';
 
 describe('CostEstimator', () => {
@@ -313,3 +315,79 @@ describe('ProviderRegistry', () => {
     expect(registry.listProviders()).toHaveLength(0);
   });
 });
+
+describe('VerifiedModelCatalog & Dynamic Catalog Builder', () => {
+  it('should contain verified official models and no fake/stale models', () => {
+    expect(VERIFIED_MODEL_CATALOG['gemini-1.5-flash']).toBeDefined();
+    expect(VERIFIED_MODEL_CATALOG['gemini-1.5-pro']).toBeDefined();
+    expect(VERIFIED_MODEL_CATALOG['gpt-4o']).toBeDefined();
+    expect(VERIFIED_MODEL_CATALOG['gpt-4o-mini']).toBeDefined();
+    expect(VERIFIED_MODEL_CATALOG['claude-3-5-sonnet-20241022']).toBeDefined();
+
+    // Verify fake models are completely removed
+    expect(VERIFIED_MODEL_CATALOG['gemini-3.8-flash']).toBeUndefined();
+    expect(VERIFIED_MODEL_CATALOG['gemini-2.5-flash']).toBeUndefined();
+    expect(VERIFIED_MODEL_CATALOG['gemini-2.5-pro']).toBeUndefined();
+  });
+
+  it('should have valid pricing, context windows, and official documentation source on every model', () => {
+    for (const [id, spec] of Object.entries(VERIFIED_MODEL_CATALOG)) {
+      expect(spec.modelId).toBe(id);
+      expect(spec.name).toBeTruthy();
+      expect(spec.source).toContain('Official');
+      expect(spec.lastVerifiedDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      if (spec.inputCostPer1M !== null) {
+        expect(spec.inputCostPer1M).toBeGreaterThanOrEqual(0);
+      }
+      if (spec.contextWindow !== null) {
+        expect(spec.contextWindow).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('should dynamically build catalog from runtime providers without inventing values', () => {
+    const mockProviders = [
+      {
+        id: 'gemini-prod',
+        name: 'Google Gemini Production',
+        type: 'gemini' as const,
+        enabled: true,
+        models: [
+          {
+            id: 'm_flash',
+            providerId: 'gemini-prod',
+            modelId: 'gemini-1.5-flash',
+            name: 'Gemini 1.5 Flash',
+            enabled: true,
+          },
+          {
+            id: 'm_unverified',
+            providerId: 'gemini-prod',
+            modelId: 'custom-unverified-model',
+            name: 'Custom Internal Model',
+            enabled: true,
+          },
+        ],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+
+    const catalog = buildDynamicCatalog(mockProviders);
+    const flash = catalog.find((c) => c.modelId === 'gemini-1.5-flash');
+    expect(flash).toBeDefined();
+    expect(flash?.inputCostPer1M).toBe(0.075);
+    expect(flash?.outputCostPer1M).toBe(0.3);
+    expect(flash?.contextWindow).toBe(1048576);
+    expect(flash?.status).toBe('available');
+    expect(flash?.isConfiguredInRuntime).toBe(true);
+
+    const unverified = catalog.find((c) => c.modelId === 'custom-unverified-model');
+    expect(unverified).toBeDefined();
+    // Never invent values: null indicates unavailable
+    expect(unverified?.inputCostPer1M).toBeNull();
+    expect(unverified?.outputCostPer1M).toBeNull();
+    expect(unverified?.contextWindow).toBeNull();
+  });
+});
+

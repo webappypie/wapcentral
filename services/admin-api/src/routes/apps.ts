@@ -112,7 +112,7 @@ appsRouter.get('/', requireRole('viewer'), (_req: AuthenticatedRequest, res: Res
   });
 });
 
-// GET /v1/apps/:id/integration-guide - Download App Integration Guide DOCX (Viewer+)
+// GET /v1/apps/:id/integration-guide - Download App Integration Guide Markdown (Viewer+)
 appsRouter.get(
   '/:id/integration-guide',
   requireRole('viewer'),
@@ -129,16 +129,13 @@ appsRouter.get(
     }
 
     try {
-      const buffer = await generateIntegrationGuide(app);
+      const markdown = await generateIntegrationGuide(app);
       const filename = getIntegrationGuideFilename(app.name);
 
-      res.setHeader(
-        'Content-Type',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      );
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.setHeader('Content-Length', buffer.length);
-      res.send(buffer);
+      res.setHeader('Content-Length', Buffer.byteLength(markdown, 'utf-8'));
+      res.send(markdown);
     } catch (err: any) {
       console.error(
         `[appsRouter] Error generating integration guide for '${appId}':`,

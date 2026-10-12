@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
-import PizZip from 'pizzip';
 import { app } from '../app.js';
 import { clearInMemoryFirestoreForTest, getFirestoreDb } from '../services/firestore.js';
 import { clearAuditLogsForTest } from '../services/auditService.js';
@@ -9,6 +8,7 @@ import type { App } from '@wapcentral/types';
 import {
   getIntegrationGuideFilename,
   analyzeAppServices,
+  maskSecretValue,
 } from '../services/integrationGuideService.js';
 
 describe('App-Specific Integration Guide Generator', () => {
@@ -21,22 +21,32 @@ describe('App-Specific Integration Guide Generator', () => {
   });
 
   describe('Filename Sanitization', () => {
-    it('should generate clean, filesystem-safe filenames', () => {
+    it('should generate clean, filesystem-safe filenames with .md extension', () => {
       expect(getIntegrationGuideFilename('FileZen')).toBe(
-        'WAPCentral_FileZen_Integration_Guide.docx',
+        'WAPCentral_FileZen_Integration_Guide.md',
       );
       expect(getIntegrationGuideFilename('OptiLens AI')).toBe(
-        'WAPCentral_OptiLens_AI_Integration_Guide.docx',
+        'WAPCentral_OptiLens_AI_Integration_Guide.md',
       );
       expect(
         getIntegrationGuideFilename('FileZen — AI File & Document Manager'),
-      ).toBe('WAPCentral_FileZen_Integration_Guide.docx');
+      ).toBe('WAPCentral_FileZen_Integration_Guide.md');
       expect(
         getIntegrationGuideFilename('OptiLens AI — Smart Camera & Photo Enhancer'),
-      ).toBe('WAPCentral_OptiLens_AI_Integration_Guide.docx');
+      ).toBe('WAPCentral_OptiLens_AI_Integration_Guide.md');
       expect(
         getIntegrationGuideFilename('Special: App / 2026! * Test'),
-      ).toBe('WAPCentral_Special_App_2026_Test_Integration_Guide.docx');
+      ).toBe('WAPCentral_Special_App_2026_Test_Integration_Guide.md');
+    });
+  });
+
+  describe('Secret Masking', () => {
+    it('masks secrets securely while preserving prefix identifier', () => {
+      expect(maskSecretValue('wap_key_filezen_prod')).toContain('wap_key_••••••••');
+      expect(maskSecretValue('wap_key_filezen_prod')).not.toContain('wap_key_filezen_prod');
+      expect(maskSecretValue('wap_key_filezen_prod')).toContain('Masked for security');
+      expect(maskSecretValue('')).toBe('Not configured');
+      expect(maskSecretValue('Not configured')).toBe('Not configured');
     });
   });
 
@@ -130,13 +140,14 @@ describe('App-Specific Integration Guide Generator', () => {
       expect(res.body.error.code).toBe('NOT_FOUND');
     });
 
-    it('allows authorized admin to download', async () => {
+    it('allows authorized admin to download Markdown with correct MIME type', async () => {
       const res = await request(app)
         .get('/v1/apps/filezen/integration-guide')
         .set('Authorization', SUPER_ADMIN_AUTH);
       expect(res.status).toBe(200);
-      expect(res.headers['content-type']).toContain(
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      expect(res.headers['content-type']).toBe('text/markdown; charset=utf-8');
+      expect(res.headers['content-disposition']).toBe(
+        'attachment; filename="WAPCentral_FileZen_Integration_Guide.md"',
       );
     });
 
@@ -145,110 +156,127 @@ describe('App-Specific Integration Guide Generator', () => {
         .get('/api/admin/v1/apps/filezen/integration-guide')
         .set('Authorization', SUPER_ADMIN_AUTH);
       expect(res.status).toBe(200);
-      expect(res.headers['content-type']).toContain(
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      expect(res.headers['content-type']).toBe('text/markdown; charset=utf-8');
+      expect(res.headers['content-disposition']).toBe(
+        'attachment; filename="WAPCentral_FileZen_Integration_Guide.md"',
       );
     });
   });
 
   describe('FileZen Document Generation & Verification', () => {
-    it('generates a valid docx with FileZen-specific configuration and no leakage', async () => {
+    it('generates a valid Markdown guide with FileZen-specific configuration and masked secrets', async () => {
       const res = await request(app)
         .get('/v1/apps/filezen/integration-guide')
-        .set('Authorization', SUPER_ADMIN_AUTH)
-        .responseType('blob');
+        .set('Authorization', SUPER_ADMIN_AUTH);
 
       expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toBe('text/markdown; charset=utf-8');
       expect(res.headers['content-disposition']).toBe(
-        'attachment; filename="WAPCentral_FileZen_Integration_Guide.docx"',
+        'attachment; filename="WAPCentral_FileZen_Integration_Guide.md"',
       );
 
-      // Verify DOCX contents
-      const zip = new PizZip(res.body);
-      const xml = zip.file('word/document.xml')?.asText();
-      expect(xml).toBeDefined();
+      const md = res.text;
+      expect(md).toBeDefined();
 
-      // Application Identity
-      expect(xml).toContain('FileZen');
-      expect(xml).toContain('filezen');
-      expect(xml).toContain('wap_key_filezen_prod');
-      expect(xml).toContain('com.webappypie.filezen');
+      // Heading and Document Metadata
+      expect(md).toContain('# WAPCentral Integration Guide — FileZen');
+      expect(md).toContain('FileZen');
+      expect(md).toContain('filezen');
+      expect(md).toContain('com.webappypie.filezen');
 
-      // Enabled SDKs in Table 3
-      expect(xml).toContain('wap_core_sdk');
-      expect(xml).toContain('wap_ai_sdk');
-      expect(xml).toContain('wap_ocr_sdk');
-      expect(xml).toContain('wap_file_sdk');
-      expect(xml).toContain('wap_ads_sdk');
-      expect(xml).toContain('wap_notifications_sdk');
+      // Secret Masking & Security Requirements: Never expose raw full secret
+      expect(md).toContain('wap_key_••••••••');
+      expect(md).toContain('Masked for security — copy full key in WAPCentral Dashboard');
+      expect(md).not.toContain('wap_key_filezen_prod\n');
+
+      // Enabled SDKs in Table
+      expect(md).toContain('wap_core_sdk');
+      expect(md).toContain('wap_ai_sdk');
+      expect(md).toContain('wap_ocr_sdk');
+      expect(md).toContain('wap_file_sdk');
+      expect(md).toContain('wap_ads_sdk');
+      expect(md).toContain('wap_notifications_sdk');
+      expect(md).not.toContain('wap_image_sdk');
 
       // API Catalog Permissions
-      expect(xml).toContain('ai — Enabled');
-      expect(xml).toContain('ocr — Enabled');
-      expect(xml).toContain('files — Enabled');
-      expect(xml).toContain('image — Not enabled for this app');
+      expect(md).toContain('ai — Enabled');
+      expect(md).toContain('ocr — Enabled');
+      expect(md).toContain('files — Enabled');
+      expect(md).toContain('image — Not enabled for this app');
 
       // Ads Section
-      expect(xml).toContain('8. Ads — Controlled by WAPCentral');
-      expect(xml).toContain('wap_ads_sdk fetches the effective configuration');
-      expect(xml).toContain(
-        'Testing configuration is controlled centrally by WAPCentral. The mobile app must not hardcode fake production IDs.',
-      );
+      expect(md).toContain('8. Ads — Controlled by WAPCentral');
+      expect(md).toContain('AppLovin MAX as the sole advertising mediation platform');
+      expect(md).toContain('wap_ads_sdk');
+      expect(md).toContain('Testing Configuration is Controlled Centrally');
+
+      // Notifications Section
+      expect(md).toContain('9. Notifications — Controlled by WAPCentral');
+      expect(md).toContain('/api/platform/v1/notifications/devices/register');
 
       // Startup Sequence
-      expect(xml).toContain('10. App Startup Sequence');
-      expect(xml).toContain('https://wapcentral-prod.web.app/api/platform/v1');
-      expect(xml).toContain('preferLocal');
+      expect(md).toContain('10. App Startup Sequence');
+      expect(md).toContain('https://wapcentral-prod.web.app/api/platform/v1');
+      expect(md).toContain('preferLocal');
+
+      // Checklists
+      expect(md).toContain('11. Project File Checklist');
+      expect(md).toContain('12. Security & Compliance Rules');
+      expect(md).toContain('14. Release & Verification Checklist');
 
       // Data Isolation: Never leak OptiLens configuration
-      expect(xml).not.toContain('com.webappypie.optilens');
-      expect(xml).not.toContain('wap_key_optilens_prod');
+      expect(md).not.toContain('com.webappypie.optilens');
+      expect(md).not.toContain('OptiLens AI');
     });
   });
 
   describe('OptiLens AI Document Generation & Verification', () => {
-    it('generates a valid docx with OptiLens-specific configuration and no leakage', async () => {
+    it('generates a valid Markdown guide with OptiLens-specific configuration and no leakage', async () => {
       const res = await request(app)
         .get('/v1/apps/optilens/integration-guide')
-        .set('Authorization', SUPER_ADMIN_AUTH)
-        .responseType('blob');
+        .set('Authorization', SUPER_ADMIN_AUTH);
 
       expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toBe('text/markdown; charset=utf-8');
       expect(res.headers['content-disposition']).toBe(
-        'attachment; filename="WAPCentral_OptiLens_AI_Integration_Guide.docx"',
+        'attachment; filename="WAPCentral_OptiLens_AI_Integration_Guide.md"',
       );
 
-      const zip = new PizZip(res.body);
-      const xml = zip.file('word/document.xml')?.asText();
-      expect(xml).toBeDefined();
+      const md = res.text;
+      expect(md).toBeDefined();
 
       // Application Identity
-      expect(xml).toContain('OptiLens AI');
-      expect(xml).toContain('optilens');
-      expect(xml).toContain('wap_key_optilens_prod');
-      expect(xml).toContain('com.webappypie.optilens');
+      expect(md).toContain('OptiLens AI');
+      expect(md).toContain('optilens');
+      expect(md).toContain('com.webappypie.optilens');
 
-      // Enabled SDKs in Table 3: OptiLens has Image, AI, Ads, Notifications
-      expect(xml).toContain('wap_core_sdk');
-      expect(xml).toContain('wap_image_sdk');
-      expect(xml).toContain('wap_ai_sdk');
-      expect(xml).toContain('wap_ads_sdk');
-      expect(xml).toContain('wap_notifications_sdk');
+      // Secret Masking
+      expect(md).toContain('wap_key_••••••••');
+      expect(md).toContain('Masked for security');
+
+      // Enabled SDKs: OptiLens has Image, AI, Ads, Notifications
+      expect(md).toContain('wap_core_sdk');
+      expect(md).toContain('wap_image_sdk');
+      expect(md).toContain('wap_ai_sdk');
+      expect(md).toContain('wap_ads_sdk');
+      expect(md).toContain('wap_notifications_sdk');
+      expect(md).not.toContain('wap_ocr_sdk');
+      expect(md).not.toContain('wap_file_sdk');
 
       // API Catalog Permissions
-      expect(xml).toContain('image — Enabled');
-      expect(xml).toContain('ai — Enabled');
-      expect(xml).toContain('ocr — Not enabled for this app');
-      expect(xml).toContain('files — Not enabled for this app');
+      expect(md).toContain('image — Enabled');
+      expect(md).toContain('ai — Enabled');
+      expect(md).toContain('ocr — Not enabled for this app');
+      expect(md).toContain('files — Not enabled for this app');
 
       // Data Isolation: Never leak FileZen configuration
-      expect(xml).not.toContain('com.webappypie.filezen');
-      expect(xml).not.toContain('wap_key_filezen_prod');
+      expect(md).not.toContain('com.webappypie.filezen');
+      expect(md).not.toContain('FileZen — AI File & Document Manager');
     });
   });
 
   describe('Custom App with Real Firestore IDs & Missing Value Handling', () => {
-    it('correctly handles app_1791324566055 with real Firebase values and missing placeholders', async () => {
+    it('correctly handles custom app with real Firebase values, missing placeholders, and masking', async () => {
       const db = getFirestoreDb();
       const customAppId = 'app_1791324566055';
       const customApp: App = {
@@ -273,33 +301,35 @@ describe('App-Specific Integration Guide Generator', () => {
 
       const res = await request(app)
         .get(`/v1/apps/${customAppId}/integration-guide`)
-        .set('Authorization', SUPER_ADMIN_AUTH)
-        .responseType('blob');
+        .set('Authorization', SUPER_ADMIN_AUTH);
 
       expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toBe('text/markdown; charset=utf-8');
       expect(res.headers['content-disposition']).toBe(
-        'attachment; filename="WAPCentral_FileZen_Production_Integration_Guide.docx"',
+        'attachment; filename="WAPCentral_FileZen_Production_Integration_Guide.md"',
       );
 
-      const zip = new PizZip(res.body);
-      const xml = zip.file('word/document.xml')?.asText();
-      expect(xml).toBeDefined();
+      const md = res.text;
+      expect(md).toBeDefined();
 
       // App identity
-      expect(xml).toContain('FileZen Production');
-      expect(xml).toContain('app_1791324566055');
-      expect(xml).toContain('wap_key_filezen_live_secret123');
-      expect(xml).toContain('com.webappypie.filezen.prod');
+      expect(md).toContain('FileZen Production');
+      expect(md).toContain('app_1791324566055');
+      expect(md).toContain('com.webappypie.filezen.prod');
+
+      // Key must be masked, not exposing raw private secret
+      expect(md).toContain('wap_key_••••••••t123');
+      expect(md).not.toContain('wap_key_filezen_live_secret123\n');
 
       // Real configured Firebase values
-      expect(xml).toContain('filezen-prod-firebase');
-      expect(xml).toContain('1:9876543210:android:abc999');
+      expect(md).toContain('filezen-prod-firebase');
+      expect(md).toContain('1:9876543210:android:abc999');
 
       // Missing Firebase values should strictly show the approved placeholder
-      expect(xml).toContain('Configured in Firebase — not stored in WAPCentral');
+      expect(md).toContain('Configured in Firebase — not stored in WAPCentral');
 
       // Missing bundleId should show Not configured
-      expect(xml).toContain('Not configured');
+      expect(md).toContain('Not configured');
     });
   });
 });

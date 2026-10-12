@@ -759,7 +759,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 onClick={handleDownloadGuide}
                 disabled={isDownloadingGuide}
                 className="h-8 px-3 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium flex items-center gap-1.5 shadow-sm transition-all"
-                title="Download app-specific integration guide DOCX"
+                title="Download app-specific integration guide (.md)"
               >
                 {isDownloadingGuide ? (
                   <>
@@ -769,7 +769,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 ) : (
                   <>
                     <Download className="h-3.5 w-3.5" />
-                    <span>Download Integration Guide</span>
+                    <span>Download Integration Guide (.md)</span>
                   </>
                 )}
               </Button>
@@ -918,10 +918,10 @@ export const ApplicationDetailPage: React.FC = () => {
               </div>
               <div>
                 <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Developer Resources &amp; Integration Guide
+                  Developer Resources &amp; Integration Guide (.md)
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Auto-generated developer documentation specifically pre-filled with {app.name}&apos;s real credentials, SDKs, and endpoints.
+                  Auto-generated Markdown developer documentation pre-filled with {app.name}&apos;s real credentials, SDKs, and endpoints.
                 </p>
               </div>
             </div>
@@ -954,7 +954,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   className="h-7 px-2.5 text-xs flex items-center gap-1"
                 >
                   {copiedField === 'appKey' ? (
-                    <>
+                     <>
                       <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                       <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Copied Key</span>
                     </>
@@ -981,7 +981,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 ) : (
                   <>
                     <Download className="h-3.5 w-3.5" />
-                    <span>Download Integration Guide</span>
+                    <span>Download Integration Guide (.md)</span>
                   </>
                 )}
               </Button>

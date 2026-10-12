@@ -466,7 +466,7 @@ export async function updateAppAdsConfig(
 }
 
 /**
- * Downloads the application-specific integration guide DOCX document from the backend Admin API.
+ * Downloads the application-specific integration guide Markdown (.md) document from the backend Admin API.
  * Uses the authenticated user's ID token to ensure secure authorized download.
  */
 export async function downloadAppIntegrationGuide(appId: string, appName: string): Promise<void> {
@@ -500,7 +500,7 @@ export async function downloadAppIntegrationGuide(appId: string, appName: string
 
   const blob = await response.blob();
   const baseName = appName.split(/[\u2014\u2013-]/)[0]?.trim().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_') || 'App';
-  let filename = `WAPCentral_${baseName}_Integration_Guide.docx`;
+  let filename = `WAPCentral_${baseName}_Integration_Guide.md`;
   const disposition = response.headers.get('Content-Disposition');
   if (disposition && disposition.includes('filename=')) {
     const match = disposition.match(/filename="?([^"]+)"?/);

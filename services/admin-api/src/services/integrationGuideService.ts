@@ -1,54 +1,40 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import PizZip from 'pizzip';
-import type { App, AppModule, PlatformServiceType } from '@wapcentral/types';
-
-/**
- * Escapes special XML characters to prevent OpenXML syntax corruption.
- */
-export function escapeXml(unsafe: string): string {
-  if (!unsafe) return '';
-  return unsafe
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
+import type { App, AppModule } from '@wapcentral/types';
 
 /**
  * Generates a clean, sanitized filesystem-safe filename for the application integration guide.
  * Example:
- *   "FileZen" -> "WAPCentral_FileZen_Integration_Guide.docx"
- *   "OptiLens AI" -> "WAPCentral_OptiLens_AI_Integration_Guide.docx"
+ *   "FileZen" -> "WAPCentral_FileZen_Integration_Guide.md"
+ *   "OptiLens AI" -> "WAPCentral_OptiLens_AI_Integration_Guide.md"
  */
 export function getIntegrationGuideFilename(appName: string): string {
   const raw = appName || 'App';
   // Extract primary name before subtitle dashes if present
   const baseName = raw.split(/[\u2014\u2013-]/)[0]?.trim() || raw;
   const safeName = baseName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
-  return `WAPCentral_${safeName || 'App'}_Integration_Guide.docx`;
+  return `WAPCentral_${safeName || 'App'}_Integration_Guide.md`;
 }
 
 /**
- * Resolves the location of the common master template docx file.
+ * Resolves the location of the canonical master Markdown template file.
  */
 export function resolveTemplatePath(): string {
   const candidatePaths: string[] = [
-    path.resolve(process.cwd(), 'templates/WAPCentral_App_Integration_Guide_Template_v4.docx'),
-    path.resolve(process.cwd(), 'services/admin-api/templates/WAPCentral_App_Integration_Guide_Template_v4.docx'),
-    path.resolve(process.cwd(), '../admin-api/templates/WAPCentral_App_Integration_Guide_Template_v4.docx'),
+    path.resolve(process.cwd(), 'templates/WAPCentral_App_Integration_Guide_Template.md'),
+    path.resolve(process.cwd(), 'services/admin-api/templates/WAPCentral_App_Integration_Guide_Template.md'),
+    path.resolve(process.cwd(), '../admin-api/templates/WAPCentral_App_Integration_Guide_Template.md'),
   ];
 
   try {
     const currentDir = path.dirname(fileURLToPath(import.meta.url));
     candidatePaths.push(
-      path.resolve(currentDir, '../../templates/WAPCentral_App_Integration_Guide_Template_v4.docx'),
-      path.resolve(currentDir, '../templates/WAPCentral_App_Integration_Guide_Template_v4.docx'),
-      path.resolve(currentDir, './templates/WAPCentral_App_Integration_Guide_Template_v4.docx'),
-      path.resolve(currentDir, '../../services/admin-api/templates/WAPCentral_App_Integration_Guide_Template_v4.docx'),
-      path.resolve(currentDir, '../services/admin-api/templates/WAPCentral_App_Integration_Guide_Template_v4.docx'),
+      path.resolve(currentDir, '../../templates/WAPCentral_App_Integration_Guide_Template.md'),
+      path.resolve(currentDir, '../templates/WAPCentral_App_Integration_Guide_Template.md'),
+      path.resolve(currentDir, './templates/WAPCentral_App_Integration_Guide_Template.md'),
+      path.resolve(currentDir, '../../services/admin-api/templates/WAPCentral_App_Integration_Guide_Template.md'),
+      path.resolve(currentDir, '../services/admin-api/templates/WAPCentral_App_Integration_Guide_Template.md'),
     );
   } catch {
     // Ignore URL parsing errors in non-ESM environments
@@ -61,6 +47,22 @@ export function resolveTemplatePath(): string {
   }
 
   throw new Error(`Master Integration Guide template not found. Searched paths: ${candidatePaths.join(', ')}`);
+}
+
+/**
+ * Masks sensitive secret keys for secure documentation output.
+ * Preserves identifier prefix and suffix when appropriate while masking secret contents.
+ */
+export function maskSecretValue(secret?: string): string {
+  if (!secret || secret.trim() === '' || secret === 'Not configured') {
+    return 'Not configured';
+  }
+  const trimmed = secret.trim();
+  if (trimmed.startsWith('wap_key_')) {
+    const suffix = trimmed.length > 12 ? trimmed.slice(-4) : '••••';
+    return `wap_key_••••••••${suffix} (Masked for security — copy full key in WAPCentral Dashboard → Application Credentials)`;
+  }
+  return '•••••••••••••••• (Masked for security — configure securely in environment)';
 }
 
 export interface AppServiceStatus {
@@ -134,349 +136,292 @@ export function analyzeAppServices(app: App): AppServiceStatus {
   };
 }
 
-function makeHeading1(title: string): string {
-  return `<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>${escapeXml(title)}</w:t></w:r></w:p>`;
-}
+/**
+ * Builds the application-specific Section 5 (Enabled WAP SDKs Table).
+ */
+export function buildSdkTable(app: App, status: AppServiceStatus): string {
+  const rows: string[] = [
+    '| SDK Package | Purpose | Status for ' + app.name + ' |',
+    '| :--- | :--- | :--- |',
+    '| `wap_core_sdk` | WAPCentral connection, auth headers, request retry, error handling | `✓ Required (Core WAP runtime & auth)` |',
+  ];
 
-function makeHeading2(title: string): string {
-  return `<w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>${escapeXml(title)}</w:t></w:r></w:p>`;
-}
-
-function makeParagraph(text: string, isBold = false): string {
-  const rPr = isBold ? '<w:rPr><w:b/></w:rPr>' : '';
-  return `<w:p><w:r>${rPr}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
-}
-
-function makeBullet(text: string, boldPrefix?: string): string {
-  if (boldPrefix) {
-    return `<w:p><w:pPr><w:pStyle w:val="ListBullet"/></w:pPr><w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${escapeXml(boldPrefix)} </w:t></w:r><w:r><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
+  if (status.isAiEnabled) {
+    rows.push('| `wap_ai_sdk` | Generative AI, vision analysis, classification, summarization, translation | `✓ Required (Enabled for ' + app.name + ')` |');
   }
-  return `<w:p><w:pPr><w:pStyle w:val="ListBullet"/></w:pPr><w:r><w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r></w:p>`;
+  if (status.isImageEnabled) {
+    rows.push('| `wap_image_sdk` | On-device & neural image enhancement, smart cropping, blur detection | `✓ Required (Enabled for ' + app.name + ')` |');
+  }
+  if (status.isOcrEnabled) {
+    rows.push('| `wap_ocr_sdk` | Optical character recognition, document field extraction | `✓ Required (Enabled for ' + app.name + ')` |');
+  }
+  if (status.isFilesEnabled) {
+    rows.push('| `wap_file_sdk` | Semantic file search, categorization, document clustering | `✓ Required (Enabled for ' + app.name + ')` |');
+  }
+  if (status.isAdsEnabled) {
+    rows.push('| `wap_ads_sdk` | Central Ads configuration, AppLovin MAX mediation, house ads fallback | `✓ Required (Enabled for ' + app.name + ')` |');
+  }
+  if (status.isNotificationsEnabled) {
+    rows.push('| `wap_notifications_sdk` | FCM device token registration, notification feed, read synchronization | `✓ Required (Enabled for ' + app.name + ')` |');
+  }
+  if (status.isPromoEnabled) {
+    rows.push('| `wap_promo_sdk` | Cross-promotional campaign surfaces, interstitials, banners | `✓ Required (Enabled for ' + app.name + ')` |');
+  }
+
+  return rows.join('\n');
 }
 
 /**
- * Builds the application-specific Section 8 (Ads).
+ * Builds the application-specific Section 7 (Platform API Catalog Table).
  */
-function buildAdsSection(app: App, isAdsEnabled: boolean): string {
-  const pieces: string[] = [];
-  pieces.push(makeHeading1('8. Ads — Controlled by WAPCentral'));
+export function buildApiCatalogTable(status: AppServiceStatus): string {
+  const aiStatus = status.isAiEnabled ? 'ai — Enabled' : 'ai — Not enabled for this app';
+  const imgStatus = status.isImageEnabled ? 'image — Enabled' : 'image — Not enabled for this app';
+  const ocrStatus = status.isOcrEnabled ? 'ocr — Enabled' : 'ocr — Not enabled for this app';
+  const filesStatus = status.isFilesEnabled ? 'files — Enabled' : 'files — Not enabled for this app';
+  const adsStatus = status.isAdsEnabled ? 'ads — Enabled' : 'ads — Not enabled for this app';
+  const notifStatus = status.isNotificationsEnabled ? 'notifications — Enabled' : 'notifications — Not enabled for this app';
 
-  if (isAdsEnabled) {
-    const simple = app.simpleAdsConfig;
-    const env =
-      simple?.environment === 'testing'
-        ? 'Testing'
-        : app.environment === 'production'
-          ? 'Production'
-          : 'Testing';
-
-    pieces.push(
-      makeParagraph(
-        'This app uses AppLovin MAX as the sole advertising mediation platform. WAPCentral centrally controls Ads Enabled/Disabled, Ad Strategy, Testing/Production mode, enabled demand sources, enabled formats, and production identifiers for this app. Do not bundle multiple mediation platforms (such as Unity LevelPlay) or duplicate direct SDKs.',
-      ),
-    );
-    pieces.push(makeBullet('Enabled', 'Ads:'));
-    pieces.push(makeBullet('AppLovin MAX (Sole Mediation Platform)', 'Mediation Engine:'));
-
-    // Strategy
-    const strategy = simple?.strategy === 'single_source' ? 'Single Demand Source' : 'Automatic Mediation';
-    pieces.push(
-      makeBullet(
-        `${strategy}${simple?.strategy === 'single_source' && simple.singleSourceNetwork ? ` (${simple.singleSourceNetwork} routed through MAX)` : ''}`,
-        'Ad Strategy:',
-      ),
-    );
-    pieces.push(makeBullet(env, 'Environment:'));
-
-    // Demand sources
-    const netList: string[] = [];
-    if (simple?.networks?.applovin ?? true) netList.push('AppLovin Demand (Built-in)');
-    if (simple?.networks?.admob) netList.push('Google AdMob (MAX Adapter)');
-    if (simple?.networks?.meta) netList.push('Meta Audience Network (MAX Adapter)');
-    if (simple?.networks?.inmobi) netList.push('InMobi (MAX Adapter)');
-    if (simple?.networks?.unity) netList.push('Unity Ads (MAX Adapter)');
-    if (simple?.networks?.wapCustomAds ?? true) netList.push('WebAppyPie Custom Ads (House Ads Fallback)');
-
-    pieces.push(
-      makeBullet(
-        netList.join(', ') || 'AppLovin Demand, Google AdMob, WebAppyPie Custom Ads',
-        'Enabled Demand Sources:',
-      ),
-    );
-
-    // Required SDKs & Adapters for this build
-    pieces.push(makeHeading2('Required Dependencies & Adapters for this App'));
-    pieces.push(makeBullet('wap_ads_sdk (WebAppyPie Unified Ads Client)'));
-    pieces.push(makeBullet('applovin_max (AppLovin MAX Flutter SDK / Core Mediation Engine)'));
-    if (simple?.networks?.admob) {
-      pieces.push(makeBullet('Google AdMob Mediation Adapter for AppLovin MAX'));
-    }
-    if (simple?.networks?.meta) {
-      pieces.push(makeBullet('Meta Audience Network Mediation Adapter for AppLovin MAX'));
-    }
-    if (simple?.networks?.inmobi) {
-      pieces.push(makeBullet('InMobi Mediation Adapter for AppLovin MAX'));
-    }
-    if (simple?.networks?.unity) {
-      pieces.push(makeBullet('Unity Ads Mediation Adapter for AppLovin MAX'));
-    }
-
-    // Formats
-    const banner = simple?.enabledFormats?.banner ?? true ? 'Banner' : null;
-    const native = simple?.enabledFormats?.native ?? true ? 'Native' : null;
-    const interstitial = simple?.enabledFormats?.interstitial ?? true ? 'Interstitial' : null;
-    const rewarded = simple?.enabledFormats?.rewarded ?? true ? 'Rewarded' : null;
-    const appOpen = simple?.enabledFormats?.appOpen ?? true ? 'App Open' : null;
-    const rewardedInterstitial = simple?.enabledFormats?.rewardedInterstitial ? 'Rewarded Interstitial' : null;
-    const formats = [banner, native, interstitial, rewarded, appOpen, rewardedInterstitial].filter(Boolean);
-    pieces.push(makeBullet(formats.join(', ') || 'Banner, Native, Interstitial, Rewarded, App Open', 'Supported Formats:'));
-
-    // Prerequisites & Setup
-    pieces.push(makeHeading2('Provider Prerequisites & Configuration'));
-    pieces.push(makeBullet('AppLovin SDK Key configured in AndroidManifest.xml and Info.plist (AppLovinSdkKey).', 'AppLovin MAX:'));
-    if (simple?.networks?.admob) {
-      const admobAppId = simple.networkConfig?.admob?.appId || (env === 'Testing' ? 'ca-app-pub-3940256099942544~3347511713' : 'Not configured');
-      pieces.push(makeBullet(`Google Mobile Ads App ID (${admobAppId}) declared in AndroidManifest.xml and Info.plist (GADApplicationIdentifier).`, 'Google AdMob:'));
-    }
-    if (simple?.networks?.meta) {
-      pieces.push(makeBullet('Meta Audience Network account verified with app-ads.txt.', 'Meta Audience:'));
-    }
-    if (simple?.networks?.inmobi) {
-      pieces.push(makeBullet('InMobi Account ID and property approved in InMobi console.', 'InMobi:'));
-    }
-    if (simple?.networks?.unity) {
-      pieces.push(makeBullet('Unity Game ID registered in Unity Dashboard.', 'Unity Ads:'));
-    }
-
-    // Testing vs Production
-    pieces.push(makeHeading2('Testing & Release Verification'));
-    if (env === 'Testing') {
-      pieces.push(makeBullet('Testing Mode is ACTIVE. Official SDK test ads and sandbox unit IDs are automatically injected by WAPCentral. No dummy banners or simulated placeholders are used.'));
-    } else {
-      pieces.push(makeBullet('Production Mode is ACTIVE. Genuine provider-reported impressions and auction bids are used. Any missing ad units will show Not configured and will be cleanly omitted.'));
-    }
-    pieces.push(
-      makeBullet(
-        'Testing configuration is controlled centrally by WAPCentral. The mobile app must not hardcode fake production IDs.',
-      ),
-    );
-    pieces.push(makeBullet('wap_ads_sdk fetches the effective configuration from /api/platform/v1/ads/config.'));
-    pieces.push(makeBullet('Disabled networks and formats must not be requested by client code.'));
-    pieces.push(makeBullet('No fake impressions, revenue, eCPM or fill-rate values.'));
-    pieces.push(makeBullet('No-fill and network failure handling: WebAppyPie Custom Ads automatically display as high-fill house promotional fallback when third-party demand is exhausted.'));
-  } else {
-    pieces.push(makeParagraph('Ads: Disabled for this application.'));
-    pieces.push(makeBullet('Do not install wap_ads_sdk or initialize ad networks for this application.'));
-    pieces.push(makeBullet('Do not create local ad views or configure ad units in mobile client code.'));
-  }
-
-  return pieces.join('');
+  return [
+    '| Service | Method | Route | Permission Status for this App |',
+    '| :--- | :---: | :--- | :--- |',
+    '| **Health** | `GET` | `/api/platform/v1/health` | `Public (Available)` |',
+    `| **AI** | \`POST\` | \`/api/platform/v1/ai/generate\` | \`${aiStatus}\` |`,
+    `| **AI** | \`POST\` | \`/api/platform/v1/ai/vision\` | \`${aiStatus}\` |`,
+    `| **AI** | \`POST\` | \`/api/platform/v1/ai/classify\` | \`${aiStatus}\` |`,
+    `| **AI** | \`POST\` | \`/api/platform/v1/ai/summarize\` | \`${aiStatus}\` |`,
+    `| **AI** | \`POST\` | \`/api/platform/v1/ai/translate\` | \`${aiStatus}\` |`,
+    `| **AI** | \`POST\` | \`/api/platform/v1/ai/extract\` | \`${aiStatus}\` |`,
+    `| **Image** | \`POST\` | \`/api/platform/v1/image/enhance\` | \`${imgStatus}\` |`,
+    `| **Image** | \`POST\` | \`/api/platform/v1/image/analyze\` | \`${imgStatus}\` |`,
+    `| **OCR** | \`POST\` | \`/api/platform/v1/ocr/extract\` | \`${ocrStatus}\` |`,
+    `| **Files** | \`POST\` | \`/api/platform/v1/files/search\` | \`${filesStatus}\` |`,
+    `| **Files** | \`POST\` | \`/api/platform/v1/files/classify\` | \`${filesStatus}\` |`,
+    `| **Ads** | \`GET\` | \`/api/platform/v1/ads/config\` | \`${adsStatus}\` |`,
+    `| **Ads** | \`POST\` | \`/api/platform/v1/ads/custom/track\` | \`${adsStatus}\` |`,
+    `| **Notifications** | \`POST\` | \`/api/platform/v1/notifications/devices/register\` | \`${notifStatus}\` |`,
+    `| **Notifications** | \`GET\` | \`/api/platform/v1/notifications\` | \`${notifStatus}\` |`,
+  ].join('\n');
 }
 
 /**
- * Builds the application-specific Section 9 (Notifications).
+ * Builds the application-specific Section 8 (Ads — Controlled by WAPCentral).
  */
-function buildNotificationsSection(isNotificationsEnabled: boolean): string {
-  const pieces: string[] = [];
-  pieces.push(makeHeading1('9. Notifications — Controlled by WAPCentral'));
-
-  if (isNotificationsEnabled) {
-    pieces.push(
-      makeParagraph(
-        'Notifications are managed centrally from WAPCentral for this app. The mobile app does not contain its own campaign management system.',
-      ),
-    );
-    pieces.push(makeBullet('Enabled', 'Notifications:'));
-    pieces.push(makeBullet('Required (FCM configuration via google-services.json / GoogleService-Info.plist)', 'FCM:'));
-    pieces.push(makeBullet('Required', 'wap_notifications_sdk:'));
-    pieces.push(makeBullet('WAPCentral (/api/platform/v1/notifications/devices/register)', 'Device registration:'));
-    pieces.push(makeBullet('WAPCentral (/api/platform/v1/notifications)', 'Notification feed:'));
-    pieces.push(
-      makeBullet(
-        'Initialize wap_notifications_sdk with the WAPCentral app credentials and the device FCM token.',
-      ),
-    );
-    pieces.push(makeBullet('Register the device with WAPCentral upon successful token acquisition.'));
-    pieces.push(makeBullet('Read the app-specific notification feed and synchronize unread/read state.'));
-    pieces.push(
-      makeBullet(
-        'WAPCentral sends title, message body, optional rich image, and optional deep link payload.',
-      ),
-    );
-    pieces.push(makeBullet('WAPCentral supports Send Now / Schedule according to dashboard capabilities.'));
-    pieces.push(makeBullet('Never place FCM server or service-account private credentials in the mobile app.'));
-  } else {
-    pieces.push(makeParagraph('Notifications: Disabled for this application.'));
-    pieces.push(
-      makeBullet(
-        'Do not install wap_notifications_sdk or configure notification device registration for this application.',
-      ),
-    );
-    pieces.push(makeBullet('No push notification handling or campaign polling is required.'));
+export function buildAdsSection(app: App, isAdsEnabled: boolean): string {
+  if (!isAdsEnabled) {
+    return [
+      '## 8. Ads — Controlled by WAPCentral',
+      '',
+      '> **Ads: Disabled for this application.**',
+      '',
+      '- Do not install `wap_ads_sdk` or initialize third-party advertising SDKs in this app.',
+      '- Do not create local ad views, test banners, or configure ad units in mobile client code.',
+      '- If ads are needed in the future, enable them centrally in **WAPCentral Dashboard → Applications → ' + app.name + ' → Ads**.',
+    ].join('\n');
   }
 
-  return pieces.join('');
+  const simple = app.simpleAdsConfig;
+  const env =
+    simple?.environment === 'testing'
+      ? 'Testing'
+      : app.environment === 'production'
+        ? 'Production'
+        : 'Testing';
+
+  const strategy = simple?.strategy === 'single_source' ? 'Single Demand Source' : 'Automatic Mediation';
+  const strategyDetails =
+    simple?.strategy === 'single_source' && simple.singleSourceNetwork
+      ? `${strategy} (${simple.singleSourceNetwork} routed through MAX)`
+      : strategy;
+
+  // Demand sources list
+  const netList: string[] = [];
+  if (simple?.networks?.applovin ?? true) netList.push('AppLovin Demand (Built-in)');
+  if (simple?.networks?.admob) netList.push('Google AdMob (MAX Adapter)');
+  if (simple?.networks?.meta) netList.push('Meta Audience Network (MAX Adapter)');
+  if (simple?.networks?.inmobi) netList.push('InMobi (MAX Adapter)');
+  if (simple?.networks?.unity) netList.push('Unity Ads (MAX Adapter)');
+  if (simple?.networks?.wapCustomAds ?? true) netList.push('WebAppyPie Custom Ads (House Ads Fallback)');
+
+  // Required adapters for lightweight build
+  const adapters: string[] = [
+    '- `wap_ads_sdk` (WebAppyPie Unified Ads Client)',
+    '- `applovin_max` (AppLovin MAX Flutter SDK / Core Mediation Engine)',
+  ];
+  if (simple?.networks?.admob) {
+    adapters.push('- Google AdMob Mediation Adapter for AppLovin MAX');
+  }
+  if (simple?.networks?.meta) {
+    adapters.push('- Meta Audience Network Mediation Adapter for AppLovin MAX');
+  }
+  if (simple?.networks?.inmobi) {
+    adapters.push('- InMobi Mediation Adapter for AppLovin MAX');
+  }
+  if (simple?.networks?.unity) {
+    adapters.push('- Unity Ads Mediation Adapter for AppLovin MAX');
+  }
+
+  // Formats
+  const banner = simple?.enabledFormats?.banner ?? true ? 'Banner' : null;
+  const native = simple?.enabledFormats?.native ?? true ? 'Native' : null;
+  const interstitial = simple?.enabledFormats?.interstitial ?? true ? 'Interstitial' : null;
+  const rewarded = simple?.enabledFormats?.rewarded ?? true ? 'Rewarded' : null;
+  const appOpen = simple?.enabledFormats?.appOpen ?? true ? 'App Open' : null;
+  const rewardedInterstitial = simple?.enabledFormats?.rewardedInterstitial ? 'Rewarded Interstitial' : null;
+  const formats = [banner, native, interstitial, rewarded, appOpen, rewardedInterstitial].filter(Boolean);
+
+  // Prerequisites
+  const prereqs: string[] = [
+    '- **AppLovin MAX:** AppLovin SDK Key configured in `AndroidManifest.xml` and `Info.plist` (`AppLovinSdkKey`).',
+  ];
+  if (simple?.networks?.admob) {
+    const admobAppId = simple.networkConfig?.admob?.appId || (env === 'Testing' ? 'ca-app-pub-3940256099942544~3347511713' : 'Not configured');
+    prereqs.push(`- **Google AdMob:** Google Mobile Ads App ID (\`${admobAppId}\`) declared in \`AndroidManifest.xml\` and \`Info.plist\` (\`GADApplicationIdentifier\`).`);
+  }
+  if (simple?.networks?.meta) {
+    prereqs.push('- **Meta Audience Network:** Account verified with `app-ads.txt` and audience placement registered in Meta Business Suite.');
+  }
+  if (simple?.networks?.inmobi) {
+    prereqs.push('- **InMobi:** InMobi Account ID and property approved in InMobi console.');
+  }
+  if (simple?.networks?.unity) {
+    prereqs.push('- **Unity Ads:** Unity Game ID registered in Unity Dashboard.');
+  }
+
+  // Testing vs Production verification text
+  const verificationText =
+    env === 'Testing'
+      ? '- **Testing Mode is ACTIVE:** Official SDK test ads and sandbox unit IDs are automatically injected by WAPCentral. No dummy banners or simulated placeholders are used.'
+      : '- **Production Mode is ACTIVE:** Genuine provider-reported impressions and auction bids are used. Any missing ad units will show `Not configured` and will be cleanly omitted.';
+
+  return [
+    '## 8. Ads — Controlled by WAPCentral',
+    '',
+    'This app uses **AppLovin MAX as the sole advertising mediation platform**. WAPCentral centrally controls Ads Enabled/Disabled, Ad Strategy, Testing/Production mode, enabled demand sources, enabled formats, and production identifiers for this app. Do not bundle multiple mediation platforms (such as Unity LevelPlay) or duplicate direct SDKs.',
+    '',
+    '### Configuration Summary:',
+    '- **Ads Status:** `Enabled`',
+    '- **Mediation Engine:** `AppLovin MAX (Sole Mediation Platform)`',
+    `- **Ad Strategy:** \`${strategyDetails}\``,
+    `- **Environment:** \`${env}\``,
+    `- **Enabled Demand Sources:** ${netList.join(', ') || 'AppLovin Demand, Google AdMob, WebAppyPie Custom Ads'}`,
+    `- **Supported Formats:** ${formats.join(', ') || 'Banner, Native, Interstitial, Rewarded, App Open'}`,
+    '',
+    '### Required Dependencies & Adapters for this Build:',
+    'Only bundle the adapters required by enabled demand sources to keep mobile apps lightweight:',
+    adapters.join('\n'),
+    '',
+    '### Provider Prerequisites & Configuration:',
+    prereqs.join('\n'),
+    '',
+    '### Testing & Release Verification:',
+    verificationText,
+    '- **Testing Configuration is Controlled Centrally:** Testing configuration is controlled centrally by WAPCentral. The mobile app must not hardcode fake production IDs.',
+    '- **Dynamic Config Fetch:** `wap_ads_sdk` fetches the effective configuration from `/api/platform/v1/ads/config`.',
+    '- **Omission of Disabled Units:** Disabled networks and formats must not be requested by client code.',
+    '- **Authentic Metrics:** No fake impressions, revenue, eCPM or fill-rate values.',
+    '- **Graceful No-Fill Fallback:** WebAppyPie Custom Ads automatically display as high-fill house promotional fallback when third-party demand is exhausted.',
+  ].join('\n');
+}
+
+/**
+ * Builds the application-specific Section 9 (Notifications — Controlled by WAPCentral).
+ */
+export function buildNotificationsSection(isNotificationsEnabled: boolean): string {
+  if (!isNotificationsEnabled) {
+    return [
+      '## 9. Notifications — Controlled by WAPCentral',
+      '',
+      '> **Notifications: Disabled for this application.**',
+      '',
+      '- Do not install `wap_notifications_sdk` or configure notification device registration for this application.',
+      '- No push notification handling or campaign polling is required.',
+      '- If notifications are needed later, configure FCM credentials in **WAPCentral Dashboard → Applications → Notifications**.',
+    ].join('\n');
+  }
+
+  return [
+    '## 9. Notifications — Controlled by WAPCentral',
+    '',
+    'Notifications are managed centrally from WAPCentral for this app. The mobile app does not contain its own campaign management system.',
+    '',
+    '### Configuration Summary:',
+    '- **Notifications:** `Enabled`',
+    '- **FCM:** `Required (FCM configuration via google-services.json / GoogleService-Info.plist)`',
+    '- **wap_notifications_sdk:** `Required`',
+    '- **Device Registration Endpoint:** `POST /api/platform/v1/notifications/devices/register`',
+    '- **Notification Feed Endpoint:** `GET /api/platform/v1/notifications`',
+    '',
+    '### Integration & Lifecycle Steps:',
+    '1. Initialize `wap_notifications_sdk` with the WAPCentral app credentials and the device FCM token.',
+    '2. Register the device with WAPCentral upon successful token acquisition.',
+    '3. Read the app-specific notification feed and synchronize unread/read state.',
+    '4. WAPCentral sends title, message body, optional rich image, and optional deep link payload.',
+    '5. WAPCentral supports Send Now / Schedule according to dashboard capabilities.',
+    '',
+    '> [!CAUTION]',
+    '> **Security Notice:** Never place FCM server or service-account private credentials in the mobile app. All outbound push dispatches are securely performed server-side by WAPCentral.',
+  ].join('\n');
 }
 
 /**
  * Builds the application-specific Section 10 (App Startup Sequence).
  */
-function buildStartupSequenceSection(
+export function buildStartupSequenceSection(
   app: App,
   enabledSdkNames: string[],
   isAdsEnabled: boolean,
   isNotificationsEnabled: boolean,
   appKeyText: string,
 ): string {
-  const pieces: string[] = [];
-  pieces.push(makeHeading1('10. App Startup Sequence'));
-  pieces.push(
-    makeParagraph('1. Initialize Firebase using standard Flutter Firebase setup (Firebase.initializeApp()).'),
-  );
-  pieces.push(makeParagraph('2. Initialize wap_core_sdk with the generated App ID and X-App-Key:'));
-  pieces.push(makeBullet('https://wapcentral-prod.web.app/api/platform/v1', '   baseUrl:'));
-  pieces.push(makeBullet(app.id, '   appId:'));
-  pieces.push(makeBullet(appKeyText, '   appKey:'));
-  pieces.push(makeBullet('true', '   preferLocal:'));
-  pieces.push(
-    makeParagraph(
-      `3. Initialize only the WAP SDKs enabled for this application: ${enabledSdkNames.join(', ')}.`,
-    ),
-  );
+  const steps: string[] = [
+    '## 10. App Startup Sequence',
+    '',
+    '1. **Initialize Firebase:** Use standard Flutter Firebase setup (`await Firebase.initializeApp()`).',
+    '2. **Initialize WAPCore SDK:** Connect using the generated App ID and authorized credentials:',
+    '   - `baseUrl`: `https://wapcentral-prod.web.app/api/platform/v1`',
+    `   - \`appId\`: \`${app.id}\``,
+    `   - \`appKey\`: \`${appKeyText}\``,
+    '   - `preferLocal`: `true`',
+    `3. **Initialize Enabled Modules:** Initialize only the WAP SDKs enabled for this application: \`${enabledSdkNames.join(', ')}\`.`,
+  ];
 
   if (isAdsEnabled) {
-    pieces.push(
-      makeParagraph(
-        '4. Initialize wap_ads_sdk to fetch the effective remote configuration from /api/platform/v1/ads/config.',
-      ),
-    );
+    steps.push('4. **Initialize Ads:** Initialize `wap_ads_sdk` to fetch the effective remote configuration from `/api/platform/v1/ads/config`.');
   } else {
-    pieces.push(makeParagraph('4. Ads are disabled: do not initialize wap_ads_sdk or request ad units.'));
+    steps.push('4. **Ads are disabled:** Do not initialize `wap_ads_sdk` or request ad units.');
   }
 
   if (isNotificationsEnabled) {
-    pieces.push(
-      makeParagraph(
-        '5. Obtain device FCM token via FirebaseMessaging and register with WAPCentral (/api/platform/v1/notifications/devices/register).',
-      ),
-    );
+    steps.push('5. **Register Push Device:** Obtain device FCM token via `FirebaseMessaging` and register with WAPCentral (`/api/platform/v1/notifications/devices/register`).');
   } else {
-    pieces.push(makeParagraph('5. Notifications are disabled: skip device registration.'));
+    steps.push('5. **Notifications are disabled:** Skip device registration.');
   }
 
-  pieces.push(makeParagraph('6. Do not fetch or store provider secrets in the client application.'));
-  pieces.push(makeParagraph('7. Do not create a local duplicate of WAPCentral business configuration.'));
-  pieces.push(
-    makeParagraph('8. Preserve local-first functionality if WAPCentral is temporarily unavailable.'),
-  );
+  steps.push('6. **No Secret Ingestion:** Do not fetch or store provider secrets in the client application.');
+  steps.push('7. **No Local Duplicate State:** Do not create a local duplicate of WAPCentral business configuration.');
+  steps.push('8. **Local-First Resilience:** Preserve local-first functionality if WAPCentral is temporarily unavailable.');
 
-  return pieces.join('');
+  return steps.join('\n');
 }
 
 /**
- * Filters and styles Table 3 (SDK table) to include only the enabled SDKs for this application.
+ * Generates an application-specific integration guide Markdown document using the canonical template.
  */
-function customizeSdkTable(tableXml: string, app: App, status: AppServiceStatus): string {
-  const rows = tableXml.match(/<w:tr[\s\S]*?<\/w:tr>/g) || [];
-  if (rows.length < 2) return tableXml;
-
-  const headerRow = rows[0]!;
-  const keptRows: string[] = [headerRow];
-
-  const sdkMap: Record<string, { enabled: boolean; rowIdx: number }> = {
-    wap_core_sdk: { enabled: true, rowIdx: 1 },
-    wap_ai_sdk: { enabled: status.isAiEnabled, rowIdx: 2 },
-    wap_image_sdk: { enabled: status.isImageEnabled, rowIdx: 3 },
-    wap_ocr_sdk: { enabled: status.isOcrEnabled, rowIdx: 4 },
-    wap_file_sdk: { enabled: status.isFilesEnabled, rowIdx: 5 },
-    wap_ads_sdk: { enabled: status.isAdsEnabled, rowIdx: 6 },
-    wap_notifications_sdk: { enabled: status.isNotificationsEnabled, rowIdx: 7 },
-    wap_promo_sdk: { enabled: status.isPromoEnabled, rowIdx: 8 },
-  };
-
-  for (const [sdkName, config] of Object.entries(sdkMap)) {
-    if (config.enabled && rows[config.rowIdx]) {
-      let row = rows[config.rowIdx]!;
-      // Update include-when column with clear affirmative badge
-      const badge =
-        sdkName === 'wap_core_sdk'
-          ? '✓ Required (Core WAP runtime &amp; auth)'
-          : `✓ Required (Enabled for ${escapeXml(app.name)})`;
-      row = row.replace(
-        /<w:t>[^<]*<\/w:t>(<\/w:r><\/w:p><\/w:tc><\/w:tr>)/,
-        `<w:t>${badge}</w:t>$1`,
-      );
-      keptRows.push(row);
-    }
-  }
-
-  const tableHeaderMatch = tableXml.match(/^<w:tbl[\s\S]*?<w:tblGrid[\s\S]*?<\/w:tblGrid>/);
-  const tablePrefix = tableHeaderMatch ? tableHeaderMatch[0] : '<w:tbl>';
-  return `${tablePrefix}${keptRows.join('')}</w:tbl>`;
-}
-
-/**
- * Customizes Table 4 (Platform API Catalog) with per-app enablement indicators.
- */
-function customizeApiCatalogTable(tableXml: string, status: AppServiceStatus): string {
-  const rows = tableXml.match(/<w:tr[\s\S]*?<\/w:tr>/g) || [];
-  if (rows.length < 2) return tableXml;
-
-  const headerRow = rows[0]!;
-  const updatedRows: string[] = [headerRow];
-
-  for (let i = 1; i < rows.length; i++) {
-    let row = rows[i]!;
-    if (row.includes('/api/platform/v1/health')) {
-      row = row.replace(/<w:t>Public<\/w:t>/, '<w:t>Public (Available)</w:t>');
-    } else if (row.includes('/api/platform/v1/ai/')) {
-      const state = status.isAiEnabled ? 'ai — Enabled' : 'ai — Not enabled for this app';
-      row = row.replace(/<w:t>ai<\/w:t>/, `<w:t>${escapeXml(state)}</w:t>`);
-    } else if (row.includes('/api/platform/v1/image/')) {
-      const state = status.isImageEnabled ? 'image — Enabled' : 'image — Not enabled for this app';
-      row = row.replace(/<w:t>image<\/w:t>/, `<w:t>${escapeXml(state)}</w:t>`);
-    } else if (row.includes('/api/platform/v1/ocr/')) {
-      const state = status.isOcrEnabled ? 'ocr — Enabled' : 'ocr — Not enabled for this app';
-      row = row.replace(/<w:t>ocr<\/w:t>/, `<w:t>${escapeXml(state)}</w:t>`);
-    } else if (row.includes('/api/platform/v1/files/')) {
-      const state = status.isFilesEnabled ? 'files — Enabled' : 'files — Not enabled for this app';
-      row = row.replace(/<w:t>files<\/w:t>/, `<w:t>${escapeXml(state)}</w:t>`);
-    } else if (row.includes('/api/platform/v1/ads/')) {
-      const state = status.isAdsEnabled ? 'ads — Enabled' : 'ads — Not enabled for this app';
-      row = row.replace(/<w:t>ads<\/w:t>/, `<w:t>${escapeXml(state)}</w:t>`);
-    } else if (row.includes('/api/platform/v1/notifications/')) {
-      const state = status.isNotificationsEnabled
-        ? 'notifications — Enabled'
-        : 'notifications — Not enabled for this app';
-      row = row.replace(/<w:t>notifications<\/w:t>/, `<w:t>${escapeXml(state)}</w:t>`);
-    }
-    updatedRows.push(row);
-  }
-
-  const tableHeaderMatch = tableXml.match(/^<w:tbl[\s\S]*?<w:tblGrid[\s\S]*?<\/w:tblGrid>/);
-  const tablePrefix = tableHeaderMatch ? tableHeaderMatch[0] : '<w:tbl>';
-  return `${tablePrefix}${updatedRows.join('')}</w:tbl>`;
-}
-
-/**
- * Generates an application-specific integration guide DOCX document using the single master template.
- */
-export async function generateIntegrationGuide(app: App): Promise<Buffer> {
+export async function generateIntegrationGuide(app: App): Promise<string> {
   const templatePath = resolveTemplatePath();
-  const templateBinary = fs.readFileSync(templatePath, 'binary');
-  const zip = new PizZip(templateBinary);
-
-  let xml = zip.file('word/document.xml')?.asText();
-  if (!xml) {
-    throw new Error('Invalid template: word/document.xml is missing.');
-  }
+  let markdown = fs.readFileSync(templatePath, 'utf-8');
 
   const status = analyzeAppServices(app);
 
   // Fallback string for non-stored Firebase fields
   const NOT_STORED_FIREBASE = 'Configured in Firebase — not stored in WAPCentral';
 
-  const appKeyDisplay = app.appKey?.trim() ? app.appKey.trim() : '<COPY_FROM_APPLICATION_CREDENTIALS>';
+  // Securely masked app key for documentation
+  const appKeyDisplay = app.appKey?.trim()
+    ? maskSecretValue(app.appKey.trim())
+    : 'Not configured (Generate in WAPCentral Dashboard → Application Credentials)';
+
   const androidPkg = app.packageId?.trim() ? app.packageId.trim() : 'Not configured';
   const iosBundle = app.bundleId?.trim() ? app.bundleId.trim() : 'Not configured';
 
@@ -508,91 +453,69 @@ export async function generateIntegrationGuide(app: App): Promise<Buffer> {
     ? 'Required (Enabled for this application)'
     : 'Disabled for this application';
 
-  // 1. Substitute placeholders across document
+  // Section builders
+  const sdkTableMd = buildSdkTable(app, status);
+  const apiCatalogTableMd = buildApiCatalogTable(status);
+  const adsSectionMd = buildAdsSection(app, status.isAdsEnabled);
+  const notificationsSectionMd = buildNotificationsSection(status.isNotificationsEnabled);
+  const startupSequenceSectionMd = buildStartupSequenceSection(
+    app,
+    status.enabledSdkNames,
+    status.isAdsEnabled,
+    status.isNotificationsEnabled,
+    appKeyDisplay,
+  );
+
+  // Generate dynamic Dart SDK imports & initializers
+  const sdkImports: string[] = [];
+  const sdkInitStatements: string[] = [];
+
+  if (status.isAdsEnabled) {
+    sdkImports.push("import 'package:wap_ads_sdk/wap_ads_sdk.dart';");
+    sdkInitStatements.push('  // 3. Initialize Ads (AppLovin MAX sole mediation)\n  await WapAdsCore.instance.initialize();');
+  }
+  if (status.isNotificationsEnabled) {
+    sdkImports.push("import 'package:wap_notifications_sdk/wap_notifications_sdk.dart';");
+    sdkInitStatements.push('  // 4. Initialize Notifications & Register FCM Token\n  await WapNotifications.instance.initialize();');
+  }
+  if (status.isAiEnabled) {
+    sdkImports.push("import 'package:wap_ai_sdk/wap_ai_sdk.dart';");
+  }
+
   const replacements: Record<string, string> = {
-    '{{APP_NAME}}': escapeXml(app.name),
-    '{{APP_ID}}': escapeXml(app.id),
-    '{{APP_KEY}}': escapeXml(appKeyDisplay),
-    '{{ANDROID_PACKAGE_ID}}': escapeXml(androidPkg),
-    '{{IOS_BUNDLE_ID}}': escapeXml(iosBundle),
-    '{{FIREBASE_PROJECT_ID}}': escapeXml(fbProjectId),
-    '{{FIREBASE_ANDROID_APP_ID}}': escapeXml(fbAndroidAppId),
-    '{{FIREBASE_IOS_APP_ID}}': escapeXml(fbIosAppId),
-    '{{FIREBASE_PROJECT_NUMBER}}': escapeXml(fcmSenderId),
-    '{{ENABLED_SERVICES}}': escapeXml(enabledServicesStr),
-    '{{ADS_STATUS}}': escapeXml(adsStatusStr),
-    '{{NOTIFICATIONS_STATUS}}': escapeXml(notificationsStatusStr),
-    '{{GENERATED_AT}}': escapeXml(generatedDateStr),
-    '{{FCM_STATUS}}': escapeXml(fcmStatusStr),
+    '{{APP_NAME}}': app.name,
+    '{{APP_ID}}': app.id,
+    '{{APP_KEY}}': appKeyDisplay,
+    '{{APP_KEY_DART_DEFAULT}}': app.appKey?.trim() ? '••••••••' : '',
+    '{{ANDROID_PACKAGE_ID}}': androidPkg,
+    '{{IOS_BUNDLE_ID}}': iosBundle,
+    '{{FIREBASE_PROJECT_ID}}': fbProjectId,
+    '{{FIREBASE_ANDROID_APP_ID}}': fbAndroidAppId,
+    '{{FIREBASE_IOS_APP_ID}}': fbIosAppId,
+    '{{FIREBASE_PROJECT_NUMBER}}': fcmSenderId,
+    '{{ENABLED_SERVICES}}': enabledServicesStr,
+    '{{ENABLED_SDKS_LIST}}': status.enabledSdkNames.join(', '),
+    '{{ADS_STATUS}}': adsStatusStr,
+    '{{NOTIFICATIONS_STATUS}}': notificationsStatusStr,
+    '{{GENERATED_AT}}': generatedDateStr,
+    '{{FCM_STATUS}}': fcmStatusStr,
     '{{CRASHLYTICS_STATUS}}': 'Recommended for production crash monitoring',
     '{{ANALYTICS_STATUS}}': 'Optional / Product-dependent',
     '{{AUTH_STATUS}}': 'Optional / Product-dependent',
     '{{STORAGE_STATUS}}': 'Optional / Product-dependent',
+    '{{SDK_TABLE}}': sdkTableMd,
+    '{{API_CATALOG_TABLE}}': apiCatalogTableMd,
+    '{{ADS_SECTION}}': adsSectionMd,
+    '{{NOTIFICATIONS_SECTION}}': notificationsSectionMd,
+    '{{STARTUP_SEQUENCE_SECTION}}': startupSequenceSectionMd,
+    '{{SDK_IMPORTS}}': sdkImports.length > 0 ? sdkImports.join('\n') : '',
+    '{{SERVICE_INITIALIZATION}}': sdkInitStatements.length > 0 ? sdkInitStatements.join('\n\n') : '',
   };
 
   for (const [placeholder, val] of Object.entries(replacements)) {
     const regex = new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g');
-    xml = xml.replace(regex, val);
+    markdown = markdown.replace(regex, val);
   }
 
-  // 2. Customize Table 3 (SDK table)
-  const tables = xml.match(/<w:tbl[\s\S]*?<\/w:tbl>/g) || [];
-  if (tables[3]) {
-    const originalTable3 = tables[3];
-    const customizedTable3 = customizeSdkTable(originalTable3, app, status);
-    xml = xml.replace(originalTable3, () => customizedTable3);
-  }
-
-  // 3. Customize Table 4 (Platform API catalog)
-  // Re-match tables in modified xml
-  const tablesAfterSdk = xml.match(/<w:tbl[\s\S]*?<\/w:tbl>/g) || [];
-  if (tablesAfterSdk[4]) {
-    const originalTable4 = tablesAfterSdk[4];
-    const customizedTable4 = customizeApiCatalogTable(originalTable4, status);
-    xml = xml.replace(originalTable4, () => customizedTable4);
-  }
-
-  // 4. Update Section 6 (WAPCentral Connection) with real connection values
-  xml = xml.replace(
-    /<w:t>baseUrl = the production WAPCentral base URL<\/w:t>/g,
-    `<w:t>baseUrl = 'https://wapcentral-prod.web.app/api/platform/v1'</w:t>`,
-  );
-  xml = xml.replace(
-    /<w:t>appId = the WAPCentral App ID above<\/w:t>/g,
-    `<w:t>appId = '${escapeXml(app.id)}'</w:t>`,
-  );
-  xml = xml.replace(
-    /<w:t>appKey = the WAPCentral X-App-Key above<\/w:t>/g,
-    `<w:t>appKey = '${escapeXml(appKeyDisplay)}'</w:t>`,
-  );
-
-  // 5. Replace Section 8 (Ads), Section 9 (Notifications), Section 10 (Startup sequence)
-  const s8HeaderMatch = xml.match(
-    /<w:p(?: [^>]*)?>(?:(?!<\/w:p>)[\s\S])*?8\.\s*Ads[\s\S]*?<\/w:p>/,
-  );
-  const s11HeaderMatch = xml.match(
-    /<w:p(?: [^>]*)?>(?:(?!<\/w:p>)[\s\S])*?11\.\s*Project[\s\S]*?<\/w:p>/,
-  );
-
-  if (s8HeaderMatch && s11HeaderMatch) {
-    const startIdx = xml.indexOf(s8HeaderMatch[0]);
-    const endIdx = xml.indexOf(s11HeaderMatch[0]);
-
-    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-      const dynamicSectionsXml =
-        buildAdsSection(app, status.isAdsEnabled) +
-        buildNotificationsSection(status.isNotificationsEnabled) +
-        buildStartupSequenceSection(app, status.enabledSdkNames, status.isAdsEnabled, status.isNotificationsEnabled, appKeyDisplay);
-
-      xml = xml.substring(0, startIdx) + dynamicSectionsXml + xml.substring(endIdx);
-    }
-  }
-
-  zip.file('word/document.xml', xml);
-  const buffer = zip.generate({
-    type: 'nodebuffer',
-    compression: 'DEFLATE',
-  });
-
-  return buffer;
+  return markdown;
 }

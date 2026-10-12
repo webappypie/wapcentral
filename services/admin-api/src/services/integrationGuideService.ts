@@ -51,19 +51,15 @@ export function resolveTemplatePath(): string {
 }
 
 /**
- * Masks sensitive secret keys for secure documentation output.
- * Preserves identifier prefix and suffix when appropriate while masking secret contents.
+ * Resolves secret configuration value without masking.
+ * Returns the authoritative unmasked secret value for developer and AI team usage,
+ * or 'Not configured' if the value is missing.
  */
 export function maskSecretValue(secret?: string): string {
   if (!secret || secret.trim() === '' || secret === 'Not configured') {
     return 'Not configured';
   }
-  const trimmed = secret.trim();
-  if (trimmed.startsWith('wap_key_')) {
-    const suffix = trimmed.length > 12 ? trimmed.slice(-4) : '••••';
-    return `wap_key_••••••••${suffix} (Masked for security — copy full key in WAPCentral Dashboard → Application Credentials)`;
-  }
-  return '•••••••••••••••• (Masked for security — configure securely in environment)';
+  return secret.trim();
 }
 
 export interface AppServiceStatus {
@@ -272,8 +268,9 @@ export function buildAdsSection(app: App, isAdsEnabled: boolean): string {
   const formats = [banner, native, interstitial, rewarded, appOpen, rewardedInterstitial].filter(Boolean);
 
   // Prerequisites
+  const applovinSdkKey = simple?.networkConfig?.applovin?.sdkKey?.trim() || 'Not configured';
   const prereqs: string[] = [
-    '- **AppLovin MAX:** AppLovin SDK Key configured in `AndroidManifest.xml` and `Info.plist` (`AppLovinSdkKey`).',
+    `- **AppLovin MAX:** AppLovin SDK Key (\`${applovinSdkKey}\`) declared in \`AndroidManifest.xml\` and \`Info.plist\` (\`AppLovinSdkKey\`).`,
   ];
   if (simple?.networks?.admob) {
     const admobAppId = simple.networkConfig?.admob?.appId || (env === 'Testing' ? ADMOB_OFFICIAL_TEST_IDS.android.appId : 'Not configured');
@@ -283,10 +280,12 @@ export function buildAdsSection(app: App, isAdsEnabled: boolean): string {
     prereqs.push('- **Meta Audience Network:** Account verified with `app-ads.txt` and audience placement registered in Meta Monetization Manager.');
   }
   if (simple?.networks?.inmobi) {
-    prereqs.push('- **InMobi:** InMobi Account ID and property approved in InMobi console.');
+    const inmobiAccount = simple.networkConfig?.inmobi?.accountId?.trim() || 'Not configured';
+    prereqs.push(`- **InMobi:** InMobi Account ID (\`${inmobiAccount}\`) and property approved in InMobi console.`);
   }
   if (simple?.networks?.unity) {
-    prereqs.push('- **Unity Ads:** Unity Game ID registered in Unity Dashboard.');
+    const unityGameId = simple.networkConfig?.unity?.gameId?.trim() || 'Not configured';
+    prereqs.push(`- **Unity Ads:** Unity Game ID (\`${unityGameId}\`) registered in Unity Dashboard.`);
   }
 
   // Testing vs Production verification text
@@ -359,6 +358,44 @@ export function buildAdsSection(app: App, isAdsEnabled: boolean): string {
     prodTableRows.push(`| Google AdMob | Rewarded | \`${admobRewarded}\` | ${admobRewarded !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
     prodTableRows.push(`| Google AdMob | App Open | \`${admobAppOpen}\` | ${admobAppOpen !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
     prodTableRows.push(`| Google AdMob | Rewarded Interstitial | \`${admobRewardedInterstitial}\` | ${admobRewardedInterstitial !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+  }
+
+  if (simple?.networks?.meta) {
+    const metaBanner = simple.networkConfig?.meta?.placementIds?.banner || 'Not configured';
+    const metaNative = simple.networkConfig?.meta?.placementIds?.native || 'Not configured';
+    const metaInterstitial = simple.networkConfig?.meta?.placementIds?.interstitial || 'Not configured';
+    const metaRewarded = simple.networkConfig?.meta?.placementIds?.rewarded || 'Not configured';
+
+    prodTableRows.push(`| Meta Audience Network | Banner | \`${metaBanner}\` | ${metaBanner !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+    prodTableRows.push(`| Meta Audience Network | Native | \`${metaNative}\` | ${metaNative !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+    prodTableRows.push(`| Meta Audience Network | Interstitial | \`${metaInterstitial}\` | ${metaInterstitial !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+    prodTableRows.push(`| Meta Audience Network | Rewarded | \`${metaRewarded}\` | ${metaRewarded !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+  }
+
+  if (simple?.networks?.inmobi) {
+    const inmobiAccount = simple.networkConfig?.inmobi?.accountId || 'Not configured';
+    const inmobiBanner = simple.networkConfig?.inmobi?.placementIds?.banner || 'Not configured';
+    const inmobiNative = simple.networkConfig?.inmobi?.placementIds?.native || 'Not configured';
+    const inmobiInterstitial = simple.networkConfig?.inmobi?.placementIds?.interstitial || 'Not configured';
+    const inmobiRewarded = simple.networkConfig?.inmobi?.placementIds?.rewarded || 'Not configured';
+
+    prodTableRows.push(`| InMobi | Account ID | \`${inmobiAccount}\` | ${inmobiAccount !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+    prodTableRows.push(`| InMobi | Banner | \`${inmobiBanner}\` | ${inmobiBanner !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+    prodTableRows.push(`| InMobi | Native | \`${inmobiNative}\` | ${inmobiNative !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+    prodTableRows.push(`| InMobi | Interstitial | \`${inmobiInterstitial}\` | ${inmobiInterstitial !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+    prodTableRows.push(`| InMobi | Rewarded | \`${inmobiRewarded}\` | ${inmobiRewarded !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+  }
+
+  if (simple?.networks?.unity) {
+    const unityGame = simple.networkConfig?.unity?.gameId || 'Not configured';
+    const unityBanner = simple.networkConfig?.unity?.placementIds?.banner || 'Not configured';
+    const unityInterstitial = simple.networkConfig?.unity?.placementIds?.interstitial || 'Not configured';
+    const unityRewarded = simple.networkConfig?.unity?.placementIds?.rewarded || 'Not configured';
+
+    prodTableRows.push(`| Unity Ads | Game ID | \`${unityGame}\` | ${unityGame !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+    prodTableRows.push(`| Unity Ads | Banner | \`${unityBanner}\` | ${unityBanner !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+    prodTableRows.push(`| Unity Ads | Interstitial | \`${unityInterstitial}\` | ${unityInterstitial !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+    prodTableRows.push(`| Unity Ads | Rewarded | \`${unityRewarded}\` | ${unityRewarded !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
   }
 
   return [
@@ -497,23 +534,20 @@ export async function generateIntegrationGuide(app: App): Promise<string> {
 
   const status = analyzeAppServices(app);
 
-  // Fallback string for non-stored Firebase fields
-  const NOT_STORED_FIREBASE = 'Configured in Firebase — not stored in WAPCentral';
-
-  // Securely masked app key for documentation
+  // Authoritative unmasked app key for documentation
   const appKeyDisplay = app.appKey?.trim()
-    ? maskSecretValue(app.appKey.trim())
+    ? app.appKey.trim()
     : 'Not configured (Generate in WAPCentral Dashboard → Application Credentials)';
 
   const androidPkg = app.packageId?.trim() ? app.packageId.trim() : 'Not configured';
   const iosBundle = app.bundleId?.trim() ? app.bundleId.trim() : 'Not configured';
 
-  const fbProjectId = app.firebaseProjectId?.trim() ? app.firebaseProjectId.trim() : NOT_STORED_FIREBASE;
+  const fbProjectId = app.firebaseProjectId?.trim() ? app.firebaseProjectId.trim() : 'Not configured';
   const fbAndroidAppId = app.firebaseAndroidAppId?.trim()
     ? app.firebaseAndroidAppId.trim()
-    : NOT_STORED_FIREBASE;
-  const fbIosAppId = app.firebaseIosAppId?.trim() ? app.firebaseIosAppId.trim() : NOT_STORED_FIREBASE;
-  const fcmSenderId = app.fcmSenderId?.trim() ? app.fcmSenderId.trim() : NOT_STORED_FIREBASE;
+    : 'Not configured';
+  const fbIosAppId = app.firebaseIosAppId?.trim() ? app.firebaseIosAppId.trim() : 'Not configured';
+  const fcmSenderId = app.fcmSenderId?.trim() ? app.fcmSenderId.trim() : 'Not configured';
 
   const enabledServicesStr =
     status.enabledServicesList.length > 0 ? status.enabledServicesList.join(', ') : 'None configured';
@@ -569,7 +603,7 @@ export async function generateIntegrationGuide(app: App): Promise<string> {
     '{{APP_NAME}}': app.name,
     '{{APP_ID}}': app.id,
     '{{APP_KEY}}': appKeyDisplay,
-    '{{APP_KEY_DART_DEFAULT}}': app.appKey?.trim() ? '••••••••' : '',
+    '{{APP_KEY_DART_DEFAULT}}': app.appKey?.trim() ? app.appKey.trim() : '',
     '{{ANDROID_PACKAGE_ID}}': androidPkg,
     '{{IOS_BUNDLE_ID}}': iosBundle,
     '{{FIREBASE_PROJECT_ID}}': fbProjectId,

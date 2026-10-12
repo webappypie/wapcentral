@@ -54,7 +54,7 @@ This document is the official, app-specific implementation guide for **{{APP_NAM
 
 ### 🔒 Secure Credential-Handling Rules:
 1. **Never Hardcode Secrets in Source Code:** Do not embed raw production API keys or service keys in Git repositories. Use `--dart-define` or Flutter secure storage.
-2. **Retrieve Full Key Securely:** The authorized admin/developer can view or copy the unmasked `X-App-Key` at any time from **WAPCentral Dashboard → Applications → {{APP_NAME}} → Application Credentials**.
+2. **Direct Authentication Provisioning:** The complete, unmasked `X-App-Key` for {{APP_NAME}} is provided unmasked in this guide (`{{APP_KEY}}`). The AI development team can implement WAPCentral authentication directly without manual lookups or key replacements. If the key needs rotation, regenerate it anytime in **WAPCentral Dashboard → Applications → {{APP_NAME}} → Application Credentials**.
 3. **Redact from Client Logs:** Ensure your HTTP logging interceptors automatically mask `X-App-Key` and authorization headers.
 4. **No Third-Party Secrets:** Never include AI provider keys (OpenAI, Gemini, Anthropic) or FCM server service-account JSON inside the mobile app. All third-party access is mediated securely through WAPCentral backend services.
 
@@ -116,7 +116,7 @@ void main() async {
   await WapCore.initialize(
     baseUrl: 'https://wapcentral-prod.web.app/api/platform/v1',
     appId: '{{APP_ID}}',
-    appKey: const String.fromEnvironment('WAP_APP_KEY', defaultValue: '{{APP_KEY_DART_DEFAULT}}'),
+    appKey: const String.fromEnvironment('WAP_APP_KEY', defaultValue: '{{APP_KEY}}'),
     preferLocal: true,
   );
 
@@ -128,7 +128,7 @@ void main() async {
 
 Every platform request automatically attaches headers:
 - `X-App-Id: {{APP_ID}}`
-- `X-App-Key: <SECURE_KEY>`
+- `X-App-Key: {{APP_KEY}}`
 
 ---
 

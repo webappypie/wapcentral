@@ -36,8 +36,13 @@ async function runVerification() {
   assert.ok(md1.startsWith('# WAPCentral Integration Guide — FileZen'), 'Must start with clean markdown H1');
   assert.ok(md1.includes('WAPCentral_FileZen_Integration_Guide.md') || md1.includes('FileZen'), 'Must contain FileZen identity');
   assert.ok(md1.includes('com.webappypie.filezen'), 'Must contain package ID');
-  assert.ok(md1.includes('wap_key_••••••••'), 'Secret key must be securely masked');
-  assert.ok(!md1.includes('wap_key_filezen_prod\n'), 'Must not leak raw unmasked app key in plain lines');
+  assert.ok(md1.includes('com.webappypie.filezen.ios'), 'Must contain iOS bundle ID');
+  assert.ok(md1.includes('wap_key_filezen_prod'), 'Must provide authoritative unmasked app key');
+  assert.ok(!md1.includes('••••••••'), 'Must NOT contain masked bullet dots');
+  assert.ok(!md1.includes('****'), 'Must NOT contain masked asterisks');
+  assert.ok(!md1.includes('[REDACTED]'), 'Must NOT contain REDACTED');
+  assert.ok(md1.includes('filezen-510822'), 'Must contain authoritative Firebase project ID');
+  assert.ok(md1.includes('1:424198485420:android:c10d373ee2d29d76dd3609'), 'Must contain authoritative Android App ID');
   assert.ok(md1.includes('AppLovin MAX as the sole advertising mediation platform'), 'Must identify AppLovin MAX as sole mediation engine');
   assert.ok(md1.includes('`wap_core_sdk`'), 'Must include wap_core_sdk');
   assert.ok(md1.includes('`wap_ai_sdk`'), 'Must include wap_ai_sdk');
@@ -47,7 +52,7 @@ async function runVerification() {
   assert.ok(md1.includes('`wap_notifications_sdk`'), 'Must include wap_notifications_sdk');
   assert.ok(!md1.includes('`wap_image_sdk`'), 'Must NOT include wap_image_sdk (not enabled for FileZen)');
   assert.ok(!md1.includes('OptiLens'), 'Strict App Isolation: Must NOT contain OptiLens details');
-  console.log('   ✓ FileZen guide generated with valid Markdown, correct filename, MIME type, and masked secret.');
+  console.log('   ✓ FileZen guide generated with valid Markdown, correct filename, MIME type, and authoritative unmasked credentials.');
 
   // Test 2: OptiLens AI Integration Guide Download
   console.log('\n2. Testing OptiLens AI Markdown Guide Download:');
@@ -62,7 +67,12 @@ async function runVerification() {
   const md2 = res2.text;
   assert.ok(md2.startsWith('# WAPCentral Integration Guide — OptiLens AI'), 'Must start with clean markdown H1');
   assert.ok(md2.includes('com.webappypie.optilens'), 'Must contain OptiLens package ID');
-  assert.ok(md2.includes('wap_key_••••••••'), 'Secret key must be securely masked');
+  assert.ok(md2.includes('com.webappypie.optilens.ios'), 'Must contain OptiLens iOS bundle ID');
+  assert.ok(md2.includes('wap_key_optilens_prod'), 'Must provide authoritative unmasked app key');
+  assert.ok(!md2.includes('••••••••'), 'Must NOT contain masked bullet dots');
+  assert.ok(!md2.includes('****'), 'Must NOT contain masked asterisks');
+  assert.ok(!md2.includes('[REDACTED]'), 'Must NOT contain REDACTED');
+  assert.ok(md2.includes('optilens-ai-prod'), 'Must contain authoritative Firebase project ID');
   assert.ok(md2.includes('`wap_core_sdk`'), 'Must include wap_core_sdk');
   assert.ok(md2.includes('`wap_image_sdk`'), 'Must include wap_image_sdk');
   assert.ok(md2.includes('`wap_ai_sdk`'), 'Must include wap_ai_sdk');
@@ -71,7 +81,7 @@ async function runVerification() {
   assert.ok(!md2.includes('`wap_ocr_sdk`'), 'Must NOT include wap_ocr_sdk (not enabled for OptiLens)');
   assert.ok(!md2.includes('`wap_file_sdk`'), 'Must NOT include wap_file_sdk (not enabled for OptiLens)');
   assert.ok(!md2.includes('FileZen'), 'Strict App Isolation: Must NOT contain FileZen details');
-  console.log('   ✓ OptiLens AI guide generated with valid Markdown, isolated config, and correct SDK table.');
+  console.log('   ✓ OptiLens AI guide generated with valid Markdown, isolated config, and authoritative unmasked credentials.');
 
   // Test 3: Custom App with Missing Values
   console.log('\n3. Testing Custom App with Missing Values:');
@@ -103,11 +113,13 @@ async function runVerification() {
   assert.ok(md3.includes('Block Puzzle Deluxe'));
   assert.ok(md3.includes('com.webappypie.blockpuzzle'));
   assert.ok(md3.includes('Not configured'), 'Missing bundleId must show Not configured');
-  assert.ok(md3.includes('Configured in Firebase — not stored in WAPCentral'), 'Missing Firebase fields must show approved placeholder');
-  assert.ok(md3.includes('wap_key_••••••••8877'), 'App key must be securely masked');
-  assert.ok(!md3.includes('wap_key_puzzle_secret_998877\n'), 'Must not leak raw secret key');
+  assert.ok(md3.includes('wap_key_puzzle_secret_998877'), 'App key must be authoritative and unmasked');
+  assert.ok(!md3.includes('••••••••'), 'Must NOT contain masked bullet dots');
+  assert.ok(!md3.includes('****'), 'Must NOT contain masked asterisks');
+  assert.ok(!md3.includes('[REDACTED]'), 'Must NOT contain REDACTED');
+  assert.ok(!md3.includes('Configured in Firebase — not stored in WAPCentral'), 'Must NOT contain legacy placeholder');
   assert.ok(!md3.includes('`wap_ai_sdk`'), 'Unused SDKs must not be present');
-  console.log('   ✓ Custom app correctly marks missing values and masks secrets.');
+  console.log('   ✓ Custom app correctly marks missing values as Not configured and provides unmasked app key.');
 
   // Test 4: Security and Authorization
   console.log('\n4. Testing Security and Authorization:');

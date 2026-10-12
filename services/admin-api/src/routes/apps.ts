@@ -21,13 +21,62 @@ let memoryApps: App[] = [
     id: 'filezen',
     name: 'FileZen',
     packageId: 'com.webappypie.filezen',
+    bundleId: 'com.webappypie.filezen.ios',
     platform: 'android',
     version: '1.0.0',
     environment: 'production',
     appKey: 'wap_key_filezen_prod',
+    firebaseProjectId: 'filezen-510822',
+    firebaseAndroidAppId: '1:424198485420:android:c10d373ee2d29d76dd3609',
+    firebaseIosAppId: '1:424198485420:ios:c6c5a8a214ff4ecadd3609',
+    fcmSenderId: '424198485420',
     allowedServices: ['ai', 'ocr', 'files', 'ads', 'notifications'],
-    enabledModules: ['ai', 'ocr', 'files' as any, 'ads'],
+    enabledModules: ['ai', 'ocr', 'files' as any, 'ads', 'notifications'],
     status: 'active',
+    simpleAdsConfig: {
+      adsEnabled: true,
+      strategy: 'automatic',
+      environment: 'testing',
+      networks: {
+        applovin: true,
+        admob: true,
+        meta: false,
+        inmobi: false,
+        unity: false,
+        wapCustomAds: true,
+      },
+      enabledFormats: {
+        banner: true,
+        native: true,
+        interstitial: true,
+        rewarded: true,
+        appOpen: true,
+        rewardedInterstitial: true,
+      },
+      networkConfig: {
+        enabled: true,
+        applovin: {
+          sdkKey: 'applovin_live_key_filezen_123',
+          placementIds: {
+            banner: 'max_banner_filezen_01',
+            native: 'max_native_filezen_01',
+            interstitial: 'max_interstitial_filezen_01',
+            rewarded: 'max_rewarded_filezen_01',
+            app_open: 'max_app_open_filezen_01',
+            rewarded_interstitial: 'max_rew_inter_filezen_01',
+          },
+        },
+        admob: {
+          appId: 'ca-app-pub-3940256099942544~3347511713',
+          bannerId: 'ca-app-pub-3940256099942544/6300978111',
+          nativeId: 'ca-app-pub-3940256099942544/2247696110',
+          interstitialId: 'ca-app-pub-3940256099942544/1033173712',
+          rewardedId: 'ca-app-pub-3940256099942544/5224354917',
+          appOpenId: 'ca-app-pub-3940256099942544/9257395921',
+          rewardedInterstitialId: 'ca-app-pub-3940256099942544/5354046379',
+        },
+      },
+    },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -35,14 +84,85 @@ let memoryApps: App[] = [
     id: 'optilens',
     name: 'OptiLens AI',
     packageId: 'com.webappypie.optilens',
-    bundleId: 'com.webappypie.optilens',
+    bundleId: 'com.webappypie.optilens.ios',
     platform: 'android',
     version: '1.0.0',
     environment: 'production',
     appKey: 'wap_key_optilens_prod',
+    firebaseProjectId: 'optilens-ai-prod',
+    firebaseAndroidAppId: '1:987654321012:android:a1b2c3d4e5f6',
+    firebaseIosAppId: '1:987654321012:ios:f6e5d4c3b2a1',
+    fcmSenderId: '987654321012',
     allowedServices: ['image', 'ai', 'ads', 'notifications'],
-    enabledModules: ['image_intelligence', 'ai', 'ads'],
+    enabledModules: ['image_intelligence', 'ai', 'ads', 'notifications'],
     status: 'active',
+    simpleAdsConfig: {
+      adsEnabled: true,
+      strategy: 'automatic',
+      environment: 'production',
+      networks: {
+        applovin: true,
+        admob: true,
+        meta: true,
+        inmobi: true,
+        unity: true,
+        wapCustomAds: true,
+      },
+      enabledFormats: {
+        banner: true,
+        native: true,
+        interstitial: true,
+        rewarded: true,
+        appOpen: true,
+        rewardedInterstitial: false,
+      },
+      networkConfig: {
+        enabled: true,
+        applovin: {
+          sdkKey: 'applovin_live_key_optilens_456',
+          placementIds: {
+            banner: 'max_banner_optilens_01',
+            native: 'max_native_optilens_01',
+            interstitial: 'max_interstitial_optilens_01',
+            rewarded: 'max_rewarded_optilens_01',
+            app_open: 'max_app_open_optilens_01',
+          },
+        },
+        admob: {
+          appId: 'ca-app-pub-9999999999999999~1111111111',
+          bannerId: 'ca-app-pub-9999999999999999/1111111111',
+          nativeId: 'ca-app-pub-9999999999999999/2222222222',
+          interstitialId: 'ca-app-pub-9999999999999999/3333333333',
+          rewardedId: 'ca-app-pub-9999999999999999/4444444444',
+          appOpenId: 'ca-app-pub-9999999999999999/5555555555',
+        },
+        meta: {
+          placementIds: {
+            banner: 'meta_banner_optilens_01',
+            native: 'meta_native_optilens_01',
+            interstitial: 'meta_interstitial_optilens_01',
+            rewarded: 'meta_rewarded_optilens_01',
+          },
+        },
+        inmobi: {
+          accountId: 'inmobi_acc_optilens_77',
+          placementIds: {
+            banner: '1680000001',
+            native: '1680000002',
+            interstitial: '1680000003',
+            rewarded: '1680000004',
+          },
+        },
+        unity: {
+          gameId: 'unity_game_optilens_888',
+          placementIds: {
+            banner: 'Banner_Android',
+            interstitial: 'Interstitial_Android',
+            rewarded: 'Rewarded_Android',
+          },
+        },
+      },
+    },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -74,12 +194,9 @@ let memoryApps: App[] = [
 ];
 
 /**
- * Looks up an application by ID across in-memory registry, Firestore collections, and fallback records.
+ * Looks up an application by ID across Firestore collections, in-memory registry, and fallback records.
  */
 export async function findAppById(appId: string): Promise<App | null> {
-  const memoryMatch = memoryApps.find((a) => a.id === appId);
-  if (memoryMatch) return memoryMatch;
-
   try {
     const db = getFirestoreDb();
     const docSnap = await db.collection(COLLECTIONS.APPS).doc(appId).get();
@@ -90,9 +207,25 @@ export async function findAppById(appId: string): Promise<App | null> {
         id: docSnap.id,
       };
     }
+
+    // Secondary check: look up by packageId or name match in Firestore
+    const col = db.collection(COLLECTIONS.APPS);
+    if (typeof col.where === 'function') {
+      const pkgQuery = await col.where('packageId', '==', appId).get();
+      const firstDoc = pkgQuery.docs[0];
+      if (firstDoc) {
+        return {
+          ...(firstDoc.data() as App),
+          id: firstDoc.id,
+        };
+      }
+    }
   } catch {
     // Non-blocking in mock environments
   }
+
+  const memoryMatch = memoryApps.find((a) => a.id === appId);
+  if (memoryMatch) return memoryMatch;
 
   return null;
 }

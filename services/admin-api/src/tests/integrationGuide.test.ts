@@ -40,11 +40,10 @@ describe('App-Specific Integration Guide Generator', () => {
     });
   });
 
-  describe('Secret Masking', () => {
-    it('masks secrets securely while preserving prefix identifier', () => {
-      expect(maskSecretValue('wap_key_filezen_prod')).toContain('wap_key_••••••••');
-      expect(maskSecretValue('wap_key_filezen_prod')).not.toContain('wap_key_filezen_prod');
-      expect(maskSecretValue('wap_key_filezen_prod')).toContain('Masked for security');
+  describe('Authoritative Credential Handling', () => {
+    it('returns the authoritative unmasked secret value directly', () => {
+      expect(maskSecretValue('wap_key_filezen_prod')).toBe('wap_key_filezen_prod');
+      expect(maskSecretValue('wap_key_puzzle_secret_998877')).toBe('wap_key_puzzle_secret_998877');
       expect(maskSecretValue('')).toBe('Not configured');
       expect(maskSecretValue('Not configured')).toBe('Not configured');
     });
@@ -164,7 +163,7 @@ describe('App-Specific Integration Guide Generator', () => {
   });
 
   describe('FileZen Document Generation & Verification', () => {
-    it('generates a valid Markdown guide with FileZen-specific configuration and masked secrets', async () => {
+    it('generates a valid Markdown guide with FileZen-specific configuration and complete unmasked credentials', async () => {
       const res = await request(app)
         .get('/v1/apps/filezen/integration-guide')
         .set('Authorization', SUPER_ADMIN_AUTH);
@@ -183,11 +182,19 @@ describe('App-Specific Integration Guide Generator', () => {
       expect(md).toContain('FileZen');
       expect(md).toContain('filezen');
       expect(md).toContain('com.webappypie.filezen');
+      expect(md).toContain('com.webappypie.filezen.ios');
 
-      // Secret Masking & Security Requirements: Never expose raw full secret
-      expect(md).toContain('wap_key_••••••••');
-      expect(md).toContain('Masked for security — copy full key in WAPCentral Dashboard');
-      expect(md).not.toContain('wap_key_filezen_prod\n');
+      // Unmasked Credentials: Full key provided for AI development team
+      expect(md).toContain('wap_key_filezen_prod');
+      expect(md).not.toContain('••••••••');
+      expect(md).not.toContain('****');
+      expect(md).not.toContain('[REDACTED]');
+
+      // Firebase Configuration
+      expect(md).toContain('filezen-510822');
+      expect(md).toContain('1:424198485420:android:c10d373ee2d29d76dd3609');
+      expect(md).toContain('1:424198485420:ios:c6c5a8a214ff4ecadd3609');
+      expect(md).toContain('424198485420');
 
       // Enabled SDKs in Table
       expect(md).toContain('wap_core_sdk');
@@ -249,10 +256,19 @@ describe('App-Specific Integration Guide Generator', () => {
       expect(md).toContain('OptiLens AI');
       expect(md).toContain('optilens');
       expect(md).toContain('com.webappypie.optilens');
+      expect(md).toContain('com.webappypie.optilens.ios');
 
-      // Secret Masking
-      expect(md).toContain('wap_key_••••••••');
-      expect(md).toContain('Masked for security');
+      // Unmasked Credentials
+      expect(md).toContain('wap_key_optilens_prod');
+      expect(md).not.toContain('••••••••');
+      expect(md).not.toContain('****');
+      expect(md).not.toContain('[REDACTED]');
+
+      // Firebase Configuration
+      expect(md).toContain('optilens-ai-prod');
+      expect(md).toContain('1:987654321012:android:a1b2c3d4e5f6');
+      expect(md).toContain('1:987654321012:ios:f6e5d4c3b2a1');
+      expect(md).toContain('987654321012');
 
       // Enabled SDKs: OptiLens has Image, AI, Ads, Notifications
       expect(md).toContain('wap_core_sdk');
@@ -276,7 +292,7 @@ describe('App-Specific Integration Guide Generator', () => {
   });
 
   describe('Custom App with Real Firestore IDs & Missing Value Handling', () => {
-    it('correctly handles custom app with real Firebase values, missing placeholders, and masking', async () => {
+    it('correctly handles custom app with real Firebase values, missing placeholders, and unmasked credentials', async () => {
       const db = getFirestoreDb();
       const customAppId = 'app_1791324566055';
       const customApp: App = {
@@ -317,19 +333,19 @@ describe('App-Specific Integration Guide Generator', () => {
       expect(md).toContain('app_1791324566055');
       expect(md).toContain('com.webappypie.filezen.prod');
 
-      // Key must be masked, not exposing raw private secret
-      expect(md).toContain('wap_key_••••••••t123');
-      expect(md).not.toContain('wap_key_filezen_live_secret123\n');
+      // Key must be unmasked, directly usable by the AI dev team
+      expect(md).toContain('wap_key_filezen_live_secret123');
+      expect(md).not.toContain('••••••••');
+      expect(md).not.toContain('****');
+      expect(md).not.toContain('[REDACTED]');
 
       // Real configured Firebase values
       expect(md).toContain('filezen-prod-firebase');
       expect(md).toContain('1:9876543210:android:abc999');
 
-      // Missing Firebase values should strictly show the approved placeholder
-      expect(md).toContain('Configured in Firebase — not stored in WAPCentral');
-
-      // Missing bundleId should show Not configured
+      // Missing values should strictly show Not configured
       expect(md).toContain('Not configured');
+      expect(md).not.toContain('Configured in Firebase — not stored in WAPCentral');
     });
   });
 });

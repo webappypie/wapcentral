@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { ADMOB_OFFICIAL_TEST_IDS } from '@wapcentral/config';
 import type { App, AppModule } from '@wapcentral/types';
 
 /**
@@ -275,11 +276,11 @@ export function buildAdsSection(app: App, isAdsEnabled: boolean): string {
     '- **AppLovin MAX:** AppLovin SDK Key configured in `AndroidManifest.xml` and `Info.plist` (`AppLovinSdkKey`).',
   ];
   if (simple?.networks?.admob) {
-    const admobAppId = simple.networkConfig?.admob?.appId || (env === 'Testing' ? 'ca-app-pub-3940256099942544~3347511713' : 'Not configured');
+    const admobAppId = simple.networkConfig?.admob?.appId || (env === 'Testing' ? ADMOB_OFFICIAL_TEST_IDS.android.appId : 'Not configured');
     prereqs.push(`- **Google AdMob:** Google Mobile Ads App ID (\`${admobAppId}\`) declared in \`AndroidManifest.xml\` and \`Info.plist\` (\`GADApplicationIdentifier\`).`);
   }
   if (simple?.networks?.meta) {
-    prereqs.push('- **Meta Audience Network:** Account verified with `app-ads.txt` and audience placement registered in Meta Business Suite.');
+    prereqs.push('- **Meta Audience Network:** Account verified with `app-ads.txt` and audience placement registered in Meta Monetization Manager.');
   }
   if (simple?.networks?.inmobi) {
     prereqs.push('- **InMobi:** InMobi Account ID and property approved in InMobi console.');
@@ -293,6 +294,72 @@ export function buildAdsSection(app: App, isAdsEnabled: boolean): string {
     env === 'Testing'
       ? '- **Testing Mode is ACTIVE:** Official SDK test ads and sandbox unit IDs are automatically injected by WAPCentral. No dummy banners or simulated placeholders are used.'
       : '- **Production Mode is ACTIVE:** Genuine provider-reported impressions and auction bids are used. Any missing ad units will show `Not configured` and will be cleanly omitted.';
+
+  // Build Official Testing Configuration Table
+  const testTableRows: string[] = [
+    '| Provider | Format | Testing Method / Test Identifier | Testing Status | Official Documentation |',
+    '| :--- | :--- | :--- | :---: | :--- |',
+    '| **AppLovin MAX** | Banner | MAX Test Mode / Mediation Debugger using app MAX Ad Unit ID | `Test mode required` | [AppLovin Test Mode](https://dash.applovin.com/documentation/mediation/test-mode) |',
+    '| **AppLovin MAX** | Native | MAX Test Mode / Mediation Debugger using app MAX Native Ad Unit ID | `Test mode required` | [AppLovin Test Mode](https://dash.applovin.com/documentation/mediation/test-mode) |',
+    '| **AppLovin MAX** | Interstitial | MAX Test Mode / Mediation Debugger using app MAX Interstitial Ad Unit ID | `Test mode required` | [AppLovin Test Mode](https://dash.applovin.com/documentation/mediation/test-mode) |',
+    '| **AppLovin MAX** | Rewarded | MAX Test Mode / Mediation Debugger using app MAX Rewarded Ad Unit ID | `Test mode required` | [AppLovin Test Mode](https://dash.applovin.com/documentation/mediation/test-mode) |',
+    '| **AppLovin MAX** | App Open | MAX Test Mode / Mediation Debugger using app MAX App Open Ad Unit ID | `Test mode required` | [AppLovin Test Mode](https://dash.applovin.com/documentation/mediation/test-mode) |',
+    '| **AppLovin MAX** | Rewarded Interstitial | MAX Test Mode / Mediation Debugger using app MAX Rewarded Interstitial ID | `Test mode required` | [AppLovin Test Mode](https://dash.applovin.com/documentation/mediation/test-mode) |',
+    `| **Google AdMob** | Banner (adaptive) | \`${ADMOB_OFFICIAL_TEST_IDS.android.bannerAdaptive}\` | \`Configured\` | [AdMob Test Ads](https://developers.google.com/admob/android/test-ads#sample_ad_units) |`,
+    `| **Google AdMob** | Banner (fixed) | \`${ADMOB_OFFICIAL_TEST_IDS.android.bannerFixed}\` | \`Configured\` | [AdMob Test Ads](https://developers.google.com/admob/android/test-ads#sample_ad_units) |`,
+    `| **Google AdMob** | Native | \`${ADMOB_OFFICIAL_TEST_IDS.android.native}\` | \`Configured\` | [AdMob Test Ads](https://developers.google.com/admob/android/test-ads#sample_ad_units) |`,
+    `| **Google AdMob** | Interstitial | \`${ADMOB_OFFICIAL_TEST_IDS.android.interstitial}\` | \`Configured\` | [AdMob Test Ads](https://developers.google.com/admob/android/test-ads#sample_ad_units) |`,
+    `| **Google AdMob** | Rewarded | \`${ADMOB_OFFICIAL_TEST_IDS.android.rewarded}\` | \`Configured\` | [AdMob Test Ads](https://developers.google.com/admob/android/test-ads#sample_ad_units) |`,
+    `| **Google AdMob** | App Open | \`${ADMOB_OFFICIAL_TEST_IDS.android.appOpen}\` | \`Configured\` | [AdMob Test Ads](https://developers.google.com/admob/android/test-ads#sample_ad_units) |`,
+    `| **Google AdMob** | Rewarded Interstitial | \`${ADMOB_OFFICIAL_TEST_IDS.android.rewardedInterstitial}\` | \`Configured\` | [AdMob Test Ads](https://developers.google.com/admob/android/test-ads#sample_ad_units) |`,
+    '| **Meta Audience Network** | Banner | Test device registration or prefix `IMG_16_9_APP_INSTALL#...` | `Test mode required` | [Meta Test Ads](https://developers.facebook.com/docs/audience-network/guides/test-ads) |',
+    '| **Meta Audience Network** | Native | Test device registration or prefix `IMG_16_9_APP_INSTALL#...` | `Test mode required` | [Meta Test Ads](https://developers.facebook.com/docs/audience-network/guides/test-ads) |',
+    '| **Meta Audience Network** | Interstitial | Test device registration or prefix `VID_HD_9_16_39S_APP_INSTALL#...` | `Test mode required` | [Meta Test Ads](https://developers.facebook.com/docs/audience-network/guides/test-ads) |',
+    '| **Meta Audience Network** | Rewarded | Test device registration or prefix `VID_HD_9_16_39S_APP_INSTALL#...` | `Test mode required` | [Meta Test Ads](https://developers.facebook.com/docs/audience-network/guides/test-ads) |',
+    '| **Meta Audience Network** | App Open | Format not supported by Meta | `Not supported` | [Meta Docs](https://developers.facebook.com/docs/audience-network) |',
+    '| **Meta Audience Network** | Rewarded Interstitial | Format not supported by Meta | `Not supported` | [Meta Docs](https://developers.facebook.com/docs/audience-network) |',
+    '| **InMobi** | Banner / Native / Interstitial / Rewarded | InMobi Portal Test Mode (Toggle ON in portal for Placement) | `Requires provider setup` | [InMobi Testing Guide](https://support.inmobi.com/monetize/integration-guides/android-sdk/testing-your-integration/) |',
+    '| **Unity Ads** | Banner | Unity Dashboard Test Mode (Testing: ON) / `Banner_Android` | `Test mode required` | [Unity Ads Testing](https://docs.unity.com/ads/en-us/manual/Testing) |',
+    '| **Unity Ads** | Interstitial | Unity Dashboard Test Mode (Testing: ON) / `Interstitial_Android` | `Test mode required` | [Unity Ads Testing](https://docs.unity.com/ads/en-us/manual/Testing) |',
+    '| **Unity Ads** | Rewarded | Unity Dashboard Test Mode (Testing: ON) / `Rewarded_Android` | `Test mode required` | [Unity Ads Testing](https://docs.unity.com/ads/en-us/manual/Testing) |',
+    '| **WebAppyPie Custom Ads** | Banner / Native / Interstitial / Rewarded | Internal house promo fallback creative (`custom_inhouse`) | `Configured` | [WAPCentral Ads](https://central.webappypie.com/ads) |',
+  ];
+
+  // Build Production Configuration Table
+  const prodTableRows: string[] = [
+    '| Demand Source | Ad Format | Configured Production ID | Status |',
+    '| :--- | :--- | :--- | :---: |',
+  ];
+
+  const applovinBanner = simple?.networkConfig?.applovin?.placementIds?.banner || 'Not configured';
+  const applovinNative = simple?.networkConfig?.applovin?.placementIds?.native || 'Not configured';
+  const applovinInterstitial = simple?.networkConfig?.applovin?.placementIds?.interstitial || 'Not configured';
+  const applovinRewarded = simple?.networkConfig?.applovin?.placementIds?.rewarded || 'Not configured';
+  const applovinAppOpen = simple?.networkConfig?.applovin?.placementIds?.app_open || 'Not configured';
+  const applovinRewardedInterstitial = simple?.networkConfig?.applovin?.placementIds?.rewarded_interstitial || 'Not configured';
+
+  prodTableRows.push(`| AppLovin MAX | Banner | \`${applovinBanner}\` | ${applovinBanner !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+  prodTableRows.push(`| AppLovin MAX | Native | \`${applovinNative}\` | ${applovinNative !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+  prodTableRows.push(`| AppLovin MAX | Interstitial | \`${applovinInterstitial}\` | ${applovinInterstitial !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+  prodTableRows.push(`| AppLovin MAX | Rewarded | \`${applovinRewarded}\` | ${applovinRewarded !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+  prodTableRows.push(`| AppLovin MAX | App Open | \`${applovinAppOpen}\` | ${applovinAppOpen !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+  prodTableRows.push(`| AppLovin MAX | Rewarded Interstitial | \`${applovinRewardedInterstitial}\` | ${applovinRewardedInterstitial !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+
+  if (simple?.networks?.admob) {
+    const admobBanner = simple.networkConfig?.admob?.bannerId || 'Not configured';
+    const admobNative = simple.networkConfig?.admob?.nativeId || 'Not configured';
+    const admobInterstitial = simple.networkConfig?.admob?.interstitialId || 'Not configured';
+    const admobRewarded = simple.networkConfig?.admob?.rewardedId || 'Not configured';
+    const admobAppOpen = simple.networkConfig?.admob?.appOpenId || 'Not configured';
+    const admobRewardedInterstitial = simple.networkConfig?.admob?.rewardedInterstitialId || 'Not configured';
+
+    prodTableRows.push(`| Google AdMob | Banner | \`${admobBanner}\` | ${admobBanner !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+    prodTableRows.push(`| Google AdMob | Native | \`${admobNative}\` | ${admobNative !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+    prodTableRows.push(`| Google AdMob | Interstitial | \`${admobInterstitial}\` | ${admobInterstitial !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+    prodTableRows.push(`| Google AdMob | Rewarded | \`${admobRewarded}\` | ${admobRewarded !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+    prodTableRows.push(`| Google AdMob | App Open | \`${admobAppOpen}\` | ${admobAppOpen !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+    prodTableRows.push(`| Google AdMob | Rewarded Interstitial | \`${admobRewardedInterstitial}\` | ${admobRewardedInterstitial !== 'Not configured' ? '`Configured`' : '`Not configured`'} |`);
+  }
 
   return [
     '## 8. Ads — Controlled by WAPCentral',
@@ -314,7 +381,23 @@ export function buildAdsSection(app: App, isAdsEnabled: boolean): string {
     '### Provider Prerequisites & Configuration:',
     prereqs.join('\n'),
     '',
-    '### Testing & Release Verification:',
+    '### Official Testing Configuration Catalog:',
+    'Use the official testing methods and verified sample identifiers below during integration. AppLovin MAX uses the same MAX Ad Unit IDs for testing and production, and test ads are enabled via AppLovin MAX Test Mode or Mediation Debugger (`AppLovinMAX.showMediationDebugger()`). Standalone Google AdMob sample IDs are for verifying direct GMA SDK integrations.',
+    '',
+    testTableRows.join('\n'),
+    '',
+    '### App-Specific Production Identifiers for ' + app.name + ':',
+    prodTableRows.join('\n'),
+    '',
+    '> ⚠️ **Missing Production Configuration Warning**: Formats marked `Not configured` will not serve third-party ads in Production mode. Missing demand sources are safely skipped without crashing the app. Custom Ads provide automatic high-fill fallback.',
+    '',
+    '### Instructions for Safely Switching to Production:',
+    '1. **Verify Test Ads in Testing Mode:** Ensure all enabled ad formats load test creatives successfully on physical test devices using AppLovin MAX Test Mode / Mediation Debugger (`AppLovinMAX.showMediationDebugger()`).',
+    '2. **Obtain Production Ad Unit IDs:** Generate production ad-unit IDs in the AppLovin MAX Dashboard and partner consoles (Google AdMob, Meta, InMobi, Unity).',
+    '3. **Update WAPCentral Dashboard:** Navigate to **Applications → ' + app.name + ' → Ads**, populate the production IDs, and switch the Environment toggle to **Production Mode**.',
+    '4. **Zero Code Changes Required:** `wap_ads_sdk` dynamically fetches updated configuration from `/api/platform/v1/ads/config` on next app launch. No app recompilation or store update is required to switch environments.',
+    '',
+    '### Testing & Release Verification Rules:',
     verificationText,
     '- **Testing Configuration is Controlled Centrally:** Testing configuration is controlled centrally by WAPCentral. The mobile app must not hardcode fake production IDs.',
     '- **Dynamic Config Fetch:** `wap_ads_sdk` fetches the effective configuration from `/api/platform/v1/ads/config`.',

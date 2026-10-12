@@ -486,6 +486,16 @@ describe('Ads & Monetization Control Center (admin-api & platform)', () => {
             unity: true,
             wapCustomAds: true,
           },
+          networkConfig: {
+            applovin: {
+              sdkKey: 'applovin_sdk_key_filezen',
+              placementIds: { banner: 'max_banner_filezen_001' },
+            },
+            inmobi: {
+              accountId: 'inmobi_account_filezen',
+              placementIds: { banner: '1612345678901' },
+            },
+          },
         },
       });
 
@@ -503,18 +513,20 @@ describe('Ads & Monetization Control Center (admin-api & platform)', () => {
       expect(netIds).toContain('unity');
       expect(netIds).toContain('custom_ads');
 
-      // Verify official test unit IDs
+      // Verify official test unit IDs & verified mechanisms
       const admobTier = bannerChain.find((c) => c.networkId === 'admob');
-      expect(admobTier?.adUnitId).toBe('ca-app-pub-3940256099942544/6300978111');
+      expect(admobTier?.adUnitId).toBe('ca-app-pub-3940256099942544/9214589741'); // Verified official adaptive banner test ID
 
+      // AppLovin MAX uses the real configured MAX Ad Unit ID (never fabricated strings)
       const applovinTier = bannerChain.find((c) => c.networkId === 'applovin');
-      expect(applovinTier?.adUnitId).toBe('applovin_max_test_banner');
+      expect(applovinTier?.adUnitId).toBe('max_banner_filezen_001');
 
       const metaTier = bannerChain.find((c) => c.networkId === 'meta');
       expect(metaTier?.adUnitId).toBe('IMG_16_9_APP_INSTALL#YOUR_PLACEMENT_ID');
 
+      // InMobi uses genuine placement ID with portal Test Mode (never fabricated strings)
       const inmobiTier = bannerChain.find((c) => c.networkId === 'inmobi');
-      expect(inmobiTier?.adUnitId).toBe('inmobi_test_banner_1478192');
+      expect(inmobiTier?.adUnitId).toBe('1612345678901');
 
       const unityTier = bannerChain.find((c) => c.networkId === 'unity');
       expect(unityTier?.adUnitId).toBe('Banner_Android');
@@ -598,6 +610,12 @@ describe('Ads & Monetization Control Center (admin-api & platform)', () => {
             inmobi: true, // Remotely enabled, but adapter missing!
             unity: false,
             wapCustomAds: true,
+          },
+          networkConfig: {
+            applovin: {
+              sdkKey: 'applovin_key_bundle_test',
+              placementIds: { banner: 'max_banner_bundle_test' },
+            },
           },
         },
       });
@@ -737,6 +755,56 @@ describe('Ads & Monetization Control Center (admin-api & platform)', () => {
       );
       expect(networkLogs.length).toBeGreaterThanOrEqual(1);
       expect(networkLogs[0].metadata.module).toBe('ads');
+    });
+  });
+
+  // ============================================================
+  // 10. Official Ad Testing Catalog Endpoint
+  // ============================================================
+  describe('Official Ad Testing Catalog (/v1/ads/test-catalog)', () => {
+    it('returns official testing catalog with verified AdMob sample IDs and AppLovin MAX test mechanisms', async () => {
+      const res = await request(app)
+        .get('/v1/ads/test-catalog')
+        .set('Authorization', SUPER_ADMIN_AUTH);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.catalog).toBeDefined();
+      expect(Array.isArray(res.body.data.catalog)).toBe(true);
+
+      const catalog = res.body.data.catalog;
+      // Check AdMob entries
+      const admobBanner = catalog.find(
+        (e: any) => e.providerId === 'admob' && e.formatKey === 'banner_adaptive',
+      );
+      expect(admobBanner).toBeDefined();
+      expect(admobBanner.androidSampleId).toBe('ca-app-pub-3940256099942544/9214589741');
+      expect(admobBanner.iosSampleId).toBe('ca-app-pub-3940256099942544/2435281174');
+      expect(admobBanner.defaultStatus).toBe('configured');
+      expect(admobBanner.isUniversalId).toBe(true);
+
+      // Check AppLovin MAX entries
+      const maxBanner = catalog.find(
+        (e: any) => e.providerId === 'applovin' && e.formatKey === 'banner_adaptive',
+      );
+      expect(maxBanner).toBeDefined();
+      expect(maxBanner.testingMethod).toContain('Mediation Debugger');
+      expect(maxBanner.androidSampleId).toBeUndefined(); // No fake universal IDs
+      expect(maxBanner.defaultStatus).toBe('test_mode_required');
+      expect(maxBanner.isUniversalId).toBe(false);
+
+      // Check Meta unsupported formats
+      const metaAppOpen = catalog.find(
+        (e: any) => e.providerId === 'meta' && e.formatKey === 'app_open',
+      );
+      expect(metaAppOpen.defaultStatus).toBe('not_supported');
+
+      // Check InMobi requirements
+      const inmobiBanner = catalog.find(
+        (e: any) => e.providerId === 'inmobi' && e.formatKey === 'banner_adaptive',
+      );
+      expect(inmobiBanner.defaultStatus).toBe('requires_provider_setup');
+      expect(inmobiBanner.androidSampleId).toBeUndefined(); // No fake universal IDs
     });
   });
 });

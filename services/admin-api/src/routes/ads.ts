@@ -55,6 +55,7 @@ import {
   getAdKillSwitches,
   updateAdKillSwitches,
   resolveEffectiveAdConfig,
+  getOfficialAdTestCatalog,
 } from '../services/adConfigService.js';
 
 export const adsRouter: Router = Router();
@@ -791,7 +792,25 @@ adsRouter.get(
 );
 
 // ============================================================
-// 12. Ads Audit Logs
+// 12. Official Ad Testing Catalog
+// ============================================================
+adsRouter.get(
+  '/test-catalog',
+  requireRole('viewer'),
+  async (_req: AuthenticatedRequest, res: Response) => {
+    const catalog = getOfficialAdTestCatalog();
+    res.json({
+      success: true,
+      data: {
+        catalog,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  },
+);
+
+// ============================================================
+// 13. Ads Audit Logs
 // ============================================================
 adsRouter.get(
   '/audit-logs',

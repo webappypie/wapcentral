@@ -299,4 +299,5 @@ export const HEALTH_MONITORING = {
 // Release Metadata & Version
 // ============================================================
 export * from './version.js';
+export * from './adTestCatalog.js';
 

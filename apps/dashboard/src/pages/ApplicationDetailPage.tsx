@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   PageHeader,
@@ -40,7 +40,15 @@ import {
   FileText,
   Loader2,
   X,
+  ExternalLink,
+  HelpCircle,
 } from 'lucide-react';
+import {
+  OFFICIAL_AD_TEST_CATALOG,
+  ADMOB_OFFICIAL_TEST_IDS,
+  type AdTestCatalogEntry,
+  type AdCatalogStatus,
+} from '@wapcentral/config';
 import { useAuth } from '../contexts/AuthContext.js';
 import type {
   App,
@@ -231,6 +239,7 @@ export const ApplicationDetailPage: React.FC = () => {
   const [applovinNativeId, setApplovinNativeId] = useState('');
   const [applovinInterstitialId, setApplovinInterstitialId] = useState('');
   const [applovinRewardedId, setApplovinRewardedId] = useState('');
+  const [applovinAppOpenId, setApplovinAppOpenId] = useState('');
   const [applovinRewardedInterstitialId, setApplovinRewardedInterstitialId] = useState('');
 
   // InMobi Production IDs
@@ -245,6 +254,11 @@ export const ApplicationDetailPage: React.FC = () => {
   const [unityBannerId, setUnityBannerId] = useState('');
   const [unityInterstitialId, setUnityInterstitialId] = useState('');
   const [unityRewardedId, setUnityRewardedId] = useState('');
+
+  // Ad Testing Catalog State
+  const [testPlatform, setTestPlatform] = useState<'android' | 'ios'>('android');
+  const [copiedTestId, setCopiedTestId] = useState<string | null>(null);
+  const [activeTestGuideModal, setActiveTestGuideModal] = useState<AdTestCatalogEntry | null>(null);
 
   const [isSavingAds, setIsSavingAds] = useState(false);
 
@@ -291,6 +305,7 @@ export const ApplicationDetailPage: React.FC = () => {
         setGenStoreUrlAndroid(loadedApp.storeUrl?.android || '');
         setGenStoreUrlIos(loadedApp.storeUrl?.ios || '');
         setGenModules(loadedApp.enabledModules || []);
+        setTestPlatform(loadedApp.platform === 'ios' ? 'ios' : 'android');
 
         // Populate Ads State from simpleAdsConfig
         const adsCfg = loadedApp.simpleAdsConfig;
@@ -344,6 +359,7 @@ export const ApplicationDetailPage: React.FC = () => {
             setApplovinNativeId(netCfg.applovin?.placementIds?.['native'] || '');
             setApplovinInterstitialId(netCfg.applovin?.placementIds?.['interstitial'] || '');
             setApplovinRewardedId(netCfg.applovin?.placementIds?.['rewarded'] || '');
+            setApplovinAppOpenId(netCfg.applovin?.placementIds?.['app_open'] || '');
             setApplovinRewardedInterstitialId(netCfg.applovin?.placementIds?.['rewarded_interstitial'] || '');
 
             setInmobiAccountId(netCfg.inmobi?.accountId || '');
@@ -501,6 +517,81 @@ export const ApplicationDetailPage: React.FC = () => {
     });
   };
 
+  const handleCopyTestId = (idText: string) => {
+    navigator.clipboard.writeText(idText);
+    setCopiedTestId(idText);
+    setTimeout(() => {
+      setCopiedTestId(null);
+    }, 2000);
+  };
+
+  const getCatalogRowStatus = (entry: AdTestCatalogEntry): AdCatalogStatus => {
+    if (entry.defaultStatus === 'not_supported') return 'not_supported';
+
+    if (entry.providerId === 'applovin') {
+      const hasPlacement =
+        (entry.formatKey === 'banner_adaptive' && Boolean(applovinBannerId)) ||
+        (entry.formatKey === 'banner_fixed' && Boolean(applovinBannerId)) ||
+        (entry.formatKey === 'native' && Boolean(applovinNativeId)) ||
+        (entry.formatKey === 'interstitial' && Boolean(applovinInterstitialId)) ||
+        (entry.formatKey === 'rewarded' && Boolean(applovinRewardedId)) ||
+        (entry.formatKey === 'app_open' && Boolean(applovinAppOpenId)) ||
+        (entry.formatKey === 'rewarded_interstitial' && Boolean(applovinRewardedInterstitialId));
+
+      return hasPlacement ? 'test_mode_required' : 'requires_provider_setup';
+    }
+
+    if (entry.providerId === 'admob') {
+      return 'configured';
+    }
+
+    if (entry.providerId === 'meta') {
+      return 'test_mode_required';
+    }
+
+    if (entry.providerId === 'inmobi') {
+      const hasPlacement =
+        (entry.formatKey === 'banner_adaptive' && Boolean(inmobiBannerId)) ||
+        (entry.formatKey === 'banner_fixed' && Boolean(inmobiBannerId)) ||
+        (entry.formatKey === 'native' && Boolean(inmobiNativeId)) ||
+        (entry.formatKey === 'interstitial' && Boolean(inmobiInterstitialId)) ||
+        (entry.formatKey === 'rewarded' && Boolean(inmobiRewardedId));
+
+      return hasPlacement ? 'test_mode_required' : 'requires_provider_setup';
+    }
+
+    if (entry.providerId === 'unity') {
+      return 'test_mode_required';
+    }
+
+    if (entry.providerId === 'custom_ads') {
+      return 'configured';
+    }
+
+    return entry.defaultStatus;
+  };
+
+  const filteredCatalogEntries = useMemo(() => {
+    return OFFICIAL_AD_TEST_CATALOG.filter((entry) => {
+      // 1. If single demand source is selected:
+      if (adStrategy === 'single_source') {
+        if (entry.providerId === 'applovin') return true;
+        if (entry.providerId === singleSourceNetwork) return true;
+        return false;
+      }
+
+      // 2. Automatic Mediation:
+      if (entry.providerId === 'applovin') return true;
+      if (entry.providerId === 'admob' && netAdmob) return true;
+      if (entry.providerId === 'meta' && netMeta) return true;
+      if (entry.providerId === 'inmobi' && netInmobi) return true;
+      if (entry.providerId === 'unity' && netUnity) return true;
+      if (entry.providerId === 'custom_ads' && netCustomAds) return true;
+
+      return false;
+    });
+  }, [adStrategy, singleSourceNetwork, netAdmob, netMeta, netInmobi, netUnity, netCustomAds]);
+
   const handleSaveAds = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!app) return;
@@ -561,6 +652,7 @@ export const ApplicationDetailPage: React.FC = () => {
             ...(applovinNativeId.trim() ? { native: applovinNativeId.trim() } : {}),
             ...(applovinInterstitialId.trim() ? { interstitial: applovinInterstitialId.trim() } : {}),
             ...(applovinRewardedId.trim() ? { rewarded: applovinRewardedId.trim() } : {}),
+            ...(applovinAppOpenId.trim() ? { app_open: applovinAppOpenId.trim() } : {}),
             ...(applovinRewardedInterstitialId.trim() ? { rewarded_interstitial: applovinRewardedInterstitialId.trim() } : {}),
           },
         },
@@ -1417,6 +1509,216 @@ export const ApplicationDetailPage: React.FC = () => {
             </div>
           )}
 
+          {/* CENTRAL TESTING MODE: OFFICIAL AD TESTING CONFIGURATION */}
+          {adsEnvironment === 'testing' && (
+            <Card className="border-amber-300 dark:border-amber-900 bg-gradient-to-b from-amber-50/50 via-white to-white dark:from-amber-950/20 dark:via-slate-900 dark:to-slate-900 shadow-sm">
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-amber-200 dark:border-amber-900/60 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse" />
+                    <CardTitle className="text-sm font-bold text-slate-900 dark:text-white">
+                      Official Ad Testing Configuration (Central Testing Mode)
+                    </CardTitle>
+                    <Badge variant="outline" className="border-amber-400 bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[10px]">
+                      Mediation: AppLovin MAX
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    AppLovin MAX is our selected mediation engine. Verified official test IDs and testing mechanisms for every supported format are listed below. Test ads must be verified on a physical device using official provider testing tools.
+                  </p>
+                </div>
+
+                {/* Target Platform Switcher */}
+                <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">Target Platform:</span>
+                  <div className="flex rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-0.5 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setTestPlatform('android')}
+                      className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
+                        testPlatform === 'android'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                      }`}
+                    >
+                      Android
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTestPlatform('ios')}
+                      className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
+                        testPlatform === 'ios'
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                      }`}
+                    >
+                      iOS
+                    </button>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/60 text-slate-600 dark:text-slate-400 font-semibold">
+                        <th className="py-2.5 px-3">Provider</th>
+                        <th className="py-2.5 px-3">Format</th>
+                        <th className="py-2.5 px-3">Testing Method / Test ID</th>
+                        <th className="py-2.5 px-3 text-center">Status</th>
+                        <th className="py-2.5 px-3 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {filteredCatalogEntries.map((entry, idx) => {
+                        const status = getCatalogRowStatus(entry);
+                        const sampleId = testPlatform === 'ios' ? entry.iosSampleId : entry.androidSampleId;
+
+                        return (
+                          <tr key={`${entry.providerId}-${entry.formatKey}-${idx}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
+                            {/* Provider */}
+                            <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-white whitespace-nowrap">
+                              <div className="flex items-center gap-2">
+                                <span className={`h-2 w-2 rounded-full ${
+                                  entry.providerId === 'applovin' ? 'bg-red-500' :
+                                  entry.providerId === 'admob' ? 'bg-blue-500' :
+                                  entry.providerId === 'meta' ? 'bg-blue-600' :
+                                  entry.providerId === 'inmobi' ? 'bg-emerald-600' :
+                                  entry.providerId === 'unity' ? 'bg-slate-900 dark:bg-slate-100' : 'bg-emerald-500'
+                                }`} />
+                                <span>{entry.providerName}</span>
+                              </div>
+                            </td>
+
+                            {/* Format */}
+                            <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300 font-medium whitespace-nowrap">
+                              {entry.formatLabel}
+                            </td>
+
+                            {/* Testing Method / Test ID */}
+                            <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">
+                              <div className="space-y-1 max-w-md">
+                                <div className="text-[11px] leading-tight">
+                                  {entry.providerId === 'applovin' ? (
+                                    <span>
+                                      MAX Test Mode / Mediation Debugger (<code>AppLovinMAX.showMediationDebugger()</code>) using app MAX Ad Unit ID:
+                                      {entry.formatKey === 'banner_adaptive' && (applovinBannerId ? <code className="ml-1 px-1 py-0.5 bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded">{applovinBannerId}</code> : <span className="ml-1 text-slate-400 italic">(Not configured)</span>)}
+                                      {entry.formatKey === 'native' && (applovinNativeId ? <code className="ml-1 px-1 py-0.5 bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded">{applovinNativeId}</code> : <span className="ml-1 text-slate-400 italic">(Not configured)</span>)}
+                                      {entry.formatKey === 'interstitial' && (applovinInterstitialId ? <code className="ml-1 px-1 py-0.5 bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded">{applovinInterstitialId}</code> : <span className="ml-1 text-slate-400 italic">(Not configured)</span>)}
+                                      {entry.formatKey === 'rewarded' && (applovinRewardedId ? <code className="ml-1 px-1 py-0.5 bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded">{applovinRewardedId}</code> : <span className="ml-1 text-slate-400 italic">(Not configured)</span>)}
+                                      {entry.formatKey === 'app_open' && (applovinAppOpenId ? <code className="ml-1 px-1 py-0.5 bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded">{applovinAppOpenId}</code> : <span className="ml-1 text-slate-400 italic">(Not configured)</span>)}
+                                      {entry.formatKey === 'rewarded_interstitial' && (applovinRewardedInterstitialId ? <code className="ml-1 px-1 py-0.5 bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 rounded">{applovinRewardedInterstitialId}</code> : <span className="ml-1 text-slate-400 italic">(Not configured)</span>)}
+                                    </span>
+                                  ) : (
+                                    <span>{entry.testingMethod}</span>
+                                  )}
+                                </div>
+
+                                {sampleId && (
+                                  <div className="flex items-center gap-1.5 pt-0.5">
+                                    <code className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                                      {sampleId}
+                                    </code>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyTestId(sampleId)}
+                                      className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+                                      title="Copy test ID"
+                                    >
+                                      {copiedTestId === sampleId ? (
+                                        <Check className="h-3 w-3 text-emerald-600" />
+                                      ) : (
+                                        <Copy className="h-3 w-3" />
+                                      )}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Status */}
+                            <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                              {status === 'configured' && (
+                                <Badge variant="default" className="bg-emerald-600 text-white text-[10px] font-semibold">
+                                  Configured
+                                </Badge>
+                              )}
+                              {status === 'test_mode_required' && (
+                                <Badge variant="outline" className="border-amber-400 bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-700 text-[10px] font-semibold">
+                                  Test mode required
+                                </Badge>
+                              )}
+                              {status === 'requires_provider_setup' && (
+                                <Badge variant="outline" className="border-indigo-400 bg-indigo-50 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-700 text-[10px] font-semibold">
+                                  Requires provider setup
+                                </Badge>
+                              )}
+                              {status === 'not_supported' && (
+                                <Badge variant="secondary" className="bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400 text-[10px]">
+                                  Not supported
+                                </Badge>
+                              )}
+                            </td>
+
+                            {/* Action */}
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {sampleId ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyTestId(sampleId)}
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-300 dark:border-slate-700 text-[11px] font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    title="Copy official test ID"
+                                  >
+                                    {copiedTestId === sampleId ? (
+                                      <>
+                                        <Check className="h-3 w-3 text-emerald-600" />
+                                        <span className="text-emerald-600 font-bold">Copied</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="h-3 w-3 text-slate-500" />
+                                        <span>Copy ID</span>
+                                      </>
+                                    )}
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 italic px-1">No test ID</span>
+                                )}
+
+                                <a
+                                  href={entry.documentationUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded border border-slate-300 dark:border-slate-700 text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
+                                  title="View official documentation"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  <span>Docs</span>
+                                </a>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveTestGuideModal(entry)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded border border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/40 text-[11px] font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors"
+                                  title="View testing instructions & code snippet"
+                                >
+                                  <HelpCircle className="h-3 w-3" />
+                                  <span>Test Config</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* 1. AD STRATEGY SELECTOR */}
           <Card>
             <CardHeader title="1. Ad Strategy" />
@@ -1595,80 +1897,90 @@ export const ApplicationDetailPage: React.FC = () => {
                 </label>
               </CardHeader>
               <CardContent className="space-y-3">
-                {adsEnvironment === 'testing' ? (
-                  <div className="rounded bg-slate-100 dark:bg-slate-800 p-2.5 text-xs text-slate-600 dark:text-slate-300 font-mono">
-                    ✓ AppLovin MAX Test Mode Active (Official test mediation bids enabled)
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        AppLovin SDK Key / App ID *
-                      </label>
-                      <input
-                        type="text"
-                        value={applovinAppId}
-                        onChange={(e) => setApplovinAppId(e.target.value)}
-                        placeholder="applovin_sdk_key_..."
-                        className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-mono bg-white dark:bg-slate-900"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Banner Ad Unit ID</label>
-                        <input
-                          type="text"
-                          value={applovinBannerId}
-                          onChange={(e) => setApplovinBannerId(e.target.value)}
-                          placeholder="ad_unit_banner"
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Native Ad Unit ID</label>
-                        <input
-                          type="text"
-                          value={applovinNativeId}
-                          onChange={(e) => setApplovinNativeId(e.target.value)}
-                          placeholder="ad_unit_native"
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Interstitial Ad Unit ID</label>
-                        <input
-                          type="text"
-                          value={applovinInterstitialId}
-                          onChange={(e) => setApplovinInterstitialId(e.target.value)}
-                          placeholder="ad_unit_interstitial"
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Rewarded Ad Unit ID</label>
-                        <input
-                          type="text"
-                          value={applovinRewardedId}
-                          onChange={(e) => setApplovinRewardedId(e.target.value)}
-                          placeholder="ad_unit_rewarded"
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Rewarded Interstitial ID</label>
-                        <input
-                          type="text"
-                          value={applovinRewardedInterstitialId}
-                          onChange={(e) => setApplovinRewardedInterstitialId(e.target.value)}
-                          placeholder="ad_unit_rewarded_interstitial"
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                    </div>
+                {adsEnvironment === 'testing' && (
+                  <div className="rounded-lg bg-amber-50/80 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-900 p-2.5 text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between">
+                    <span>✓ <strong>MAX Test Mode Active</strong>: Injected with official MAX test bids. Enter your app MAX Ad Unit IDs below to test with test devices / Mediation Debugger.</span>
+                    <Badge variant="outline" className="border-amber-400 text-amber-700 dark:text-amber-300 text-[10px]">Test Device Mode</Badge>
                   </div>
                 )}
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      AppLovin SDK Key / App ID *
+                    </label>
+                    <input
+                      type="text"
+                      value={applovinAppId}
+                      onChange={(e) => setApplovinAppId(e.target.value)}
+                      placeholder="applovin_sdk_key_..."
+                      className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-mono bg-white dark:bg-slate-900"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Banner Ad Unit ID</label>
+                      <input
+                        type="text"
+                        value={applovinBannerId}
+                        onChange={(e) => setApplovinBannerId(e.target.value)}
+                        placeholder="ad_unit_banner"
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Native Ad Unit ID</label>
+                      <input
+                        type="text"
+                        value={applovinNativeId}
+                        onChange={(e) => setApplovinNativeId(e.target.value)}
+                        placeholder="ad_unit_native"
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Interstitial Ad Unit ID</label>
+                      <input
+                        type="text"
+                        value={applovinInterstitialId}
+                        onChange={(e) => setApplovinInterstitialId(e.target.value)}
+                        placeholder="ad_unit_interstitial"
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Rewarded Ad Unit ID</label>
+                      <input
+                        type="text"
+                        value={applovinRewardedId}
+                        onChange={(e) => setApplovinRewardedId(e.target.value)}
+                        placeholder="ad_unit_rewarded"
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">App Open Ad Unit ID</label>
+                      <input
+                        type="text"
+                        value={applovinAppOpenId}
+                        onChange={(e) => setApplovinAppOpenId(e.target.value)}
+                        placeholder="ad_unit_app_open"
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Rewarded Interstitial ID</label>
+                      <input
+                        type="text"
+                        value={applovinRewardedInterstitialId}
+                        onChange={(e) => setApplovinRewardedInterstitialId(e.target.value)}
+                        placeholder="ad_unit_rewarded_interstitial"
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -1702,90 +2014,90 @@ export const ApplicationDetailPage: React.FC = () => {
                 </label>
               </CardHeader>
               <CardContent className="space-y-3">
-                {adsEnvironment === 'testing' ? (
-                  <div className="rounded bg-slate-100 dark:bg-slate-800 p-2.5 text-xs text-slate-600 dark:text-slate-300 font-mono">
-                    ✓ Official AdMob Test Mode Active (Android Test App ID: ca-app-pub-3940256099942544~3347511713)
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        AdMob Production App ID *
-                      </label>
-                      <input
-                        type="text"
-                        value={admobAppId}
-                        onChange={(e) => setAdmobAppId(e.target.value)}
-                        placeholder="ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX"
-                        className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-mono bg-white dark:bg-slate-900"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Banner Ad Unit ID</label>
-                        <input
-                          type="text"
-                          value={admobBannerId}
-                          onChange={(e) => setAdmobBannerId(e.target.value)}
-                          placeholder="ca-app-pub-.../..."
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Native Ad Unit ID</label>
-                        <input
-                          type="text"
-                          value={admobNativeId}
-                          onChange={(e) => setAdmobNativeId(e.target.value)}
-                          placeholder="ca-app-pub-.../..."
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Interstitial Ad Unit ID</label>
-                        <input
-                          type="text"
-                          value={admobInterstitialId}
-                          onChange={(e) => setAdmobInterstitialId(e.target.value)}
-                          placeholder="ca-app-pub-.../..."
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Rewarded Ad Unit ID</label>
-                        <input
-                          type="text"
-                          value={admobRewardedId}
-                          onChange={(e) => setAdmobRewardedId(e.target.value)}
-                          placeholder="ca-app-pub-.../..."
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">App Open Ad Unit ID</label>
-                        <input
-                          type="text"
-                          value={admobAppOpenId}
-                          onChange={(e) => setAdmobAppOpenId(e.target.value)}
-                          placeholder="ca-app-pub-.../..."
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Rewarded Interstitial ID</label>
-                        <input
-                          type="text"
-                          value={admobRewardedInterstitialId}
-                          onChange={(e) => setAdmobRewardedInterstitialId(e.target.value)}
-                          placeholder="ca-app-pub-.../..."
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                    </div>
+                {adsEnvironment === 'testing' && (
+                  <div className="rounded-lg bg-amber-50/80 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-900 p-2.5 text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between">
+                    <span>✓ <strong>Official AdMob Test Mode Active</strong>: Automatically serving verified Google sample ad units ({testPlatform === 'ios' ? ADMOB_OFFICIAL_TEST_IDS.ios.appId : ADMOB_OFFICIAL_TEST_IDS.android.appId}) without manually looking up test IDs.</span>
+                    <Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-300 text-[10px]">Sample IDs Active</Badge>
                   </div>
                 )}
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      AdMob Production App ID *
+                    </label>
+                    <input
+                      type="text"
+                      value={admobAppId}
+                      onChange={(e) => setAdmobAppId(e.target.value)}
+                      placeholder="ca-app-pub-XXXXXXXXXXXXXXXX~XXXXXXXXXX"
+                      className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-mono bg-white dark:bg-slate-900"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Banner Ad Unit ID</label>
+                      <input
+                        type="text"
+                        value={admobBannerId}
+                        onChange={(e) => setAdmobBannerId(e.target.value)}
+                        placeholder="ca-app-pub-.../..."
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Native Ad Unit ID</label>
+                      <input
+                        type="text"
+                        value={admobNativeId}
+                        onChange={(e) => setAdmobNativeId(e.target.value)}
+                        placeholder="ca-app-pub-.../..."
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Interstitial Ad Unit ID</label>
+                      <input
+                        type="text"
+                        value={admobInterstitialId}
+                        onChange={(e) => setAdmobInterstitialId(e.target.value)}
+                        placeholder="ca-app-pub-.../..."
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Rewarded Ad Unit ID</label>
+                      <input
+                        type="text"
+                        value={admobRewardedId}
+                        onChange={(e) => setAdmobRewardedId(e.target.value)}
+                        placeholder="ca-app-pub-.../..."
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">App Open Ad Unit ID</label>
+                      <input
+                        type="text"
+                        value={admobAppOpenId}
+                        onChange={(e) => setAdmobAppOpenId(e.target.value)}
+                        placeholder="ca-app-pub-.../..."
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Rewarded Interstitial ID</label>
+                      <input
+                        type="text"
+                        value={admobRewardedInterstitialId}
+                        onChange={(e) => setAdmobRewardedInterstitialId(e.target.value)}
+                        placeholder="ca-app-pub-.../..."
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -1818,55 +2130,55 @@ export const ApplicationDetailPage: React.FC = () => {
                   </span>
                 </label>
               </CardHeader>
-              <CardContent>
-                {adsEnvironment === 'testing' ? (
-                  <div className="rounded bg-slate-100 dark:bg-slate-800 p-2.5 text-xs text-slate-600 dark:text-slate-300 font-mono">
-                    ✓ Meta Test Mode Active (SDK test bids enabled via MAX adapter)
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    <div>
-                      <label className="block text-[11px] text-slate-500 mb-1">Banner Placement ID</label>
-                      <input
-                        type="text"
-                        value={metaBannerId}
-                        onChange={(e) => setMetaBannerId(e.target.value)}
-                        placeholder="IMG_16_9_APP_INSTALL#..."
-                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-500 mb-1">Native Placement ID</label>
-                      <input
-                        type="text"
-                        value={metaNativeId}
-                        onChange={(e) => setMetaNativeId(e.target.value)}
-                        placeholder="IMG_16_9_APP_INSTALL#..."
-                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-500 mb-1">Interstitial Placement ID</label>
-                      <input
-                        type="text"
-                        value={metaInterstitialId}
-                        onChange={(e) => setMetaInterstitialId(e.target.value)}
-                        placeholder="VID_HD_9_16_39S_APP_INSTALL#..."
-                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-500 mb-1">Rewarded Placement ID</label>
-                      <input
-                        type="text"
-                        value={metaRewardedId}
-                        onChange={(e) => setMetaRewardedId(e.target.value)}
-                        placeholder="VID_HD_9_16_39S_APP_INSTALL#..."
-                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                      />
-                    </div>
+              <CardContent className="space-y-3">
+                {adsEnvironment === 'testing' && (
+                  <div className="rounded-lg bg-amber-50/80 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-900 p-2.5 text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between">
+                    <span>✓ <strong>Meta Audience Network Testing</strong>: Mediated through AppLovin MAX. Test ads require adding device test hash in Meta Monetization Manager or enabling Test Mode. Enter production Placement IDs below.</span>
+                    <Badge variant="outline" className="border-indigo-400 text-indigo-700 dark:text-indigo-300 text-[10px]">MAX Mediated</Badge>
                   </div>
                 )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[11px] text-slate-500 mb-1">Banner Placement ID</label>
+                    <input
+                      type="text"
+                      value={metaBannerId}
+                      onChange={(e) => setMetaBannerId(e.target.value)}
+                      placeholder="IMG_16_9_APP_INSTALL#..."
+                      className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-500 mb-1">Native Placement ID</label>
+                    <input
+                      type="text"
+                      value={metaNativeId}
+                      onChange={(e) => setMetaNativeId(e.target.value)}
+                      placeholder="IMG_16_9_APP_INSTALL#..."
+                      className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-500 mb-1">Interstitial Placement ID</label>
+                    <input
+                      type="text"
+                      value={metaInterstitialId}
+                      onChange={(e) => setMetaInterstitialId(e.target.value)}
+                      placeholder="VID_HD_9_16_39S_APP_INSTALL#..."
+                      className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-slate-500 mb-1">Rewarded Placement ID</label>
+                    <input
+                      type="text"
+                      value={metaRewardedId}
+                      onChange={(e) => setMetaRewardedId(e.target.value)}
+                      placeholder="VID_HD_9_16_39S_APP_INSTALL#..."
+                      className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                    />
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -1900,68 +2212,68 @@ export const ApplicationDetailPage: React.FC = () => {
                 </label>
               </CardHeader>
               <CardContent className="space-y-3">
-                {adsEnvironment === 'testing' ? (
-                  <div className="rounded bg-slate-100 dark:bg-slate-800 p-2.5 text-xs text-slate-600 dark:text-slate-300 font-mono">
-                    ✓ InMobi Test Mode Active (Account ID: inmobi_test_account_001)
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        InMobi Account ID *
-                      </label>
-                      <input
-                        type="text"
-                        value={inmobiAccountId}
-                        onChange={(e) => setInmobiAccountId(e.target.value)}
-                        placeholder="e.g. 4028cb8b2c3a5b80012c3bc44ef50077"
-                        className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-mono bg-white dark:bg-slate-900"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Banner Placement ID</label>
-                        <input
-                          type="text"
-                          value={inmobiBannerId}
-                          onChange={(e) => setInmobiBannerId(e.target.value)}
-                          placeholder="e.g. 1612345678901"
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Native Placement ID</label>
-                        <input
-                          type="text"
-                          value={inmobiNativeId}
-                          onChange={(e) => setInmobiNativeId(e.target.value)}
-                          placeholder="e.g. 1612345678902"
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Interstitial Placement ID</label>
-                        <input
-                          type="text"
-                          value={inmobiInterstitialId}
-                          onChange={(e) => setInmobiInterstitialId(e.target.value)}
-                          placeholder="e.g. 1612345678903"
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Rewarded Placement ID</label>
-                        <input
-                          type="text"
-                          value={inmobiRewardedId}
-                          onChange={(e) => setInmobiRewardedId(e.target.value)}
-                          placeholder="e.g. 1612345678904"
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                    </div>
+                {adsEnvironment === 'testing' && (
+                  <div className="rounded-lg bg-amber-50/80 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-900 p-2.5 text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between">
+                    <span>✓ <strong>InMobi Testing Mode</strong>: Requires real Account & Placement IDs with "Test Mode" toggled ON in the InMobi portal or tested via MAX Mediation Debugger. Enter production IDs below.</span>
+                    <Badge variant="outline" className="border-emerald-400 text-emerald-700 dark:text-emerald-300 text-[10px]">Portal Toggle</Badge>
                   </div>
                 )}
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      InMobi Account ID *
+                    </label>
+                    <input
+                      type="text"
+                      value={inmobiAccountId}
+                      onChange={(e) => setInmobiAccountId(e.target.value)}
+                      placeholder="e.g. 4028cb8b2c3a5b80012c3bc44ef50077"
+                      className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-mono bg-white dark:bg-slate-900"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Banner Placement ID</label>
+                      <input
+                        type="text"
+                        value={inmobiBannerId}
+                        onChange={(e) => setInmobiBannerId(e.target.value)}
+                        placeholder="e.g. 1612345678901"
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Native Placement ID</label>
+                      <input
+                        type="text"
+                        value={inmobiNativeId}
+                        onChange={(e) => setInmobiNativeId(e.target.value)}
+                        placeholder="e.g. 1612345678902"
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Interstitial Placement ID</label>
+                      <input
+                        type="text"
+                        value={inmobiInterstitialId}
+                        onChange={(e) => setInmobiInterstitialId(e.target.value)}
+                        placeholder="e.g. 1612345678903"
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Rewarded Placement ID</label>
+                      <input
+                        type="text"
+                        value={inmobiRewardedId}
+                        onChange={(e) => setInmobiRewardedId(e.target.value)}
+                        placeholder="e.g. 1612345678904"
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -1995,58 +2307,58 @@ export const ApplicationDetailPage: React.FC = () => {
                 </label>
               </CardHeader>
               <CardContent className="space-y-3">
-                {adsEnvironment === 'testing' ? (
-                  <div className="rounded bg-slate-100 dark:bg-slate-800 p-2.5 text-xs text-slate-600 dark:text-slate-300 font-mono">
-                    ✓ Unity Ads Test Mode Active (Game ID: 1234567)
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Unity Game ID *
-                      </label>
-                      <input
-                        type="text"
-                        value={unityGameId}
-                        onChange={(e) => setUnityGameId(e.target.value)}
-                        placeholder="e.g. 5234567"
-                        className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-mono bg-white dark:bg-slate-900"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Banner Placement ID</label>
-                        <input
-                          type="text"
-                          value={unityBannerId}
-                          onChange={(e) => setUnityBannerId(e.target.value)}
-                          placeholder="e.g. Banner_Android"
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Interstitial Placement ID</label>
-                        <input
-                          type="text"
-                          value={unityInterstitialId}
-                          onChange={(e) => setUnityInterstitialId(e.target.value)}
-                          placeholder="e.g. Interstitial_Android"
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Rewarded Placement ID</label>
-                        <input
-                          type="text"
-                          value={unityRewardedId}
-                          onChange={(e) => setUnityRewardedId(e.target.value)}
-                          placeholder="e.g. Rewarded_Android"
-                          className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
-                        />
-                      </div>
-                    </div>
+                {adsEnvironment === 'testing' && (
+                  <div className="rounded-lg bg-amber-50/80 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-900 p-2.5 text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between">
+                    <span>✓ <strong>Unity Ads Testing Mode</strong>: Requires real Game ID & Placement IDs with "Test Mode" toggled ON in Unity Cloud Dashboard. Enter production IDs below.</span>
+                    <Badge variant="outline" className="border-slate-400 text-slate-700 dark:text-slate-300 text-[10px]">Dashboard Toggle</Badge>
                   </div>
                 )}
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Unity Game ID *
+                    </label>
+                    <input
+                      type="text"
+                      value={unityGameId}
+                      onChange={(e) => setUnityGameId(e.target.value)}
+                      placeholder="e.g. 5234567"
+                      className="w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-mono bg-white dark:bg-slate-900"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Banner Placement ID</label>
+                      <input
+                        type="text"
+                        value={unityBannerId}
+                        onChange={(e) => setUnityBannerId(e.target.value)}
+                        placeholder="e.g. Banner_Android"
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Interstitial Placement ID</label>
+                      <input
+                        type="text"
+                        value={unityInterstitialId}
+                        onChange={(e) => setUnityInterstitialId(e.target.value)}
+                        placeholder="e.g. Interstitial_Android"
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Rewarded Placement ID</label>
+                      <input
+                        type="text"
+                        value={unityRewardedId}
+                        onChange={(e) => setUnityRewardedId(e.target.value)}
+                        placeholder="e.g. Rewarded_Android"
+                        className="w-full rounded border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs font-mono bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -2381,6 +2693,188 @@ export const ApplicationDetailPage: React.FC = () => {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Official Ad Testing Configuration Modal */}
+      {activeTestGuideModal && (
+        <Modal
+          isOpen={Boolean(activeTestGuideModal)}
+          onClose={() => setActiveTestGuideModal(null)}
+          title={`${activeTestGuideModal.providerName} — ${activeTestGuideModal.formatLabel} Testing Guide`}
+          description="Official provider testing procedures, sample identifiers, and verification instructions."
+          className="max-w-2xl"
+          footer={
+            <div className="flex items-center justify-between w-full">
+              <a
+                href={activeTestGuideModal.documentationUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-indigo-200 bg-indigo-50 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                <span>View Official Documentation</span>
+              </a>
+              <Button variant="secondary" onClick={() => setActiveTestGuideModal(null)}>
+                Close
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4 text-xs">
+            {/* Status & Method Summary */}
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-700 dark:text-slate-300">Testing Method:</span>
+                <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
+                  {activeTestGuideModal.testingMethod}
+                </span>
+              </div>
+              <div>
+                <p className="text-slate-600 dark:text-slate-400">
+                  {activeTestGuideModal.statusDescription}
+                </p>
+              </div>
+            </div>
+
+            {/* Official Test Identifiers */}
+            {(activeTestGuideModal.androidSampleId || activeTestGuideModal.iosSampleId) && (
+              <div className="space-y-2">
+                <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[11px]">
+                  Official Universal Sample Ad Unit IDs
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {activeTestGuideModal.androidSampleId && (
+                    <div className="p-2.5 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-[11px] text-slate-700 dark:text-slate-300">Android Sample ID</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyTestId(activeTestGuideModal.androidSampleId!)}
+                          className="inline-flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline"
+                        >
+                          {copiedTestId === activeTestGuideModal.androidSampleId ? (
+                            <><Check className="h-3 w-3 text-emerald-600" /><span className="text-emerald-600 font-bold">Copied</span></>
+                          ) : (
+                            <><Copy className="h-3 w-3" /><span>Copy</span></>
+                          )}
+                        </button>
+                      </div>
+                      <code className="block font-mono text-[10px] text-slate-800 dark:text-slate-200 break-all select-all">
+                        {activeTestGuideModal.androidSampleId}
+                      </code>
+                    </div>
+                  )}
+
+                  {activeTestGuideModal.iosSampleId && (
+                    <div className="p-2.5 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-[11px] text-slate-700 dark:text-slate-300">iOS Sample ID</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyTestId(activeTestGuideModal.iosSampleId!)}
+                          className="inline-flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline"
+                        >
+                          {copiedTestId === activeTestGuideModal.iosSampleId ? (
+                            <><Check className="h-3 w-3 text-emerald-600" /><span className="text-emerald-600 font-bold">Copied</span></>
+                          ) : (
+                            <><Copy className="h-3 w-3" /><span>Copy</span></>
+                          )}
+                        </button>
+                      </div>
+                      <code className="block font-mono text-[10px] text-slate-800 dark:text-slate-200 break-all select-all">
+                        {activeTestGuideModal.iosSampleId}
+                      </code>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Provider Implementation Guidelines */}
+            <div className="space-y-2">
+              <h4 className="font-bold text-slate-900 dark:text-white uppercase tracking-wider text-[11px]">
+                Testing Instructions & Verification
+              </h4>
+              {activeTestGuideModal.providerId === 'applovin' && (
+                <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-3 space-y-2">
+                  <p className="text-slate-700 dark:text-slate-300">
+                    <strong>AppLovin MAX Testing Workflow:</strong>
+                  </p>
+                  <ol className="list-decimal pl-4 space-y-1 text-slate-600 dark:text-slate-400">
+                    <li>MAX uses your app's configured MAX Ad Unit ID in both testing and production modes. Universal fake IDs are not used.</li>
+                    <li>Register your test device (GAID on Android or IDFA on iOS) in <strong>AppLovin Dashboard &gt; MAX &gt; Mediation &gt; Test Mode</strong>.</li>
+                    <li>Or launch the MAX Mediation Debugger in your app debug build to verify adapter integration and network test mode:</li>
+                  </ol>
+                  <div className="bg-slate-950 text-slate-100 font-mono text-[11px] p-2.5 rounded overflow-x-auto">
+                    <code>
+                      {`// Flutter MAX Mediation Debugger\nimport 'package:applovin_max/applovin_max.dart';\n\nAppLovinMAX.showMediationDebugger();`}
+                    </code>
+                  </div>
+                </div>
+              )}
+
+              {activeTestGuideModal.providerId === 'admob' && (
+                <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-3 space-y-2">
+                  <p className="text-slate-700 dark:text-slate-300">
+                    <strong>Google AdMob Testing Workflow:</strong>
+                  </p>
+                  <p className="text-slate-600 dark:text-slate-400">
+                    Google Mobile Ads SDK provides official public sample ad unit IDs. When Central Testing Mode is active in WAPCentral, these sample IDs are automatically returned. AdMob test ads always render an explicit "Test Ad" label.
+                  </p>
+                  <div className="bg-slate-950 text-slate-100 font-mono text-[11px] p-2.5 rounded overflow-x-auto">
+                    <code>
+                      {`// Flutter Google Mobile Ads Test Request\nfinal banner = BannerAd(\n  size: AdSize.banner,\n  adUnitId: '${testPlatform === 'ios' ? activeTestGuideModal.iosSampleId || ADMOB_OFFICIAL_TEST_IDS.ios.bannerAdaptive : activeTestGuideModal.androidSampleId || ADMOB_OFFICIAL_TEST_IDS.android.bannerAdaptive}',\n  request: const AdRequest(),\n  listener: const BannerAdListener(),\n);\nawait banner.load();`}
+                    </code>
+                  </div>
+                </div>
+              )}
+
+              {activeTestGuideModal.providerId === 'meta' && (
+                <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-3 space-y-2">
+                  <p className="text-slate-700 dark:text-slate-300">
+                    <strong>Meta Audience Network Testing:</strong>
+                  </p>
+                  <p className="text-slate-600 dark:text-slate-400">
+                    Meta Audience Network test ads are delivered via AppLovin MAX adapter. To receive test ads on your physical device, add your device's hashed ID in Meta Business Manager / Monetization Manager under <strong>Testing</strong>, or enable MAX test mode with Meta demand selected.
+                  </p>
+                </div>
+              )}
+
+              {activeTestGuideModal.providerId === 'inmobi' && (
+                <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-3 space-y-2">
+                  <p className="text-slate-700 dark:text-slate-300">
+                    <strong>InMobi Testing Workflow:</strong>
+                  </p>
+                  <p className="text-slate-600 dark:text-slate-400">
+                    InMobi does not provide universal sample ad unit IDs. Developers must enter their actual InMobi Account ID and Placement IDs, then toggle <strong>Test Mode: ON</strong> in the InMobi Publisher Portal for the placement. Ads can then be verified through the MAX Mediation Debugger.
+                  </p>
+                </div>
+              )}
+
+              {activeTestGuideModal.providerId === 'unity' && (
+                <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-3 space-y-2">
+                  <p className="text-slate-700 dark:text-slate-300">
+                    <strong>Unity Ads Testing Workflow:</strong>
+                  </p>
+                  <p className="text-slate-600 dark:text-slate-400">
+                    Unity Ads requires entering your real Unity Game ID and Placement IDs. In the Unity Cloud Dashboard, navigate to <strong>Monetization &gt; Testing</strong> and enable <strong>Test Mode</strong>. Test ads will display a prominent "Unity Ads Test Mode" watermark.
+                  </p>
+                </div>
+              )}
+
+              {activeTestGuideModal.providerId === 'custom_ads' && (
+                <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 p-3 space-y-2">
+                  <p className="text-slate-700 dark:text-slate-300">
+                    <strong>WebAppyPie Custom House Ads:</strong>
+                  </p>
+                  <p className="text-slate-600 dark:text-slate-400">
+                    Managed natively by WAPCentral. In testing mode, standard promotional campaigns for WebAppyPie internal apps are delivered without third-party SDK dependencies or external network fees.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

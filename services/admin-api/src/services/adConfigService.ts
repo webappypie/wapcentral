@@ -1,5 +1,11 @@
 import crypto from 'crypto';
-import { COLLECTIONS, ADS_CONFIG } from '@wapcentral/config';
+import {
+  COLLECTIONS,
+  ADS_CONFIG,
+  ADMOB_OFFICIAL_TEST_IDS,
+  OFFICIAL_AD_TEST_CATALOG,
+  type AdTestCatalogEntry,
+} from '@wapcentral/config';
 import type {
   AdNetwork,
   AdAppConfig,
@@ -1366,22 +1372,16 @@ export async function resolveEffectiveAdConfig(
       rewarded_interstitial: 'rewardedInterstitial',
     };
 
-    const admobTestUnits: Record<AdFormat, string> = {
-      banner: 'ca-app-pub-3940256099942544/6300978111',
-      native: 'ca-app-pub-3940256099942544/2247696110',
-      interstitial: 'ca-app-pub-3940256099942544/1033173712',
-      rewarded: 'ca-app-pub-3940256099942544/5224354917',
-      app_open: 'ca-app-pub-3940256099942544/9257395921',
-      rewarded_interstitial: 'ca-app-pub-3940256099942544/5354046379',
-    };
+    const platform = (registeredApp?.platform === 'ios' ? 'ios' : 'android') as 'android' | 'ios';
 
-    const applovinTestUnits: Record<AdFormat, string> = {
-      banner: 'applovin_max_test_banner',
-      native: 'applovin_max_test_native',
-      interstitial: 'applovin_max_test_interstitial',
-      rewarded: 'applovin_max_test_rewarded',
-      app_open: 'applovin_max_test_app_open',
-      rewarded_interstitial: 'applovin_max_test_rewarded_interstitial',
+    // Official Google AdMob sample test IDs (Verified from Google Mobile Ads SDK documentation)
+    const admobTestUnits: Record<AdFormat, string> = {
+      banner: ADMOB_OFFICIAL_TEST_IDS[platform].bannerAdaptive,
+      native: ADMOB_OFFICIAL_TEST_IDS[platform].native,
+      interstitial: ADMOB_OFFICIAL_TEST_IDS[platform].interstitial,
+      rewarded: ADMOB_OFFICIAL_TEST_IDS[platform].rewarded,
+      app_open: ADMOB_OFFICIAL_TEST_IDS[platform].appOpen,
+      rewarded_interstitial: ADMOB_OFFICIAL_TEST_IDS[platform].rewardedInterstitial,
     };
 
     const metaTestUnits: Record<AdFormat, string> = {
@@ -1393,20 +1393,11 @@ export async function resolveEffectiveAdConfig(
       rewarded_interstitial: '',
     };
 
-    const inmobiTestUnits: Record<AdFormat, string> = {
-      banner: 'inmobi_test_banner_1478192',
-      native: 'inmobi_test_native_1478193',
-      interstitial: 'inmobi_test_interstitial_1478194',
-      rewarded: 'inmobi_test_rewarded_1478195',
-      app_open: '',
-      rewarded_interstitial: '',
-    };
-
     const unityTestUnits: Record<AdFormat, string> = {
-      banner: 'Banner_Android',
+      banner: platform === 'ios' ? 'Banner_iOS' : 'Banner_Android',
       native: '',
-      interstitial: 'Interstitial_Android',
-      rewarded: 'Rewarded_Android',
+      interstitial: platform === 'ios' ? 'Interstitial_iOS' : 'Interstitial_Android',
+      rewarded: platform === 'ios' ? 'Rewarded_iOS' : 'Rewarded_Android',
       app_open: '',
       rewarded_interstitial: '',
     };
@@ -1443,15 +1434,15 @@ export async function resolveEffectiveAdConfig(
 
       if (formatEnabled) {
         // AppLovin MAX Demand (built-in demand)
+        // Uses the app's configured MAX Ad Unit ID in both testing and production.
+        // Test mode is handled by AppLovin MAX SDK Test Mode / Mediation Debugger.
         if (
           (simple.networks?.applovin ?? true) &&
           !killSwitches.networks['applovin'] &&
           isDemandSourceAllowed('applovin') &&
           isAdapterBundled('applovin')
         ) {
-          const adUnitId = testMode
-            ? applovinTestUnits[fmt]
-            : simple.networkConfig?.applovin?.placementIds?.[fmt];
+          const adUnitId = simple.networkConfig?.applovin?.placementIds?.[fmt];
           if (adUnitId) {
             chain.push({
               networkId: 'applovin',
@@ -1490,7 +1481,7 @@ export async function resolveEffectiveAdConfig(
           isAdapterBundled('meta')
         ) {
           const placementId = testMode
-            ? metaTestUnits[fmt]
+            ? (metaTestUnits[fmt] || simple.networkConfig?.meta?.placementIds?.[fmt])
             : simple.networkConfig?.meta?.placementIds?.[fmt];
           if (placementId) {
             chain.push({
@@ -1503,6 +1494,7 @@ export async function resolveEffectiveAdConfig(
         }
 
         // InMobi Demand via MAX
+        // InMobi requires genuine registered Placement IDs with Test Mode enabled in InMobi Portal.
         if (
           fmt !== 'app_open' &&
           fmt !== 'rewarded_interstitial' &&
@@ -1511,9 +1503,7 @@ export async function resolveEffectiveAdConfig(
           isDemandSourceAllowed('inmobi') &&
           isAdapterBundled('inmobi')
         ) {
-          const placementId = testMode
-            ? inmobiTestUnits[fmt]
-            : simple.networkConfig?.inmobi?.placementIds?.[fmt];
+          const placementId = simple.networkConfig?.inmobi?.placementIds?.[fmt];
           if (placementId) {
             chain.push({
               networkId: 'inmobi',
@@ -1533,7 +1523,7 @@ export async function resolveEffectiveAdConfig(
           isAdapterBundled('unity')
         ) {
           const placementId = testMode
-            ? unityTestUnits[fmt]
+            ? (unityTestUnits[fmt] || simple.networkConfig?.unity?.placementIds?.[fmt])
             : simple.networkConfig?.unity?.placementIds?.[fmt];
           if (placementId) {
             chain.push({
@@ -1889,4 +1879,11 @@ export async function getAdsOverviewMetrics(): Promise<AdsOverviewMetrics> {
     networkBreakdown,
     recentAuditLogs: [],
   };
+}
+
+/**
+ * Returns the verified official ad testing configuration catalog across all demand partners and formats.
+ */
+export function getOfficialAdTestCatalog(): AdTestCatalogEntry[] {
+  return OFFICIAL_AD_TEST_CATALOG;
 }

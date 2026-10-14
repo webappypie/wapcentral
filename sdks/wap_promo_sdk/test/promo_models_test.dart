@@ -52,6 +52,29 @@ void main() {
       expect(expired.hasContent, isFalse);
     });
 
+    test('should support sponsored layout variant and custom sponsorLabel', () {
+      final payload = PromoPayload(
+        schemaVersion: 1,
+        enabled: true,
+        campaignId: 'camp_sponsored_01',
+        title: 'Partner App',
+        description: 'Check out our featured partner app',
+        sponsorLabel: 'Featured Partner',
+        layoutVariant: PromoLayoutVariant.sponsored,
+        cacheTtlSeconds: 3600,
+        signature: 'sig_sp',
+      );
+
+      final jsonStr = payload.toJsonString();
+      final parsed = PromoPayload.fromJsonString(jsonStr);
+
+      expect(parsed, isNotNull);
+      expect(parsed!.layoutVariant, PromoLayoutVariant.sponsored);
+      expect(parsed.sponsorLabel, 'Featured Partner');
+      expect(PromoLayoutVariant.fromString('sponsored'), PromoLayoutVariant.sponsored);
+      expect(PromoLayoutVariant.sponsored.toValue(), 'sponsored');
+    });
+
     test('empty payload should have enabled: false and hasContent: false', () {
       final empty = PromoPayload.empty();
       expect(empty.enabled, isFalse);

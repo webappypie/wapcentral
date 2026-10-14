@@ -484,7 +484,7 @@ export interface AiPlaygroundResponse {
 // ============================================================
 
 export type CampaignStatus = 'draft' | 'published' | 'paused' | 'ended';
-export type LayoutVariant = 'banner' | 'interstitial' | 'native';
+export type LayoutVariant = 'banner' | 'interstitial' | 'native' | 'sponsored';
 
 export interface Campaign {
   id: string;
@@ -495,6 +495,7 @@ export interface Campaign {
   description: string;
   ctaText: string;
   storeUrl: string;
+  sponsorLabel?: string | undefined;
   imageUrl?: string | undefined;
   animationUrl?: string | undefined; // Lottie JSON URL
   layoutVariant: LayoutVariant;
@@ -542,6 +543,7 @@ export interface PromotionPayload {
   animationUrl?: string | undefined;
   ctaText: string;
   storeUrl: string;
+  sponsorLabel?: string | undefined;
   layoutVariant: LayoutVariant;
   expiresAt: Timestamp;
   cacheTtlSeconds: number;

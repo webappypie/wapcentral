@@ -23,6 +23,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   const [promotedAppId, setPromotedAppId] = useState('');
   const [targetAppIds, setTargetAppIds] = useState<string[]>([]);
   const [layoutVariant, setLayoutVariant] = useState<LayoutVariant>('banner');
+  const [sponsorLabel, setSponsorLabel] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [ctaText, setCtaText] = useState('Install Free');
@@ -40,6 +41,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setPromotedAppId(initialCampaign.promotedAppId);
       setTargetAppIds(initialCampaign.targetAppIds);
       setLayoutVariant(initialCampaign.layoutVariant);
+      setSponsorLabel(initialCampaign.sponsorLabel || '');
       setTitle(initialCampaign.title);
       setDescription(initialCampaign.description);
       setCtaText(initialCampaign.ctaText);
@@ -53,6 +55,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       setPromotedAppId(apps[0]?.id || 'app_01');
       setTargetAppIds(apps.map((a) => a.id));
       setLayoutVariant('banner');
+      setSponsorLabel('');
       setTitle('Unlock Premium Features');
       setDescription('Get instant access to advanced productivity tools.');
       setCtaText('Get Started');
@@ -108,6 +111,10 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
 
     if (imageUrl.trim()) {
       payload.imageUrl = imageUrl.trim();
+    }
+
+    if (sponsorLabel.trim()) {
+      payload.sponsorLabel = sponsorLabel.trim();
     }
 
     const validationResult = CreateCampaignSchema.safeParse(payload);
@@ -210,9 +217,25 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                 <option value="banner">Docked Banner (Top/Bottom)</option>
                 <option value="interstitial">Fullscreen Interstitial</option>
                 <option value="native">Native In-Feed Card</option>
+                <option value="sponsored">Sponsored Home Placement (Max 120dp)</option>
               </select>
             </div>
           </div>
+
+          {layoutVariant === 'sponsored' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                Sponsor Label (defaults to &quot;Sponsored&quot;)
+              </label>
+              <input
+                type="text"
+                value={sponsorLabel}
+                onChange={(e) => setSponsorLabel(e.target.value)}
+                placeholder="e.g. Sponsored or Sponsored by Partner"
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
@@ -401,6 +424,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
             ctaText={ctaText}
             imageUrl={imageUrl}
             storeUrl={storeUrl}
+            sponsorLabel={sponsorLabel}
             appName={apps.find((a) => a.id === promotedAppId)?.name || 'Preview App'}
           />
           {targetAppNames && (

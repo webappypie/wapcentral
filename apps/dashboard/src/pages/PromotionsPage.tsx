@@ -116,28 +116,11 @@ export const PromotionsPage: React.FC = () => {
         title="Promotions & Campaigns"
         description="Deliver and track in-house cross-app promotion banners, interstitials, and native cards"
         actions={
-          <div className="flex items-center gap-2">
-            <div className="flex items-center rounded-lg border border-slate-200 bg-white p-1 text-xs dark:border-slate-800 dark:bg-slate-900">
-              {(['content', 'loading', 'empty', 'error'] as ViewState[]).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setViewState(s)}
-                  className={`rounded px-2 py-1 capitalize transition-colors ${
-                    viewState === s
-                      ? 'bg-indigo-600 font-semibold text-white'
-                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            {hasRole('editor') && (
-              <Button size="sm" onClick={handleOpenAddModal}>
-                <Plus className="mr-1.5 h-4 w-4" /> Create Campaign
-              </Button>
-            )}
-          </div>
+          hasRole('editor') ? (
+            <Button size="sm" onClick={handleOpenAddModal}>
+              <Plus className="mr-1.5 h-4 w-4" /> Create Campaign
+            </Button>
+          ) : undefined
         }
       />
 
@@ -279,24 +262,22 @@ export const PromotionsPage: React.FC = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <div className="text-xs">
-                              <span className="font-semibold text-slate-900 dark:text-slate-100">
-                                {camp.analytics
-                                  ? camp.analytics.impressions.toLocaleString()
-                                  : '12,450'}
-                              </span>
-                              <span className="text-slate-400 mx-1">/</span>
-                              <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                                {camp.analytics ? camp.analytics.clicks.toLocaleString() : '840'}
-                              </span>
-                              <span className="text-[10px] text-slate-400 ml-1">
-                                (
-                                {camp.analytics
-                                  ? `${(camp.analytics.ctr * 100).toFixed(1)}%`
-                                  : '6.7%'}
-                                )
-                              </span>
-                            </div>
+                            {camp.analytics && (camp.analytics.impressions > 0 || camp.analytics.clicks > 0) ? (
+                              <div className="text-xs">
+                                <span className="font-semibold text-slate-900 dark:text-slate-100">
+                                  {camp.analytics.impressions.toLocaleString()}
+                                </span>
+                                <span className="text-slate-400 mx-1">/</span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                  {camp.analytics.clicks.toLocaleString()}
+                                </span>
+                                <span className="text-[10px] text-slate-400 ml-1">
+                                  ({(camp.analytics.ctr * 100).toFixed(1)}%)
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-400">0 / 0 (0.0%)</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
@@ -397,6 +378,7 @@ export const PromotionsPage: React.FC = () => {
               ctaText={previewingCampaign.ctaText}
               imageUrl={previewingCampaign.imageUrl}
               storeUrl={previewingCampaign.storeUrl}
+              sponsorLabel={previewingCampaign.sponsorLabel}
               appName={
                 apps.find((a) => a.id === previewingCampaign.promotedAppId)?.name || 'Preview App'
               }

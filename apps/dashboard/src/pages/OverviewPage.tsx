@@ -21,12 +21,18 @@ type ViewState = 'content' | 'loading' | 'empty' | 'error';
 export const OverviewPage: React.FC = () => {
   const [viewState, setViewState] = useState<ViewState>('content');
   const [appsCount, setAppsCount] = useState(0);
+  const [monetizedAppsCount, setMonetizedAppsCount] = useState(0);
   const [activeCampaignsCount, setActiveCampaignsCount] = useState(0);
   const [flagsCount, setFlagsCount] = useState(0);
 
   useEffect(() => {
     const unsubApps = subscribeApps(
-      (apps) => setAppsCount(apps.length),
+      (apps) => {
+        setAppsCount(apps.length);
+        setMonetizedAppsCount(
+          apps.filter((a) => a.simpleAdsConfig?.adsEnabled || Boolean(a.adConfig) || a.allowedServices?.includes('ads')).length,
+        );
+      },
       () => {},
     );
     const unsubCampaigns = subscribeCampaigns(
@@ -51,27 +57,9 @@ export const OverviewPage: React.FC = () => {
         title="System Overview"
         description="Unified health, traffic, active campaigns, and mobile fleet status"
         actions={
-          <div className="flex items-center gap-2">
-            {/* State Switcher for Reviewing all required states */}
-            <div className="flex items-center rounded-lg border border-slate-200 bg-white p-1 text-xs dark:border-slate-800 dark:bg-slate-900">
-              {(['content', 'loading', 'empty', 'error'] as ViewState[]).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setViewState(s)}
-                  className={`rounded px-2 py-1 capitalize transition-colors ${
-                    viewState === s
-                      ? 'bg-indigo-600 font-semibold text-white'
-                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            <Button size="sm" variant="outline" onClick={() => setViewState('loading')}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
+          <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+            <RefreshCw className="h-4 w-4 mr-1.5" /> Refresh
+          </Button>
         }
       />
 
@@ -148,12 +136,14 @@ export const OverviewPage: React.FC = () => {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-slate-500">Ad Networks</CardTitle>
+                <CardTitle className="text-sm font-medium text-slate-500">Monetized Apps</CardTitle>
                 <Megaphone className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">4</div>
-                <p className="text-xs text-slate-500 mt-1">AdMob, Meta, AppLovin, WAPAds</p>
+                <div className="text-2xl font-bold">{monetizedAppsCount}</div>
+                <p className="text-xs text-slate-500 mt-1">
+                  {monetizedAppsCount > 0 ? 'Active ad mediation enabled' : 'None enabled'}
+                </p>
               </CardContent>
             </Card>
           </div>

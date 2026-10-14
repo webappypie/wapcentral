@@ -28,8 +28,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: 'Overview', to: '/', icon: LayoutDashboard },
-  { name: 'Platform', to: '/platform', icon: Cpu, badge: 'v1' },
-  { name: 'Apps', to: '/apps', icon: Smartphone },
+  { name: 'Platform Services', to: '/platform', icon: Cpu },
+  { name: 'Applications', to: '/apps', icon: Smartphone },
   { name: 'AI Gateway', to: '/ai', icon: Sparkles },
   { name: 'Ads & Monetization', to: '/ads', icon: Megaphone },
   { name: 'Notifications', to: '/notifications', icon: Bell },

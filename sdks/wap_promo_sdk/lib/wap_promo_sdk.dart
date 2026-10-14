@@ -24,6 +24,7 @@ export 'src/utils/crypto_validator.dart';
 export 'src/widgets/promo_banner.dart';
 export 'src/widgets/promo_interstitial.dart';
 export 'src/widgets/promo_native.dart';
+export 'src/widgets/wap_sponsored_placement.dart';
 export 'src/widgets/promo_builder.dart';
 
 /// Main SDK Facade for WebAppyPie Promotion System.

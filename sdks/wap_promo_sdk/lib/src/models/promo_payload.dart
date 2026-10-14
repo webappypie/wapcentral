@@ -4,7 +4,8 @@ import 'dart:convert';
 enum PromoLayoutVariant {
   banner,
   interstitial,
-  native;
+  native,
+  sponsored;
 
   static PromoLayoutVariant fromString(String? value) {
     switch (value?.toLowerCase()) {
@@ -12,6 +13,8 @@ enum PromoLayoutVariant {
         return PromoLayoutVariant.interstitial;
       case 'native':
         return PromoLayoutVariant.native;
+      case 'sponsored':
+        return PromoLayoutVariant.sponsored;
       case 'banner':
       default:
         return PromoLayoutVariant.banner;
@@ -24,6 +27,8 @@ enum PromoLayoutVariant {
         return 'interstitial';
       case PromoLayoutVariant.native:
         return 'native';
+      case PromoLayoutVariant.sponsored:
+        return 'sponsored';
       case PromoLayoutVariant.banner:
         return 'banner';
     }
@@ -64,6 +69,7 @@ class PromoPayload {
   final String? animationUrl;
   final String? ctaText;
   final String? storeUrl;
+  final String? sponsorLabel;
   final PromoLayoutVariant layoutVariant;
   final DateTime? expiresAt;
   final int cacheTtlSeconds;
@@ -80,6 +86,7 @@ class PromoPayload {
     this.animationUrl,
     this.ctaText,
     this.storeUrl,
+    this.sponsorLabel,
     this.layoutVariant = PromoLayoutVariant.banner,
     this.expiresAt,
     required this.cacheTtlSeconds,
@@ -111,6 +118,7 @@ class PromoPayload {
       animationUrl: json['animationUrl'] as String?,
       ctaText: json['ctaText'] as String?,
       storeUrl: json['storeUrl'] as String?,
+      sponsorLabel: json['sponsorLabel'] as String?,
       layoutVariant: PromoLayoutVariant.fromString(json['layoutVariant'] as String?),
       expiresAt: json['expiresAt'] != null
           ? DateTime.tryParse(json['expiresAt'] as String)
@@ -138,6 +146,7 @@ class PromoPayload {
     if (animationUrl != null) map['animationUrl'] = animationUrl;
     if (ctaText != null) map['ctaText'] = ctaText;
     if (storeUrl != null) map['storeUrl'] = storeUrl;
+    if (sponsorLabel != null) map['sponsorLabel'] = sponsorLabel;
     if (enabled) map['layoutVariant'] = layoutVariant.toValue();
     if (expiresAt != null) map['expiresAt'] = expiresAt!.toIso8601String();
     if (frequencyCap != null) map['frequencyCap'] = frequencyCap!.toJson();

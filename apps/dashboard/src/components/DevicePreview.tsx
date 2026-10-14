@@ -10,6 +10,7 @@ export interface DevicePreviewProps {
   imageUrl?: string | undefined;
   storeUrl?: string | undefined;
   appName?: string | undefined;
+  sponsorLabel?: string | undefined;
   bannerPosition?: 'top' | 'bottom' | undefined;
   className?: string | undefined;
 }
@@ -22,6 +23,7 @@ export const DevicePreview: React.FC<DevicePreviewProps> = ({
   imageUrl,
   storeUrl,
   appName = 'WebAppyPie App',
+  sponsorLabel,
   bannerPosition = 'bottom',
   className = '',
 }) => {
@@ -147,6 +149,41 @@ export const DevicePreview: React.FC<DevicePreviewProps> = ({
                   >
                     <span>{displayCta}</span>
                     <ExternalLink className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Sponsored Native Placement on App Home Screen (Max 120dp height) */}
+            {layoutVariant === 'sponsored' && (
+              <div className="my-1 max-h-[120px] rounded-xl bg-slate-900 border border-brand-500/40 p-2.5 shadow-md flex flex-col justify-between">
+                {/* Clear Sponsored Header Label */}
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-brand-400 bg-brand-500/20 px-1.5 py-0.5 rounded">
+                    {sponsorLabel?.trim() || 'Sponsored'}
+                  </span>
+                </div>
+
+                {/* Compact Native Row */}
+                <div className="flex items-center gap-2.5 min-h-0">
+                  {displayImage && (
+                    <img
+                      src={displayImage}
+                      alt={displayTitle}
+                      className="w-12 h-12 rounded-lg object-cover flex-shrink-0 border border-slate-800"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-xs font-semibold text-white truncate">{displayTitle}</h4>
+                    <p className="text-[10px] text-slate-300 line-clamp-2 mt-0.5 leading-snug">
+                      {displayDescription}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="px-2.5 py-1 text-[10px] font-semibold bg-brand-500 hover:bg-brand-600 text-white rounded-md shadow-xs flex-shrink-0"
+                  >
+                    {displayCta}
                   </button>
                 </div>
               </div>

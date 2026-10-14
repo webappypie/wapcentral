@@ -32,7 +32,7 @@ export const AdFormatSchema = z.enum([
   'app_open',
   'rewarded_interstitial',
 ]);
-export const LayoutVariantSchema = z.enum(['banner', 'interstitial', 'native']);
+export const LayoutVariantSchema = z.enum(['banner', 'interstitial', 'native', 'sponsored']);
 export const CampaignStatusSchema = z.enum(['draft', 'published', 'paused', 'ended']);
 export const AiProviderTypeSchema = z.enum(['openai', 'gemini', 'anthropic', 'self_hosted']);
 
@@ -269,6 +269,7 @@ export const CreateCampaignSchema = z.object({
   description: z.string().min(1).max(200),
   ctaText: z.string().min(1).max(30),
   storeUrl: HttpUrlSchema,
+  sponsorLabel: z.string().max(50).optional(),
   imageUrl: HttpUrlSchema.optional(),
   animationUrl: HttpUrlSchema.optional(),
   layoutVariant: LayoutVariantSchema,
@@ -294,6 +295,7 @@ export const PromotionPayloadSchema = z.object({
   campaignId: z.string().optional(),
   title: z.string().optional(),
   description: z.string().optional(),
+  sponsorLabel: z.string().optional(),
   imageUrl: z.string().url().optional(),
   animationUrl: z.string().url().optional(),
   ctaText: z.string().optional(),

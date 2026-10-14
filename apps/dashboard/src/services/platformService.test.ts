@@ -29,7 +29,7 @@ describe('platformService', () => {
   });
 
   it('provides the complete platform SDKs catalog', () => {
-    expect(PLATFORM_SDKS_CATALOG.length).toBe(5);
+    expect(PLATFORM_SDKS_CATALOG.length).toBe(8);
     const sdkIds = PLATFORM_SDKS_CATALOG.map((s) => s.id);
     expect(sdkIds).toEqual([
       'wap_core_sdk',
@@ -37,6 +37,9 @@ describe('platformService', () => {
       'wap_image_sdk',
       'wap_ocr_sdk',
       'wap_file_sdk',
+      'wap_ads_sdk',
+      'wap_notifications_sdk',
+      'wap_promo_sdk',
     ]);
   });
 

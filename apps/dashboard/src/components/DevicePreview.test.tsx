@@ -61,4 +61,25 @@ describe('DevicePreview Component', () => {
     expect(html).toContain('Live Mock Preview:');
     expect(html).toContain('NATIVE');
   });
+
+  it('should render sponsored native placement with clear Sponsored label and max 120dp constraint', () => {
+    const html = renderToString(
+      <DevicePreview
+        layoutVariant="sponsored"
+        title="Partner Cloud Backup"
+        description="Encrypted backup for your device data"
+        ctaText="Claim Now"
+        sponsorLabel="Sponsored by WebAppyPie"
+        storeUrl="https://cloud.webappypie.com"
+      />,
+    );
+
+    expect(html).toContain('Partner Cloud Backup');
+    expect(html).toContain('Encrypted backup for your device data');
+    expect(html).toContain('Claim Now');
+    expect(html).toContain('Sponsored by WebAppyPie');
+    expect(html).toContain('max-h-[120px]');
+    expect(html).toContain('Live Mock Preview:');
+    expect(html).toContain('SPONSORED');
+  });
 });

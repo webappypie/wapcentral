@@ -34,6 +34,7 @@ WapPromoSdk (Facade)
   ├── CryptoValidator      — HMAC-SHA256 signature generation and timing-safe verification
   ├── PromoService         — Cache-first resolver, background fetch, telemetry dispatcher
   └── Widgets
+      ├── WapSponsoredPlacement — Compact home screen sponsored placement (max 120dp, clear 'Sponsored' label)
       ├── WapPromoBanner       — Responsive bottom or inline banner
       ├── WapPromoInterstitial — Fullscreen modal takeover dialog
       ├── WapPromoNative       — Native feed card with 'PROMOTED' badge
@@ -82,6 +83,26 @@ void main() async {
 ```
 
 ### 3. Display Promotions in UI
+
+#### Sponsored Home Placement Widget (WapSponsoredPlacement)
+
+Designed specifically for the host app home screen as a compact native-style sponsored placement.
+- Automatically capped at **120 logical pixels (dp)** maximum container height.
+- Prominently displays a clear **SPONSORED** label (or custom `sponsorLabel`) above creative content.
+- Opens the configured destination via `onDestinationTap`.
+- Automatically and cleanly hides (`SizedBox.shrink()`) when no eligible campaign is available or when frequency capped.
+- Dispatches genuine impression and click telemetry asynchronously without blocking UI frames.
+
+```dart
+// Place in your home screen dashboard or feed
+WapSponsoredPlacement(
+  margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+  elevation: 0.5,
+  onDestinationTap: (storeUrl) {
+    // Launch store URL (e.g. using url_launcher)
+  },
+)
+```
 
 #### Banner Widget
 

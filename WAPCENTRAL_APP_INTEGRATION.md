@@ -24,21 +24,30 @@
   - [5. App Open Ads](#5-app-open-ads)
   - [6. Rewarded Interstitial Ads](#6-rewarded-interstitial-ads)
 - [Section J: Central Notification System Integration](#section-j-central-notification-system-integration)
-- [Section K: Dashboard Configuration](#section-k-dashboard-configuration)
-- [Section L: What Can Be Controlled From WAPCentral](#section-l-what-can-be-controlled-from-wapcentral)
-- [Section M: Firebase Requirements](#section-m-firebase-requirements)
-- [Section N: Android Requirements](#section-n-android-requirements)
-- [Section O: iOS Requirements](#section-o-ios-requirements)
-- [Section P: Test Mode](#section-p-test-mode)
-- [Section Q: Production Mode](#section-q-production-mode)
-- [Section R: Offline Behavior & Resilience](#section-r-offline-behavior--resilience)
-- [Section S: Kill Switches & Emergency Procedures](#section-s-kill-switches--emergency-procedures)
-- [Section T: Troubleshooting & Diagnostic Guide](#section-t-troubleshooting--diagnostic-guide)
-- [Section U: Security Rules](#section-u-security-rules)
-- [Section V: Things Developers MUST NOT Hard-Code](#section-v-things-developers-must-not-hard-code)
-- [Section W: Things Developers MUST NOT Modify](#section-w-things-developers-must-not-modify)
-- [Section X: Production Release Checklist](#section-x-production-release-checklist)
-- [Section Y: Complete Example Integration for a New App](#section-y-complete-example-integration-for-a-new-app)
+- [Section K: Central Promotions & Sponsorship Integration (wap_promo_sdk)](#section-k-central-promotions--sponsorship-integration-wap_promo_sdk)
+  - [1. Purpose & Separation from Third-Party Ads](#1-purpose--separation-from-third-party-ads)
+  - [2. Dependencies Installation](#2-dependencies-installation)
+  - [3. PromoConfig Configuration Model](#3-promoconfig-configuration-model)
+  - [4. Non-Blocking Initialization](#4-non-blocking-initialization)
+  - [5. Sponsored Home Placement Widget (WapSponsoredPlacement)](#5-sponsored-home-placement-widget-wapsponsoredplacement)
+  - [6. Standard Promotional Widgets](#6-standard-promotional-widgets)
+  - [7. Reactive APIs & Telemetry Endpoints](#7-reactive-apis--telemetry-endpoints)
+  - [8. Cryptographic Verification & Frequency Capping Rules](#8-cryptographic-verification--frequency-capping-rules)
+- [Section L: Dashboard Configuration](#section-l-dashboard-configuration)
+- [Section M: What Can Be Controlled From WAPCentral](#section-m-what-can-be-controlled-from-wapcentral)
+- [Section N: Firebase Requirements](#section-n-firebase-requirements)
+- [Section O: Android Requirements](#section-o-android-requirements)
+- [Section P: iOS Requirements](#section-p-ios-requirements)
+- [Section Q: Test Mode](#section-q-test-mode)
+- [Section R: Production Mode](#section-r-production-mode)
+- [Section S: Offline Behavior & Resilience](#section-s-offline-behavior--resilience)
+- [Section T: Kill Switches & Emergency Procedures](#section-t-kill-switches--emergency-procedures)
+- [Section U: Troubleshooting & Diagnostic Guide](#section-u-troubleshooting--diagnostic-guide)
+- [Section V: Security Rules](#section-v-security-rules)
+- [Section W: Things Developers MUST NOT Hard-Code](#section-w-things-developers-must-not-hard-code)
+- [Section X: Things Developers MUST NOT Modify](#section-x-things-developers-must-not-modify)
+- [Section Y: Production Release Checklist](#section-y-production-release-checklist)
+- [Section Z: Complete Example Integration for a New App](#section-z-complete-example-integration-for-a-new-app)
 
 ---
 
@@ -61,9 +70,10 @@ Consuming mobile apps do not directly connect to third-party ad network configur
 Before embedding `wap_ads_sdk` in your mobile application, ensure you have gathered the following prerequisites:
 
 1. **WAPCentral App Registration**: An active app record in the WAPCentral Console (`apps` collection).
-2. **Public Credentials**:
+2. **Public Credentials & Keys**:
    - `appId` (e.g., `filezen-android`, `optilens-ios`)
    - `appKey` / Public Client Key (issued in WAPCentral Dashboard; e.g., `wap_pub_live_...`)
+   - `signingSecret` / Promotion Signing Secret (configured in WAPCentral Console for HMAC-SHA256 campaign signature verification in `wap_promo_sdk`)
 3. **Platform Environment Base URL**:
    - Production: `https://api.wapcentral.webappypie.com` (or Cloud Run platform endpoint)
    - Staging/Local: `https://staging-api.wapcentral.webappypie.com`
@@ -122,16 +132,31 @@ The `appKey` is a **public, client-safe token** granting read access to your app
 
 ## Section F: Flutter SDK Installation
 
-Add `wap_ads_sdk` to your app's `pubspec.yaml`:
+Add the authorized WAP platform SDKs required for your application to `pubspec.yaml`:
 
 ```yaml
 dependencies:
   flutter:
     sdk: flutter
-  # WAP Ads SDK (path dependency in monorepo, or git/hosted package)
+
+  # Core runtime, authentication & resilience (recommended)
+  wap_core_sdk:
+    path: ../../sdks/wap_core_sdk
+
+  # Ads & Monetization (AppLovin MAX Mediation & demand adapters)
   wap_ads_sdk:
     path: ../../sdks/wap_ads_sdk
-  # If using direct HTTP fallback
+
+  # Promotions & House Sponsorships (Non-blocking, Cache-first, Native Sponsored Placement)
+  wap_promo_sdk:
+    path: ../../sdks/wap_promo_sdk
+
+  # Push Notifications & In-App Notification Center
+  wap_notifications_sdk:
+    path: ../../sdks/wap_notifications_sdk
+
+  # URL launcher for handling promo tap destinations
+  url_launcher: ^6.3.0
   http: ^1.2.0
 ```
 
@@ -144,24 +169,27 @@ flutter pub get
 
 ## Section G: Initialization
 
-Initialize `WapAds` inside your `main()` method before rendering the root application widget:
+Initialize the required WAP platform modules inside your `main()` method before rendering the root application widget:
 
 ```dart
 import 'package:flutter/material.dart';
 import 'package:wap_ads_sdk/wap_ads.dart';
+import 'package:wap_notifications_sdk/wap_notifications.dart';
+import 'package:wap_promo_sdk/wap_promo_sdk.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize WAP Ads SDK
+  const appId = 'filezen-android';
+  const appKey = String.fromEnvironment('WAP_PUBLIC_APP_KEY', defaultValue: 'wap_pub_live_sample_key');
+  const baseUrl = 'https://api.wapcentral.webappypie.com';
+
+  // 1. Initialize WAP Ads SDK (AppLovin MAX Mediation)
   await WapAds.initialize(
     options: WapAdsOptions(
-      appId: 'filezen-android',
-      appKey: const String.fromEnvironment(
-        'WAP_PUBLIC_APP_KEY',
-        defaultValue: 'wap_pub_live_sample_key',
-      ),
-      baseUrl: 'https://api.wapcentral.webappypie.com',
+      appId: appId,
+      appKey: appKey,
+      baseUrl: baseUrl,
       environment: WapEnvironment.production,
       testMode: false,
       autoRefreshConfig: true,
@@ -172,14 +200,41 @@ Future<void> main() async {
     ),
   );
 
+  // 2. Initialize WAP Notifications SDK (FCM Registration & Bell Feed)
+  await WapNotifications.initialize(
+    const WapNotificationsOptions(
+      appId: appId,
+      appKey: appKey,
+      baseUrl: baseUrl,
+      environment: 'production',
+      autoFetchBell: true,
+      enableLogging: false,
+    ),
+  );
+
+  // 3. Initialize WAP Promotions SDK (Non-blocking: cached promo displays instantly)
+  await WapPromoSdk.init(
+    const PromoConfig(
+      appId: appId,
+      appKey: appKey,
+      baseUrl: baseUrl,
+      signingSecret: String.fromEnvironment('WAP_PROMO_SECRET', defaultValue: 'wap_promo_secret_filezen'),
+      appVersion: '1.0.0',
+      platform: 'android',
+      environment: 'production',
+      enableLogging: false,
+    ),
+  );
+
   runApp(const MyApp());
 }
 ```
 
 ### Initialization Guarantees:
 - **Non-blocking startup**: Configuration fetch errors never crash or block app launch.
+- **Zero-latency boot**: `wap_promo_sdk` and `wap_ads_sdk` load cached states synchronously from local storage.
 - **Fail-safe offline state**: If network is unavailable on first launch, a safe disabled configuration is used until connectivity is established.
-- **Background periodic sync**: Configuration automatically syncs every 15 minutes without user friction.
+- **Background periodic sync**: Configuration and campaigns automatically sync in the background without user friction.
 
 ---
 
@@ -640,7 +695,264 @@ await WapNotifications.unregisterDevice();
 
 ---
 
-## Section K: Dashboard Configuration
+## Section K: Central Promotions & Sponsorship Integration (`wap_promo_sdk`)
+
+The WebAppyPie Promotion SDK (`wap_promo_sdk`) provides a high-CTR, zero-external-dependency self-promotion and house sponsorship engine managed directly from WAPCentral. It is engineered with strict **non-blocking, cache-first guarantees** — consuming Flutter apps start instantaneously from local cache, while promotional campaigns refresh silently in the background.
+
+### 1. Purpose & Separation from Third-Party Ads
+
+Consuming mobile apps must strictly preserve the separation between third-party ads and platform promotions:
+
+| Dimension | Third-Party Ads (`wap_ads_sdk`) | Promotions & Sponsorships (`wap_promo_sdk`) |
+|---|---|---|
+| **Demand Source** | External Ad Networks (AppLovin MAX, AdMob, Meta, InMobi) | WebAppyPie House Campaigns & Direct Advertisers |
+| **SDK Runtime** | Heavy native adapters & ad network SDKs | Lightweight Flutter SDK with zero native binary bloat |
+| **Authentication** | Handled through mediation platform | Validated via `X-App-Key` and HMAC-SHA256 signature |
+| **Rendering** | Controlled by mediation SDK views | Native Flutter widgets (`WapSponsoredPlacement`, `WapPromoBanner`, etc.) |
+| **Telemetry** | Network auction impression & bid tracking | Direct fire-and-forget telemetry (`/v1/analytics/impression`, `/v1/analytics/click`) |
+
+> ⚠️ **Rule**: Never disguise promotional house content as third-party mediation ads or vice versa. Custom sponsorships are configured in the **Promotions** console and served via `wap_promo_sdk`.
+
+### 2. Dependencies Installation
+
+In your application's `pubspec.yaml`:
+
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  # WebAppyPie Promotion SDK
+  wap_promo_sdk:
+    path: ../../sdks/wap_promo_sdk # or git dependency
+  # URL launcher for handling promo tap destinations
+  url_launcher: ^6.3.0
+```
+
+Run `flutter pub get` to resolve packages.
+
+### 3. PromoConfig Configuration Model
+
+Initialize `wap_promo_sdk` using the immutable `PromoConfig` data structure:
+
+| Parameter | Type | Required? | Default | Description |
+|---|---|:---:|---|---|
+| `appId` | `String` | **Yes** | — | Unique host application ID (e.g., `'filezen-android'`) |
+| `appKey` | `String` | **Yes** | — | Public app key sent in `X-App-Key` header |
+| `baseUrl` | `String` | **Yes** | — | Platform Promotion API URL (e.g., `'https://api.wapcentral.webappypie.com'`) |
+| `signingSecret` | `String` | **Yes** | — | Shared secret for HMAC-SHA256 campaign signature verification |
+| `appVersion` | `String` | No | `'1.0.0'` | Host application semantic version |
+| `platform` | `String` | No | `'android'` | Target client OS (`'android'`, `'ios'`, `'web'`) |
+| `environment` | `String` | No | `'production'` | Runtime environment (`'production'`, `'staging'`, `'development'`) |
+| `defaultCacheTtl` | `Duration` | No | `Duration(hours: 6)` | Fallback cache duration if server omits TTL |
+| `networkTimeout` | `Duration` | No | `Duration(seconds: 5)` | Timeout for background remote campaign fetch |
+| `enableLogging` | `bool` | No | `false` | Enable console debug logging (set `false` in release) |
+
+### 4. Non-Blocking Initialization
+
+Initialize `WapPromoSdk.init()` during app bootstrap in `lib/main.dart`. Initialization reads the local persistent cache immediately, ensuring zero-latency startup without blocking the UI thread:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:wap_promo_sdk/wap_promo_sdk.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Promotion SDK (Non-blocking: cache loads instantly, network syncs in background)
+  await WapPromoSdk.init(
+    const PromoConfig(
+      appId: 'filezen-android',
+      appKey: String.fromEnvironment('WAP_APP_KEY', defaultValue: 'wap_pub_live_filezen_sample'),
+      baseUrl: 'https://api.wapcentral.webappypie.com',
+      signingSecret: String.fromEnvironment('WAP_PROMO_SECRET', defaultValue: 'wap_promo_secret_filezen'),
+      appVersion: '1.2.0',
+      platform: 'android',
+      environment: 'production',
+      enableLogging: false,
+    ),
+  );
+
+  runApp(const MyApp());
+}
+```
+
+#### Core Design Guarantees:
+1. **Zero-Latency Startup**: Reads cached campaign state from persistent storage synchronously during boot.
+2. **Never Blocks Frame Rendering**: Remote API requests run asynchronously in the background via `unawaited(fetchCampaign())`.
+3. **Graceful Degradation**: If no network or invalid payload, falls back: `Local Cache -> Safe Default -> Hide Widget (SizedBox.shrink())`.
+4. **Cryptographic Integrity**: Payloads are validated against `signingSecret` using HMAC-SHA256 before being accepted.
+
+### 5. Sponsored Home Placement Widget (`WapSponsoredPlacement`)
+
+`WapSponsoredPlacement` is a dedicated, compact native-ad-style widget tailored specifically for app home screens.
+
+#### Strict Placement Requirements:
+- **Sponsored Label**: Prominently renders a clear **SPONSORED** label (or custom `sponsorLabel` if provided) above the creative content.
+- **Maximum Height Constraint**: The container height is capped at **120 logical pixels (dp)** (`BoxConstraints(maxHeight: 120.0)`).
+- **Clean Fallback**: If no campaign is eligible, active, or if the campaign has expired, it automatically renders `SizedBox.shrink()` without leaving blank space or broken frames.
+- **Single Impression Telemetry**: Dispatches post-frame impression telemetry (`WapPromoSdk.recordImpression(campaignId)`) exactly once per campaign lifecycle.
+- **Interactive Action**: On tap, dispatches click telemetry (`WapPromoSdk.recordClick(campaignId)`) and invokes `onDestinationTap(destinationUrl)`.
+
+#### Implementation Example:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:wap_promo_sdk/wap_promo_sdk.dart';
+
+class HomeScreenSponsoredSection extends StatelessWidget {
+  const HomeScreenSponsoredSection({super.key});
+
+  Future<void> _handleDestinationTap(String destinationUrl) async {
+    if (destinationUrl.isEmpty) return;
+    final uri = Uri.tryParse(destinationUrl);
+    if (uri != null && await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return WapSponsoredPlacement(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      elevation: 0.5,
+      borderRadius: BorderRadius.circular(10.0),
+      onDestinationTap: _handleDestinationTap,
+    );
+  }
+}
+```
+
+### 6. Standard Promotional Widgets
+
+In addition to the home sponsored placement, `wap_promo_sdk` provides standard promotional widgets for different screen contexts:
+
+#### A. Banner Widget (`WapPromoBanner`)
+Renders a compact horizontal banner suitable for bottom navigation bars or screen footers:
+
+```dart
+WapPromoBanner(
+  margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+  elevation: 2.0,
+  onCtaTap: (storeUrl) async {
+    final uri = Uri.parse(storeUrl);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  },
+)
+```
+
+#### B. Native Feed Card (`WapPromoNative`)
+Renders a 16:9 hero card with a `PROMOTED` badge designed for integration within scrollable lists:
+
+```dart
+WapPromoNative(
+  margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+  elevation: 1.0,
+  onCtaTap: (storeUrl) => _launchDestination(storeUrl),
+)
+```
+
+#### C. Interstitial Modal Dialog (`WapPromoInterstitial`)
+Displays a modal dialog takeover at natural break points (e.g., file export complete, game level finished):
+
+```dart
+Future<void> showCampaignModal(BuildContext context) async {
+  final displayed = await WapPromoInterstitial.show(
+    context,
+    onCtaTap: (storeUrl) => _launchDestination(storeUrl),
+    onDismiss: () => debugPrint('User dismissed promotion'),
+  );
+
+  if (!displayed) {
+    debugPrint('No eligible active promotion available');
+  }
+}
+```
+
+#### D. Custom Layout Builder (`WapPromoBuilder`)
+Enables custom UI layouts while preserving reactive state management and automatic updates:
+
+```dart
+WapPromoBuilder(
+  builder: (context, PromoPayload? promo) {
+    if (promo == null || !promo.hasContent) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Expanded(child: Text(promo.title ?? '')),
+          ElevatedButton(
+            onPressed: () {
+              if (promo.campaignId != null) {
+                WapPromoSdk.recordClick(promo.campaignId!);
+              }
+              _launchDestination(promo.storeUrl ?? '');
+            },
+            child: Text(promo.ctaText ?? 'Learn More'),
+          ),
+        ],
+      ),
+    );
+  },
+)
+```
+
+### 7. Reactive APIs & Telemetry Endpoints
+
+The SDK provides reactive state notifiers and manual telemetry dispatches:
+
+```dart
+// Check if SDK has finished initialization
+final bool isReady = WapPromoSdk.isReady;
+
+// Synchronously inspect the current active payload
+final PromoPayload? currentPromo = WapPromoSdk.getCurrentPromo();
+
+// Listen reactively to campaign updates
+WapPromoSdk.promoNotifier.addListener(() {
+  final updatedPromo = WapPromoSdk.promoNotifier.value;
+  debugPrint('New campaign resolved: ${updatedPromo?.title}');
+});
+
+// Manually trigger a background network refresh
+await WapPromoSdk.refresh();
+
+// Record genuine impressions and clicks
+WapPromoSdk.recordImpression(campaignId);
+WapPromoSdk.recordClick(campaignId);
+```
+
+#### Telemetry Network Endpoints:
+- **Campaign Fetch**: `GET /v1/promotion?appId={appId}&version={version}&env={env}&platform={platform}`
+- **Impression Event**: `POST /v1/analytics/impression` with payload `{"campaignId": "...", "appId": "..."}`
+- **Click Event**: `POST /v1/analytics/click` with payload `{"campaignId": "...", "appId": "..."}`
+
+All analytics calls are fire-and-forget and execute asynchronously with 3-second timeouts without delaying user interaction.
+
+### 8. Cryptographic Verification & Frequency Capping Rules
+
+#### HMAC-SHA256 Verification:
+Every server response contains a `signature` field computed over sorted key-value pairs using the shared `signingSecret`. `CryptoValidator.verifySignature` verifies this signature using constant-time comparison before any campaign data is applied or rendered. If the signature is missing or does not match, the response is discarded and the SDK continues using the cached payload.
+
+#### Frequency Capping:
+Campaigns include optional frequency capping parameters (`PromoFrequencyCap`):
+- `maxImpressions`: Maximum impressions allowed per device within the time window.
+- `periodHours`: Rolling time window in hours (default: 24 hours).
+
+When the limit is reached, `WapPromoSdk` automatically clears the active notifier value to prevent visual fatigue.
+
+---
+
+## Section L: Dashboard Configuration
 
 All ad parameters are configured in the WAPCentral Console:
 
@@ -657,7 +969,7 @@ All ad parameters are configured in the WAPCentral Console:
 
 ---
 
-## Section L: What Can Be Controlled From WAPCentral
+## Section M: What Can Be Controlled From WAPCentral
 
 Everything critical to monetization is controlled remotely without app updates:
 
@@ -675,7 +987,7 @@ Everything critical to monetization is controlled remotely without app updates:
 
 ---
 
-## Section M: Firebase Requirements
+## Section N: Firebase Requirements
 
 Consuming apps that also utilize Firebase for authentication or crash reporting must ensure:
 1. **Google Services**: Include `google-services.json` (Android) and `GoogleService-Info.plist` (iOS) in their standard locations.
@@ -684,7 +996,7 @@ Consuming apps that also utilize Firebase for authentication or crash reporting 
 
 ---
 
-## Section N: Android Requirements
+## Section O: Android Requirements
 
 1. **Minimum SDK**: In `android/app/build.gradle`:
    ```groovy
@@ -716,7 +1028,7 @@ Consuming apps that also utilize Firebase for authentication or crash reporting 
 
 ---
 
-## Section O: iOS Requirements
+## Section P: iOS Requirements
 
 1. **Deployment Target**: iOS 13.0 or higher in `ios/Podfile`:
    ```ruby
@@ -742,7 +1054,7 @@ Consuming apps that also utilize Firebase for authentication or crash reporting 
 
 ---
 
-## Section P: Test Mode
+## Section Q: Test Mode
 
 During development and QA testing:
 1. Initialize `WapAds` with `testMode: true`:
@@ -761,7 +1073,7 @@ During development and QA testing:
 
 ---
 
-## Section Q: Production Mode
+## Section R: Production Mode
 
 For production App Store and Google Play releases:
 1. Ensure `testMode: false` in `WapAdsOptions`.
@@ -771,7 +1083,7 @@ For production App Store and Google Play releases:
 
 ---
 
-## Section R: Offline Behavior & Resilience
+## Section S: Offline Behavior & Resilience
 
 `wap_ads_sdk` is engineered with an **offline-first resilience model**:
 
@@ -782,7 +1094,7 @@ For production App Store and Google Play releases:
 
 ---
 
-## Section S: Kill Switches & Emergency Procedures
+## Section T: Kill Switches & Emergency Procedures
 
 WAPCentral provides five layers of emergency kill switches accessible via dashboard or API:
 
@@ -807,7 +1119,7 @@ When a kill switch activates, `WapAds` immediately suppresses ad rendering and r
 
 ---
 
-## Section T: Troubleshooting & Diagnostic Guide
+## Section U: Troubleshooting & Diagnostic Guide
 
 ### 1. Banner Shows Blank Space / Does Not Render
 - **Check Master Toggle**: Verify in WAPCentral Dashboard that Ads Master and Banner toggles are ON.
@@ -827,7 +1139,7 @@ When a kill switch activates, `WapAds` immediately suppresses ad rendering and r
 
 ---
 
-## Section U: Security Rules
+## Section V: Security Rules
 
 1. **Client-Safe Public Keys Only**: Only use `wap_pub_...` tokens in client mobile code.
 2. **Never Check In Secrets**: Provider API secrets, private keys, service account credentials, and Cloud Run admin tokens must **NEVER** exist in mobile repositories.
@@ -836,7 +1148,7 @@ When a kill switch activates, `WapAds` immediately suppresses ad rendering and r
 
 ---
 
-## Section V: Things Developers MUST NOT Hard-Code
+## Section W: Things Developers MUST NOT Hard-Code
 
 ❌ **DO NOT** hard-code AdMob Unit IDs in Dart code.  
 ❌ **DO NOT** hard-code Meta Placement IDs in Dart code.  
@@ -848,7 +1160,7 @@ When a kill switch activates, `WapAds` immediately suppresses ad rendering and r
 
 ---
 
-## Section W: Things Developers MUST NOT Modify
+## Section X: Things Developers MUST NOT Modify
 
 Consuming app developers must **NOT** alter the following core SDK behaviors:
 - Do not bypass `FrequencyManager` checks to display rapid back-to-back interstitials.
@@ -859,7 +1171,7 @@ Consuming app developers must **NOT** alter the following core SDK behaviors:
 
 ---
 
-## Section X: Production Release Checklist
+## Section Y: Production Release Checklist
 
 Before submitting an app update to Google Play or Apple App Store:
 
@@ -877,31 +1189,54 @@ Before submitting an app update to Google Play or Apple App Store:
 
 ---
 
-## Section Y: Complete Example Integration for a New App
+## Section Z: Complete Example Integration for a New App
 
-Here is an end-to-end, copy-pasteable example integrating `wap_ads_sdk` into a brand new application:
+Here is an end-to-end, copy-pasteable example integrating `wap_ads_sdk` and `wap_promo_sdk` into a brand new application:
 
 ```dart
 // lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:wap_ads_sdk/wap_ads.dart';
+import 'package:wap_promo_sdk/wap_promo_sdk.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Initialize WAP Ads SDK
+  const appId = 'filezen-android';
+  const appKey = String.fromEnvironment(
+    'WAP_PUBLIC_APP_KEY',
+    defaultValue: 'wap_pub_live_filezen_sample',
+  );
+  const baseUrl = 'https://api.wapcentral.webappypie.com';
+
+  // 1. Initialize WAP Ads SDK (AppLovin MAX Mediation)
   await WapAds.initialize(
     options: WapAdsOptions(
-      appId: 'filezen-android',
-      appKey: const String.fromEnvironment(
-        'WAP_PUBLIC_APP_KEY',
-        defaultValue: 'wap_pub_live_filezen_sample',
-      ),
-      baseUrl: 'https://api.wapcentral.webappypie.com',
+      appId: appId,
+      appKey: appKey,
+      baseUrl: baseUrl,
       environment: WapEnvironment.production,
       testMode: false,
       autoRefreshConfig: true,
       refreshInterval: const Duration(minutes: 15),
+    ),
+  );
+
+  // 2. Initialize WAP Promotion SDK (Non-blocking, zero-latency local cache boot)
+  await WapPromoSdk.init(
+    const PromoConfig(
+      appId: appId,
+      appKey: appKey,
+      baseUrl: baseUrl,
+      signingSecret: String.fromEnvironment(
+        'WAP_PROMO_SECRET',
+        defaultValue: 'wap_promo_secret_filezen',
+      ),
+      appVersion: '1.0.0',
+      platform: 'android',
+      environment: 'production',
+      enableLogging: false,
     ),
   );
 
@@ -1011,9 +1346,24 @@ class _FileZenHomeScreenState extends State<FileZenHomeScreen> with WidgetsBindi
             label: const Text('Compress Files (Shows Interstitial)'),
             onPressed: _handleFileCompress,
           ),
+          const SizedBox(height: 20),
+          // WAPCentral Sponsored Placement (Capped at 120dp height, clear 'Sponsored' label, auto-hides if no campaign)
+          WapSponsoredPlacement(
+            margin: EdgeInsets.zero,
+            elevation: 0.5,
+            borderRadius: BorderRadius.circular(10.0),
+            onDestinationTap: (storeUrl) async {
+              if (storeUrl.isNotEmpty) {
+                final uri = Uri.tryParse(storeUrl);
+                if (uri != null && await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              }
+            },
+          ),
           const SizedBox(height: 24),
           const Text(
-            'Sponsored Recommendation',
+            'Third-Party Native Ad (AppLovin MAX Mediation)',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),

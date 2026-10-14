@@ -190,7 +190,7 @@ export type AdNetworkId =
   | 'unity'
   | 'custom_ads'
   | 'wapCustomAds'
-  | string;
+  | (string & {});
 
 // ============================================================
 // Simplified Per-App Ads Configuration (stored in apps collection)

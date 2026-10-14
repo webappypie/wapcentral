@@ -66,7 +66,8 @@ export const Modal: React.FC<ModalProps> = ({
       {/* Dialog Content */}
       <div
         className={cn(
-          'relative z-10 w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 sm:rounded-2xl',
+          'relative z-10 w-full rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 sm:rounded-2xl',
+          !className?.includes('max-w-') && 'max-w-lg',
           className,
         )}
       >

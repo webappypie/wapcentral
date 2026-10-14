@@ -38,7 +38,7 @@ export const DevicePreview: React.FC<DevicePreviewProps> = ({
   return (
     <div className={`flex flex-col items-center select-none ${className}`}>
       {/* Device Frame */}
-      <div className="relative w-[300px] h-[600px] rounded-[44px] bg-slate-900 p-3 shadow-2xl border-4 border-slate-700/80 ring-1 ring-slate-900/50">
+      <div className="relative w-[285px] h-[560px] rounded-[42px] bg-slate-900 p-2.5 shadow-2xl border-4 border-slate-700/80 ring-1 ring-slate-900/50">
         {/* Dynamic Island / Notch */}
         <div className="absolute top-5 left-1/2 -translate-x-1/2 z-30 h-5 w-24 rounded-full bg-black flex items-center justify-between px-2">
           <div className="h-2.5 w-2.5 rounded-full bg-slate-800" />

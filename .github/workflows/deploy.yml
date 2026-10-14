@@ -20,7 +20,7 @@ concurrency:
 
 env:
   NODE_VERSION: '18'
-  PNPM_VERSION: '9'
+  PNPM_VERSION: '9.15.9'
   GCP_REGION: 'us-central1'
   PRODUCTION_PROJECT_ID: 'wapcentral-prod'
   CUSTOM_DOMAIN: 'central.webappypie.com'

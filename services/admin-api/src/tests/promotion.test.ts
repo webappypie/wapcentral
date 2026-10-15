@@ -7,13 +7,32 @@ import { registerMemoryApp, resetPlatformQuotaForTest } from '../platform/middle
 import { resetKillSwitchesForTest } from '../platform/services/killSwitchService.js';
 import { clearInMemoryFirestoreForTest, getFirestoreDb } from '../services/firestore.js';
 import {
+  canonicalPromotionString,
   resetPromotionCacheForTest,
-  signPromotionPayload,
+  setPromotionSignerForTest,
   toStoredCampaign,
   isCampaignEligible,
+  type PromotionSigner,
 } from '../services/promotionDeliveryService.js';
 
-const SECRET = 'test_promotion_signing_secret';
+// Throwaway RSA key standing in for the Cloud KMS key in tests.
+const { publicKey: TEST_PUBLIC_KEY, privateKey: TEST_PRIVATE_KEY } = crypto.generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+});
+const OTHER_PUBLIC_KEY = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).publicKey;
+const SHA256_DIGEST_INFO = Buffer.from('3031300d060960864801650304020105000420', 'hex');
+let kmsCalls = 0;
+const testSigner: PromotionSigner = {
+  keyId: 'promo-signing-v1',
+  // Same operation as KMS asymmetricSign: PKCS#1 v1.5 over a precomputed SHA-256 digest.
+  signDigest: async (digest) => {
+    kmsCalls += 1;
+    return crypto.privateEncrypt(
+      { key: TEST_PRIVATE_KEY, padding: crypto.constants.RSA_PKCS1_PADDING },
+      Buffer.concat([SHA256_DIGEST_INFO, digest]),
+    );
+  },
+};
 const APP_ID = 'app_promo_test';
 const APP_KEY = 'wap_key_promo_test';
 const OTHER_APP_ID = 'app_other_test';
@@ -26,11 +45,11 @@ function dartToString(v: unknown): string {
   }
   return String(v);
 }
-function sdkVerifies(json: Record<string, unknown>, secret: string): boolean {
+function sdkVerifies(json: Record<string, unknown>, publicKey: crypto.KeyObject): boolean {
+  if (json['signatureAlg'] !== 'RS256' || typeof json['signature'] !== 'string') return false;
   const keys = Object.keys(json).filter((k) => k !== 'signature' && json[k] !== null).sort();
   const canonical = keys.map((k) => `${k}:${dartToString(json[k])}`).join('|');
-  const expected = crypto.createHmac('sha256', secret).update(canonical).digest('hex');
-  return expected === json['signature'];
+  return crypto.verify('sha256', Buffer.from(canonical), publicKey, Buffer.from(json['signature'], 'base64url'));
 }
 
 const baseCampaign = {
@@ -56,7 +75,6 @@ async function seedCampaign(id: string, data: Record<string, unknown>): Promise<
 
 describe('Promotions delivery (/api/platform/v1/promotion)', () => {
   const app = createApp();
-  const previousSecret = process.env['PROMOTION_SIGNING_SECRET'];
 
   const getPromotion = (query: Record<string, string> = {}) =>
     request(app)
@@ -65,7 +83,8 @@ describe('Promotions delivery (/api/platform/v1/promotion)', () => {
       .set('X-App-Key', APP_KEY);
 
   beforeEach(() => {
-    process.env['PROMOTION_SIGNING_SECRET'] = SECRET;
+    setPromotionSignerForTest(testSigner);
+    kmsCalls = 0;
     clearInMemoryFirestoreForTest();
     resetPromotionCacheForTest();
     resetKillSwitchesForTest();
@@ -92,8 +111,7 @@ describe('Promotions delivery (/api/platform/v1/promotion)', () => {
   });
 
   afterAll(() => {
-    if (previousSecret === undefined) delete process.env['PROMOTION_SIGNING_SECRET'];
-    else process.env['PROMOTION_SIGNING_SECRET'] = previousSecret;
+    setPromotionSignerForTest(undefined);
   });
 
   it('serves the published campaign targeted at the app, signed in the SDK canonical form', async () => {
@@ -117,20 +135,29 @@ describe('Promotions delivery (/api/platform/v1/promotion)', () => {
       cacheTtlSeconds: 21600,
       frequencyCap: { maxImpressions: 3, periodHours: 24 },
     });
-    expect(sdkVerifies(res.body, SECRET)).toBe(true);
-    expect(sdkVerifies(res.body, 'wrong-secret')).toBe(false);
+    expect(res.body).toMatchObject({ signatureAlg: 'RS256', keyId: 'promo-signing-v1' });
+    expect(sdkVerifies(res.body, TEST_PUBLIC_KEY)).toBe(true);
+    expect(sdkVerifies(res.body, OTHER_PUBLIC_KEY)).toBe(false);
+    expect(sdkVerifies({ ...res.body, storeUrl: 'https://evil.example.com' }, TEST_PUBLIC_KEY)).toBe(false);
     // Dashboard-internal fields never leave the server.
     expect(res.body).not.toHaveProperty('targetAppIds');
     expect(res.body).not.toHaveProperty('priority');
     expect(res.body).not.toHaveProperty('analytics');
   });
 
-  it('signs nested objects the way Dart prints a Map', () => {
-    const payload = { a: 1, cap: { maxImpressions: 3, periodHours: 24 }, n: null };
-    const canonical = 'a:1|cap:{maxImpressions: 3, periodHours: 24}';
-    expect(signPromotionPayload(payload, SECRET)).toBe(
-      crypto.createHmac('sha256', SECRET).update(canonical).digest('hex'),
-    );
+  it('canonicalizes nested objects the way Dart prints a Map', () => {
+    const payload = { a: 1, cap: { maxImpressions: 3, periodHours: 24 }, n: null, signature: 'x' };
+    expect(canonicalPromotionString(payload)).toBe('a:1|cap:{maxImpressions: 3, periodHours: 24}');
+  });
+
+  it('signs each distinct payload once (KMS calls are cached)', async () => {
+    await seedCampaign('camp_01', baseCampaign);
+
+    const first = await getPromotion();
+    const second = await getPromotion();
+
+    expect(second.body.signature).toBe(first.body.signature);
+    expect(kmsCalls).toBe(1);
   });
 
   it('picks the highest-priority eligible campaign', async () => {
@@ -160,7 +187,7 @@ describe('Promotions delivery (/api/platform/v1/promotion)', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ schemaVersion: 1, enabled: false, cacheTtlSeconds: 3600 });
     expect(res.body).not.toHaveProperty('campaignId');
-    expect(sdkVerifies(res.body, SECRET)).toBe(true);
+    expect(sdkVerifies(res.body, TEST_PUBLIC_KEY)).toBe(true);
   });
 
   it('treats a missing enabled flag as enabled (dashboard default)', () => {
@@ -181,8 +208,8 @@ describe('Promotions delivery (/api/platform/v1/promotion)', () => {
     expect(notAuthorized.body.error.code).toBe('SERVICE_NOT_AUTHORIZED');
   });
 
-  it('refuses to serve unsigned payloads when the signing secret is missing', async () => {
-    delete process.env['PROMOTION_SIGNING_SECRET'];
+  it('refuses to serve unsigned payloads when no signing key is configured', async () => {
+    setPromotionSignerForTest(null);
     await seedCampaign('camp_01', baseCampaign);
 
     const res = await getPromotion();

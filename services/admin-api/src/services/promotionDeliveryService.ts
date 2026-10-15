@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { COLLECTIONS } from '@wapcentral/config';
+import { GoogleAuth } from 'google-auth-library';
 import { getFirestoreDb } from './firestore.js';
 
 /**
@@ -7,8 +8,10 @@ import { getFirestoreDb } from './firestore.js';
  * gateway at `/api/platform/v1/promotion` and `/api/platform/v1/analytics/*`.
  *
  * Campaigns are the ones the dashboard writes to Firestore `campaigns`.
- * Payloads are HMAC-SHA256 signed with PROMOTION_SIGNING_SECRET using the
- * exact canonical form wap_promo_sdk's CryptoValidator rebuilds on device.
+ * Payloads are signed RS256 (RSASSA-PKCS1-v1_5 / SHA-256) by a Cloud KMS
+ * asymmetric key over the canonical form wap_promo_sdk's CryptoValidator
+ * rebuilds on device. Apps verify with the public key only, so no signing
+ * secret ever ships in an app.
  */
 
 export interface PromotionMatchParams {
@@ -57,18 +60,63 @@ export function resetPromotionCacheForTest(): void {
   campaignCache = null;
 }
 
-export function getPromotionSigningSecret(): string | undefined {
-  const secret = process.env['PROMOTION_SIGNING_SECRET']?.trim();
-  return secret ? secret : undefined;
+// ---------------------------------------------------------------------------
+// Signing (must match wap_promo_sdk CryptoValidator.verifyRs256Signature)
+// ---------------------------------------------------------------------------
+
+/** Signs a SHA-256 digest with an RSA PKCS#1 v1.5 key; returns the raw signature. */
+export interface PromotionSigner {
+  keyId: string;
+  signDigest: (sha256Digest: Buffer) => Promise<Buffer>;
 }
 
-// ---------------------------------------------------------------------------
-// Signing (must match wap_promo_sdk CryptoValidator.computeSignature)
-// ---------------------------------------------------------------------------
+/**
+ * Cloud KMS signer for `PROMOTION_KMS_KEY_VERSION`
+ * (`projects/../locations/../keyRings/../cryptoKeys/../cryptoKeyVersions/N`,
+ * algorithm RSA_SIGN_PKCS1_2048_SHA256 or larger). The private key never
+ * leaves KMS; the service account needs roles/cloudkms.signer on the key.
+ */
+function kmsSigner(keyVersion: string): PromotionSigner {
+  const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloudkms'] });
+  const match = /cryptoKeys\/([^/]+)\/cryptoKeyVersions\/([^/]+)$/.exec(keyVersion);
+  return {
+    // Public identifier apps use to pick the matching public key.
+    keyId: match ? `${match[1]}-v${match[2]}` : keyVersion,
+    signDigest: async (digest) => {
+      const client = await auth.getClient();
+      const res = await client.request<{ signature?: string }>({
+        url: `https://cloudkms.googleapis.com/v1/${keyVersion}:asymmetricSign`,
+        method: 'POST',
+        data: { digest: { sha256: digest.toString('base64') } },
+      });
+      if (!res.data.signature) throw new Error('Cloud KMS returned no signature');
+      return Buffer.from(res.data.signature, 'base64');
+    },
+  };
+}
+
+let signerOverride: PromotionSigner | null | undefined;
+let cachedKmsSigner: { version: string; signer: PromotionSigner } | null = null;
+
+export function setPromotionSignerForTest(signer: PromotionSigner | null | undefined): void {
+  signerOverride = signer;
+  signatureCache.clear();
+}
+
+/** The configured signer, or null when promotion signing is not set up. */
+export function getPromotionSigner(): PromotionSigner | null {
+  if (signerOverride !== undefined) return signerOverride;
+  const version = process.env['PROMOTION_KMS_KEY_VERSION']?.trim();
+  if (!version) return null;
+  if (cachedKmsSigner?.version !== version) {
+    cachedKmsSigner = { version, signer: kmsSigner(version) };
+  }
+  return cachedKmsSigner.signer;
+}
 
 /**
  * Renders a JSON value the way Dart's `toString()` does after `jsonDecode`,
- * because the SDK signs `'$key:${value.toString()}'`.
+ * because the SDK canonicalizes `'$key:${value.toString()}'`.
  */
 function dartString(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(dartString).join(', ')}]`;
@@ -81,13 +129,33 @@ function dartString(value: unknown): string {
   return String(value);
 }
 
-export function signPromotionPayload(payload: Record<string, unknown>, secret: string): string {
-  const canonical = Object.keys(payload)
+export function canonicalPromotionString(payload: Record<string, unknown>): string {
+  return Object.keys(payload)
     .filter((k) => k !== 'signature' && payload[k] !== null && payload[k] !== undefined)
     .sort()
     .map((k) => `${k}:${dartString(payload[k])}`)
     .join('|');
-  return crypto.createHmac('sha256', secret).update(canonical).digest('hex');
+}
+
+/** Payloads repeat until a campaign changes, so KMS signs each one once per instance. */
+const signatureCache = new Map<string, string>();
+const SIGNATURE_CACHE_MAX = 256;
+
+/** Adds `signatureAlg`, `keyId` and the base64url RS256 `signature`. */
+export async function signPromotionPayload(
+  payload: Record<string, unknown>,
+  signer: PromotionSigner,
+): Promise<PromotionPayload> {
+  const unsigned = { ...payload, signatureAlg: 'RS256', keyId: signer.keyId };
+  const canonical = canonicalPromotionString(unsigned);
+  let signature = signatureCache.get(canonical);
+  if (!signature) {
+    const digest = crypto.createHash('sha256').update(canonical, 'utf8').digest();
+    signature = (await signer.signDigest(digest)).toString('base64url');
+    if (signatureCache.size >= SIGNATURE_CACHE_MAX) signatureCache.clear();
+    signatureCache.set(canonical, signature);
+  }
+  return { ...unsigned, signature };
 }
 
 // ---------------------------------------------------------------------------
@@ -213,15 +281,15 @@ export async function matchCampaignForApp(
 }
 
 /** Signed wap_promo_sdk payload: the campaign, or `enabled: false` when none. */
-export function buildPromotionPayload(
+export async function buildPromotionPayload(
   camp: StoredCampaign | null,
-  secret: string,
+  signer: PromotionSigner,
   nowMs = Date.now(),
-): { payload: PromotionPayload; cacheTtlSeconds: number } {
+): Promise<{ payload: PromotionPayload; cacheTtlSeconds: number }> {
   if (!camp) {
     const base = { schemaVersion: 1, enabled: false, cacheTtlSeconds: PROMOTION_EMPTY_TTL_SECONDS };
     return {
-      payload: { ...base, signature: signPromotionPayload(base, secret) },
+      payload: await signPromotionPayload(base, signer),
       cacheTtlSeconds: PROMOTION_EMPTY_TTL_SECONDS,
     };
   }
@@ -256,7 +324,7 @@ export function buildPromotionPayload(
         }
       : {}),
   };
-  return { payload: { ...base, signature: signPromotionPayload(base, secret) }, cacheTtlSeconds: ttl };
+  return { payload: await signPromotionPayload(base, signer), cacheTtlSeconds: ttl };
 }
 
 // ---------------------------------------------------------------------------

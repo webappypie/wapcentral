@@ -31,7 +31,7 @@ import {
 import { AnalyticsEventService } from '../../services/analytics/analyticsEventService.js';
 import {
   buildPromotionPayload,
-  getPromotionSigningSecret,
+  getPromotionSigner,
   matchCampaignForApp,
   recordPromotionEvent,
 } from '../../services/promotionDeliveryService.js';
@@ -777,8 +777,8 @@ platformRouter.get(
   '/promotion',
   requirePlatformService('promotion'),
   async (req: PlatformAuthenticatedRequest, res: Response) => {
-    const secret = getPromotionSigningSecret();
-    if (!secret) {
+    const signer = getPromotionSigner();
+    if (!signer) {
       promotionError(res, req, 503, 'PROMOTION_SIGNING_UNAVAILABLE', 'Promotion signing is not configured.');
       return;
     }
@@ -794,7 +794,7 @@ platformRouter.get(
         env: q('env'),
         platform: q('platform'),
       });
-      const { payload, cacheTtlSeconds } = buildPromotionPayload(campaign, secret);
+      const { payload, cacheTtlSeconds } = await buildPromotionPayload(campaign, signer);
       res.setHeader('Cache-Control', `private, max-age=${cacheTtlSeconds}`);
       res.status(200).json(payload);
     } catch (err: unknown) {

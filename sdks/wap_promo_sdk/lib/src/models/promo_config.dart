@@ -1,3 +1,5 @@
+import '../utils/crypto_validator.dart';
+
 /// Configuration options for initializing the WapPromoSdk.
 class PromoConfig {
   /// The unique identifier of the host application (e.g. 'app_01').
@@ -9,8 +11,13 @@ class PromoConfig {
   /// The root URL of the promotion API (e.g. 'https://promotion-api.webappypie.com').
   final String baseUrl;
 
-  /// The shared secret used to verify HMAC-SHA256 signatures of delivered campaigns.
+  /// Legacy: shared secret to verify HMAC-SHA256 signatures. Anyone holding it
+  /// can forge payloads, so prefer [verificationKeys]; ignored when those are set.
   final String signingSecret;
+
+  /// Public keys (by `keyId`) that verify `RS256` server signatures. When set,
+  /// only RS256 payloads signed by one of these keys are accepted.
+  final Map<String, PromoRsaPublicKey> verificationKeys;
 
   /// The current semantic version of the host application (e.g. '1.0.0').
   final String appVersion;
@@ -34,7 +41,8 @@ class PromoConfig {
     required this.appId,
     required this.appKey,
     required this.baseUrl,
-    required this.signingSecret,
+    this.signingSecret = '',
+    this.verificationKeys = const {},
     this.appVersion = '1.0.0',
     this.platform = 'android',
     this.environment = 'production',

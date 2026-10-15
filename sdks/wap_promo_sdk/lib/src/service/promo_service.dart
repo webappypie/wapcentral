@@ -83,14 +83,14 @@ class PromoService {
         final Map<String, dynamic> jsonMap =
             jsonDecode(response.body) as Map<String, dynamic>;
 
-        // 1. Verify HMAC signature before trusting the payload
-        final isValidSignature = CryptoValidator.verifySignature(
-          jsonMap,
-          config.signingSecret,
-        );
+        // 1. Verify the signature (RS256 public key, or legacy HMAC) before trusting the payload
+        final isValidSignature = config.verificationKeys.isNotEmpty
+            ? CryptoValidator.verifyRs256Signature(jsonMap, config.verificationKeys)
+            : config.signingSecret.isNotEmpty &&
+                CryptoValidator.verifySignature(jsonMap, config.signingSecret);
 
         if (!isValidSignature) {
-          _log('HMAC verification FAILED. Untrusted response ignored.');
+          _log('Signature verification FAILED. Untrusted response ignored.');
           // Retain cached payload if available
           return cache.getCachedPayload(config.appId);
         }

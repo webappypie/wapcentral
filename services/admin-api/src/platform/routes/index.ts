@@ -30,6 +30,12 @@ import {
 } from '../../services/adConfigService.js';
 import { AnalyticsEventService } from '../../services/analytics/analyticsEventService.js';
 import {
+  buildPromotionPayload,
+  getPromotionSigningSecret,
+  matchCampaignForApp,
+  recordPromotionEvent,
+} from '../../services/promotionDeliveryService.js';
+import {
   getEffectiveNotificationConfig,
   registerDevice,
   unregisterDevice,
@@ -747,6 +753,94 @@ platformRouter.post(
     });
   },
 );
+
+// ============================================================
+// E2. Promotions (wap_promo_sdk)
+// ============================================================
+// The SDK calls `<baseUrl>/v1/promotion` and `<baseUrl>/v1/analytics/{impression,click}`;
+// apps pass baseUrl `https://<host>/api/platform`. Responses are the SDK's
+// top-level payload (no envelope) so CryptoValidator can verify the signature.
+
+function promotionError(res: Response, req: PlatformAuthenticatedRequest, status: number, code: string, message: string): void {
+  res.status(status).json({
+    success: false,
+    requestId: req.platformRequestId,
+    appId: req.platformApp?.id,
+    service: 'promotion',
+    error: { code, message },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+// GET /promotion?appId=&version=&env=&platform=
+platformRouter.get(
+  '/promotion',
+  requirePlatformService('promotion'),
+  async (req: PlatformAuthenticatedRequest, res: Response) => {
+    const secret = getPromotionSigningSecret();
+    if (!secret) {
+      promotionError(res, req, 503, 'PROMOTION_SIGNING_UNAVAILABLE', 'Promotion signing is not configured.');
+      return;
+    }
+    const q = (key: string): string | undefined => {
+      const value = req.query[key];
+      return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+    };
+
+    try {
+      const campaign = await matchCampaignForApp({
+        appId: req.platformApp!.id,
+        version: q('version'),
+        env: q('env'),
+        platform: q('platform'),
+      });
+      const { payload, cacheTtlSeconds } = buildPromotionPayload(campaign, secret);
+      res.setHeader('Cache-Control', `private, max-age=${cacheTtlSeconds}`);
+      res.status(200).json(payload);
+    } catch (err: unknown) {
+      promotionError(res, req, 500, 'PROMOTION_DELIVERY_ERROR', err instanceof Error ? err.message : 'Failed to resolve promotion');
+    }
+  },
+);
+
+// POST /analytics/impression & /analytics/click  { campaignId, appId, deviceId? }
+for (const eventType of ['impression', 'click'] as const) {
+  platformRouter.post(
+    `/analytics/${eventType}`,
+    requirePlatformService('promotion'),
+    async (req: PlatformAuthenticatedRequest, res: Response) => {
+      const campaignId = typeof req.body?.campaignId === 'string' ? req.body.campaignId.trim() : '';
+      if (!campaignId || campaignId.length > 128) {
+        promotionError(res, req, 400, 'VALIDATION_ERROR', 'campaignId is required.');
+        return;
+      }
+      const deviceId = typeof req.body?.deviceId === 'string' ? req.body.deviceId.slice(0, 128) : undefined;
+
+      try {
+        const result = await recordPromotionEvent({
+          eventType,
+          campaignId,
+          appId: req.platformApp!.id,
+          deviceId,
+        });
+        if (!result.recorded) {
+          promotionError(res, req, 404, 'CAMPAIGN_NOT_FOUND', `Campaign '${campaignId}' is not delivered to this app.`);
+          return;
+        }
+        res.status(202).json({
+          success: true,
+          requestId: req.platformRequestId,
+          appId: req.platformApp!.id,
+          service: 'promotion',
+          data: { eventId: result.eventId, eventType },
+          timestamp: new Date().toISOString(),
+        });
+      } catch (err: unknown) {
+        promotionError(res, req, 500, 'PROMOTION_EVENT_ERROR', err instanceof Error ? err.message : 'Failed to record event');
+      }
+    },
+  );
+}
 
 // ============================================================
 // F. Platform Notifications Endpoints (Step 3)

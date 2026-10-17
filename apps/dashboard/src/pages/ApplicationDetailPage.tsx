@@ -22,7 +22,6 @@ import {
   Copy,
   RefreshCw,
   Download,
-  FileText,
   Loader2,
   Check,
   ShieldCheck,
@@ -481,83 +480,6 @@ export const ApplicationDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Developer Resources Banner */}
-          <div className="mt-4 pt-3.5 border-t border-slate-100 dark:border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50 dark:bg-slate-950/30 p-3.5 rounded-xl border border-slate-200/60 dark:border-slate-800/60">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
-                <FileText className="h-4 w-4" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Developer Resources &amp; Integration Guide (.md)
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Auto-generated Markdown developer documentation pre-filled with {app.name}&apos;s real credentials, SDKs, and endpoints.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => handleCopy(app.id, 'appId')}
-                className="h-7 px-2.5 text-xs flex items-center gap-1"
-              >
-                {copiedField === 'appId' ? (
-                  <>
-                    <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Copied ID</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3 w-3" />
-                    <span>Copy App ID</span>
-                  </>
-                )}
-              </Button>
-              {app.appKey && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleCopy(app.appKey || '', 'appKey')}
-                  className="h-7 px-2.5 text-xs flex items-center gap-1"
-                >
-                  {copiedField === 'appKey' ? (
-                    <>
-                      <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Copied Key</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3 w-3" />
-                      <span>Copy X-App-Key</span>
-                    </>
-                  )}
-                </Button>
-              )}
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleDownloadGuide}
-                disabled={isDownloadingGuide}
-                className="h-7 px-3 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-medium flex items-center gap-1.5 shadow-sm"
-              >
-                {isDownloadingGuide ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    <span>Downloading...</span>
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-3.5 w-3.5" />
-                    <span>Download Integration Guide (.md)</span>
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
         </CardContent>
       </Card>
 

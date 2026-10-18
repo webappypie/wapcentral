@@ -15,7 +15,7 @@ environment setup.
 - [ ] Google AdMob account
 - [ ] Meta Audience Network account
 - [ ] AppLovin MAX account
-- [ ] Custom domain / DNS provider (e.g. `central.webappypie.com`)
+- [ ] Custom domain / DNS provider (e.g. `wapcentral.webappypie.com`)
 - [ ] Google Play Console account (for mobile app management)
 - [ ] Apple Developer account (future iOS support)
 - [ ] Canva Pro (for creative assets)

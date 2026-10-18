@@ -304,7 +304,7 @@ export const PLATFORM_SDKS_CATALOG: PlatformSdkDescriptor[] = [
     name: 'WAP Promo & Sponsorship SDK',
     package: 'wap_promo_sdk',
     version: '0.1.0',
-    description: 'First-party cross-promotions and sponsored native placement SDK. Features sub-millisecond local cache startup, HMAC verification, 120dp home placement, and genuine telemetry.',
+    description: 'First-party cross-promotions and sponsored native placement SDK. Features sub-millisecond local cache startup, HMAC verification, 90dp home placement, and genuine telemetry.',
     supportedPlatforms: ['Flutter', 'Dart', 'Android', 'iOS'],
     releaseStatus: 'Production Ready',
     responsibilities: ['Cache-First Startup', 'HMAC Signature Verification', 'Sponsored Native Placement', 'Frequency Capping', 'Impression & Click Telemetry'],

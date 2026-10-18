@@ -38,7 +38,7 @@ const idToken = tokenData.idToken;
 console.log('Obtained ID token successfully.');
 
 // Query /api/admin/v1/ai/providers through Firebase Hosting proxy
-const providersUrl = 'https://wapcentral-prod.web.app/api/admin/v1/ai/providers';
+const providersUrl = 'https://wapcentral.webappypie.com/api/admin/v1/ai/providers';
 const res = await fetch(providersUrl, {
   headers: {
     Authorization: `Bearer ${idToken}`,

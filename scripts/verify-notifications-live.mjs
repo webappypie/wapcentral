@@ -2,7 +2,7 @@
 // Tests Firebase Hosting, Cloud Run, Platform Notifications APIs, Authentication,
 // Effective Config, Security Isolation, Secrets Protection & Device Registration
 
-const HOSTING_URL = 'https://wapcentral-prod.web.app';
+const HOSTING_URL = 'https://wapcentral.webappypie.com';
 const CLOUD_RUN_URL = 'https://wapcentral-admin-api-174781611765.asia-south1.run.app';
 
 const FILEZEN_ID = 'filezen';

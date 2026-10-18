@@ -3,7 +3,7 @@ class WapNotificationsOptions {
   const WapNotificationsOptions({
     required this.appId,
     required this.appKey,
-    this.baseUrl = 'https://api.wapcentral.io',
+    this.baseUrl = 'https://wapcentral.webappypie.com',
     this.environment = 'production',
     this.autoFetchBell = true,
     this.bellRefreshInterval = const Duration(minutes: 5),

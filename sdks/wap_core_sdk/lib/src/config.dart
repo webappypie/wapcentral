@@ -9,7 +9,7 @@ class WapConfig {
   final String appKey;
 
   /// Base URL of the WAPCentral Platform API Gateway.
-  /// Defaults to production endpoint: https://wapcentral-prod.web.app/api/platform/v1
+  /// Defaults to production endpoint: https://wapcentral.webappypie.com/api/platform/v1
   final String baseUrl;
 
   /// Deployment environment.
@@ -31,7 +31,7 @@ class WapConfig {
   const WapConfig({
     required this.appId,
     required this.appKey,
-    this.baseUrl = 'https://wapcentral-prod.web.app/api/platform/v1',
+    this.baseUrl = 'https://wapcentral.webappypie.com/api/platform/v1',
     this.environment = 'production',
     this.sdkVersion = '0.1.0',
     this.timeoutMs = 15000,
@@ -49,7 +49,7 @@ class WapConfig {
     return WapConfig(
       appId: 'filezen',
       appKey: appKey,
-      baseUrl: baseUrl ?? 'https://wapcentral-prod.web.app/api/platform/v1',
+      baseUrl: baseUrl ?? 'https://wapcentral.webappypie.com/api/platform/v1',
       environment: environment,
       preferLocal: preferLocal,
     );
@@ -65,7 +65,7 @@ class WapConfig {
     return WapConfig(
       appId: 'optilens',
       appKey: appKey,
-      baseUrl: baseUrl ?? 'https://wapcentral-prod.web.app/api/platform/v1',
+      baseUrl: baseUrl ?? 'https://wapcentral.webappypie.com/api/platform/v1',
       environment: environment,
       preferLocal: preferLocal,
     );

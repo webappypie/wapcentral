@@ -11,6 +11,7 @@
     "emulator": false
   },
   "allowedOrigins": [
+    "https://wapcentral.webappypie.com",
     "https://central.webappypie.com",
     "https://wapcentral-prod.web.app",
     "https://wapcentral-prod.firebaseapp.com"

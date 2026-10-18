@@ -96,7 +96,7 @@ Only add the WAP SDKs enabled for **{{APP_NAME}}** to your `pubspec.yaml`. Do no
 ## 6. WAPCentral Connection & Initialization
 
 The unified core client connects to the production WAPCentral API gateway:
-- **Production Base URL:** `https://wapcentral-prod.web.app/api/platform/v1`
+- **Production Base URL:** `https://wapcentral.webappypie.com/api/platform/v1`
 
 ### Initialization Snippet (`lib/main.dart`):
 
@@ -114,7 +114,7 @@ void main() async {
 
   // 2. Initialize WAPCentral Core Client
   await WapCore.initialize(
-    baseUrl: 'https://wapcentral-prod.web.app/api/platform/v1',
+    baseUrl: 'https://wapcentral.webappypie.com/api/platform/v1',
     appId: '{{APP_ID}}',
     appKey: const String.fromEnvironment('WAP_APP_KEY', defaultValue: '{{APP_KEY}}'),
     preferLocal: true,

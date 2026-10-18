@@ -3,6 +3,17 @@
 All notable changes to this project are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.0.1] — Custom Domain Migration: wapcentral.webappypie.com — 2026-10-15
+
+### Changed
+- **Canonical Dashboard & API Custom Domain:**
+  - Migrated primary public domain to `https://wapcentral.webappypie.com/`.
+  - Configured Cloud Run `wapcentral-admin-api` environment variables (`CORS_ORIGIN` and `CORS_ORIGINS`) to permit requests from `https://wapcentral.webappypie.com`.
+  - Updated Firebase Hosting allowed origins, CI/CD deployment pipelines, and uptime synthetic health probes.
+  - Updated SDK client defaults in `wap_core_sdk`, `wap_ads_sdk`, and `wap_notifications_sdk` to use `https://wapcentral.webappypie.com`.
+  - Updated all integration guides, setup documentation, templates, and verification test suites to reference `https://wapcentral.webappypie.com`.
+  - Verified live connectivity and HTTP 200 responses across all public dashboard and API proxy routes (`/api/admin/**` and `/api/platform/**`).
+
 ---
 
 ## [1.0.0] — Phase 13: Production Release — 2026-09-30

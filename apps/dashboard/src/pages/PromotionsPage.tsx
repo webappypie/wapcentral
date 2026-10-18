@@ -46,12 +46,20 @@ export const PromotionsPage: React.FC = () => {
 
   useEffect(() => {
     const unsubCampaigns = subscribeCampaigns(
-      (loaded) => setCampaigns(loaded),
-      () => {},
+      (loaded) => {
+        setCampaigns(loaded);
+        setViewState('content');
+      },
+      (err) => {
+        console.error('Failed to subscribe to promotion campaigns:', err);
+        setViewState('error');
+      },
     );
     const unsubApps = subscribeApps(
       (loaded) => setApps(loaded),
-      () => {},
+      (err) => {
+        console.error('Failed to subscribe to apps:', err);
+      },
     );
 
     return () => {
@@ -89,7 +97,11 @@ export const PromotionsPage: React.FC = () => {
       uid: user?.uid || 'usr_admin',
       email: user?.email || 'admin@webappypie.com',
     };
-    await setCampaignStatus(camp.id, nextStatus, actor);
+    try {
+      await setCampaignStatus(camp.id, nextStatus, actor);
+    } catch (err: unknown) {
+      window.alert(err instanceof Error ? err.message : 'Could not change campaign status.');
+    }
   };
 
   const handleDeleteCampaign = async (campaignId: string) => {
@@ -98,7 +110,11 @@ export const PromotionsPage: React.FC = () => {
         uid: user?.uid || 'usr_admin',
         email: user?.email || 'admin@webappypie.com',
       };
-      await deleteCampaign(campaignId, actor);
+      try {
+        await deleteCampaign(campaignId, actor);
+      } catch (err: unknown) {
+        window.alert(err instanceof Error ? err.message : 'Could not delete campaign.');
+      }
     }
   };
 
@@ -149,7 +165,7 @@ export const PromotionsPage: React.FC = () => {
       {viewState === 'error' && (
         <ErrorState
           title="Failed to load campaigns"
-          message="Could not synchronize with promotional database. Local backup engaged."
+          message="Could not load campaigns from the promotional database. Check your connection and permissions, then retry."
           onRetry={() => setViewState('content')}
         />
       )}

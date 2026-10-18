@@ -74,12 +74,18 @@ class WapAds {
     VoidCallback? onLoaded,
     Function(String error)? onFailed,
     VoidCallback? onClicked,
+    VoidCallback? onAdLoaded,
+    Function(String error)? onAdFailedToLoad,
+    VoidCallback? onAdClicked,
   }) {
     return WapBannerAd(
       placementKey: placementKey,
-      onLoaded: onLoaded,
-      onFailed: onFailed,
-      onClicked: onClicked,
+      onLoaded: onLoaded ?? onAdLoaded,
+      onFailed: onFailed ?? onAdFailedToLoad,
+      onClicked: onClicked ?? onAdClicked,
+      onAdLoaded: onAdLoaded,
+      onAdFailedToLoad: onAdFailedToLoad,
+      onAdClicked: onAdClicked,
     );
   }
 
@@ -87,16 +93,24 @@ class WapAds {
   static Widget native({
     String? placementKey,
     Widget Function(BuildContext context, Map<String, dynamic> data)? customBuilder,
+    Widget Function(BuildContext context, Map<String, dynamic> data)? builder,
     VoidCallback? onLoaded,
     Function(String error)? onFailed,
     VoidCallback? onClicked,
+    VoidCallback? onAdLoaded,
+    Function(String error)? onAdFailedToLoad,
+    VoidCallback? onAdClicked,
   }) {
     return WapNativeAd(
       placementKey: placementKey,
-      customBuilder: customBuilder,
-      onLoaded: onLoaded,
-      onFailed: onFailed,
-      onClicked: onClicked,
+      customBuilder: customBuilder ?? builder,
+      builder: builder,
+      onLoaded: onLoaded ?? onAdLoaded,
+      onFailed: onFailed ?? onAdFailedToLoad,
+      onClicked: onClicked ?? onAdClicked,
+      onAdLoaded: onAdLoaded,
+      onAdFailedToLoad: onAdFailedToLoad,
+      onAdClicked: onAdClicked,
     );
   }
 

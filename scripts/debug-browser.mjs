@@ -9,7 +9,7 @@ const edgeProcess = spawn(edgePath, [
   `--remote-debugging-port=${port}`,
   '--disable-gpu',
   '--no-sandbox',
-  'https://wapcentral-prod.web.app',
+  'https://wapcentral.webappypie.com',
 ]);
 
 // Wait for debugging port to be ready

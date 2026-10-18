@@ -25,7 +25,7 @@ console.log('✓ Generated super admin token for webappypie@gmail.com');
 
 // Test 1: Fetch Catalog from /api/admin/v1/ai/models/catalog
 console.log('\n--- 1. Testing GET /api/admin/v1/ai/models/catalog ---');
-const catalogUrl = 'https://wapcentral-prod.web.app/api/admin/v1/ai/models/catalog';
+const catalogUrl = 'https://wapcentral.webappypie.com/api/admin/v1/ai/models/catalog';
 const res = await fetch(catalogUrl, {
   headers: {
     Authorization: `Bearer ${idToken}`,
@@ -80,7 +80,7 @@ for (const modelId of expectedModels) {
 
 // Test 2: Fetch Providers from /api/admin/v1/ai/providers
 console.log('\n--- 2. Testing GET /api/admin/v1/ai/providers ---');
-const providersUrl = 'https://wapcentral-prod.web.app/api/admin/v1/ai/providers';
+const providersUrl = 'https://wapcentral.webappypie.com/api/admin/v1/ai/providers';
 const provRes = await fetch(providersUrl, {
   headers: {
     Authorization: `Bearer ${idToken}`,

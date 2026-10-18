@@ -28,12 +28,24 @@ class WapBannerAd extends StatefulWidget {
   /// Invoked when the banner is clicked.
   final VoidCallback? onClicked;
 
+  /// Optional aliases for alternative callback naming conventions.
+  final VoidCallback? onAdLoaded;
+  final Function(String error)? onAdFailedToLoad;
+  final VoidCallback? onAdClicked;
+
+  VoidCallback? get effectiveOnLoaded => onLoaded ?? onAdLoaded;
+  Function(String error)? get effectiveOnFailed => onFailed ?? onAdFailedToLoad;
+  VoidCallback? get effectiveOnClicked => onClicked ?? onAdClicked;
+
   const WapBannerAd({
     super.key,
     this.placementKey,
     this.onLoaded,
     this.onFailed,
     this.onClicked,
+    this.onAdLoaded,
+    this.onAdFailedToLoad,
+    this.onAdClicked,
   });
 
   @override
@@ -73,7 +85,7 @@ class _WapBannerAdState extends State<WapBannerAd> {
 
     // 1. Check Initialization & Master Kill Switches
     if (!core.isInitialized) {
-      widget.onFailed?.call('WAP Ads SDK is not initialized.');
+      widget.effectiveOnFailed?.call('WAP Ads SDK is not initialized.');
       return;
     }
 
@@ -169,7 +181,7 @@ class _WapBannerAdState extends State<WapBannerAd> {
                   requestId: _activeRequestId,
                 ),
               );
-              widget.onLoaded?.call();
+              widget.effectiveOnLoaded?.call();
             },
             onFailed: (error) {
               AdTelemetryDispatcher.dispatch(
@@ -198,7 +210,7 @@ class _WapBannerAdState extends State<WapBannerAd> {
                   requestId: _activeRequestId,
                 ),
               );
-              widget.onClicked?.call();
+              widget.effectiveOnClicked?.call();
             },
           );
         });
@@ -234,19 +246,19 @@ class _WapBannerAdState extends State<WapBannerAd> {
           customFallback.campaignId,
           onLoaded: () {
             core.frequencyManager.recordDisplay(AdFormat.banner, placementKey: widget.placementKey);
-            widget.onLoaded?.call();
+            widget.effectiveOnLoaded?.call();
           },
           onFailed: (err) {
             setState(() => _currentAdWidget = const SizedBox.shrink());
-            widget.onFailed?.call(err);
+            widget.effectiveOnFailed?.call(err);
           },
-          onClicked: widget.onClicked,
+          onClicked: widget.effectiveOnClicked,
         );
       });
     } else {
       // Complete Waterfall Exhaustion without Custom Fallback
       setState(() => _currentAdWidget = const SizedBox.shrink());
-      widget.onFailed?.call('All ad mediation tiers failed to load.');
+      widget.effectiveOnFailed?.call('All ad mediation tiers failed to load.');
     }
   }
 

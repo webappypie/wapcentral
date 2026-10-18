@@ -2,7 +2,7 @@
 
 The official centralized Flutter Advertising & Monetization SDK for WebAppyPie mobile applications (FileZen, OptiLens AI, and future apps).
 
-Consumes server-authoritative effective ad configurations from **WAPCentral** to mediate **Google AdMob**, **Meta Audience Network**, **AppLovin MAX**, and **WebAppyPie Custom Ads** without hardcoding provider credentials in the mobile client.
+Consumes server-authoritative effective ad configurations from **WAPCentral** to mediate advertising demand via **AppLovin MAX** (sole mediation engine) across **AppLovin Demand**, **Google AdMob**, **Meta Audience Network**, **InMobi**, **Unity Ads**, and first-party **WebAppyPie Custom Ads** without hardcoding provider credentials in the mobile client.
 
 ---
 
@@ -11,24 +11,62 @@ Consumes server-authoritative effective ad configurations from **WAPCentral** to
 ```
 Mobile Application (FileZen / OptiLens / New App)
    ↓
-wap_ads_sdk
+wap_ads_sdk (Unified Flutter Facade)
    ↓
 WAPCentral Platform API (GET /api/platform/v1/ads/config)
    ↓
-Effective Configuration Resolver (Kill Switches → Waterfall → Frequency Caps → Safety)
+AppLovin MAX Mediation Engine (Sole Mediation Platform)
+   ├─► Strategy A: Automatic Mediation (Real-time unified auctions)
+   └─► Strategy B: Single Demand Source (Exclusive routing through MAX)
    ↓
-Provider Adapters (AdMob, Meta, AppLovin, Custom Ads)
+Supported Demand Sources & Mediation Adapters:
+   ├─► AppLovin Demand (Built-in core bidding)
+   ├─► Google AdMob (MAX AdMob Adapter)
+   ├─► Meta Audience Network (MAX Meta Adapter)
+   ├─► InMobi (MAX InMobi Adapter)
+   ├─► Unity Ads (MAX Unity Adapter)
+   └─► WebAppyPie Custom Ads (House Ads Fallback)
 ```
 
+> **Unity LevelPlay Separation:** Unity LevelPlay is not supported or bundled in this architecture. AppLovin MAX is the sole mediation platform; Unity Ads is supported strictly as a demand source via the MAX Unity adapter.
+
+> **WAPCentral Promotions Decoupling:** In-house sponsorships and cross-promotions are served via `wap_promo_sdk`, keeping first-party house campaigns completely decoupled from third-party advertising auctions.
+
 ### Core Guarantees
-1. **Zero Secret Exposure**: Third-party provider secrets and Secret Manager references are never downloaded or exposed to the mobile app. Only public app credentials and format configurations are consumed.
-2. **Authoritative Server Control**: Ad networks, format master toggles, placements, and emergency kill switches are managed entirely from the WAPCentral Dashboard.
-3. **Graceful Fallback & Offline Resilience**: Caches configuration locally; automatically cascades through the mediation waterfall to in-house custom ads if third-party providers fail; suppresses ads safely if WAPCentral is unreachable without valid cache.
-4. **Ad Network Policy Compliance**: Strictly enforces minimum safe banner refresh intervals ($\ge 30\text{s}$, default $60\text{s}$) and prohibits artificial rapid cycling on full-screen formats.
+1. **Zero Secret Exposure**: Third-party provider secrets, API tokens, and credentials are never stored in or downloaded to the mobile app. Only public app credentials and server-resolved effective configurations are consumed.
+2. **Authoritative Server Control**: Ad networks, format master toggles, placements, strategies, and emergency kill switches are managed entirely from the WAPCentral Dashboard.
+3. **Pre-Bundled Adapter Strategy (Zero-Rebuild Switching)**: By pre-bundling supported mediation adapters in `build.gradle` and `Podfile`, administrators can switch active demand partners or mediation strategies remotely from the dashboard without requiring an app store release.
+4. **Graceful Fallback & Offline Resilience**: Caches configuration locally; automatically cascades through the mediation waterfall to in-house custom ads if third-party providers fail; suppresses ads safely if WAPCentral is unreachable without valid cache.
+5. **Ad Network Policy Compliance**: Strictly enforces minimum safe banner refresh intervals ($\ge 30\text{s}$, default $60\text{s}$) and prohibits artificial rapid cycling on full-screen formats.
 
 ---
 
-## Installation
+## Provider & Adapter Roster
+
+| Provider / Demand Source | Role & Architecture | Integration Status | Required Mobile SDK / Adapter | Supported Formats |
+| :--- | :--- | :---: | :--- | :--- |
+| **AppLovin MAX** | Primary Mediation Platform | `Implemented and Tested` | `applovin_max: ^4.0.1` | Banner, Native, Interstitial, Rewarded, App Open, Rewarded Interstitial |
+| **AppLovin Demand** | Direct Bidding Demand | `Implemented and Tested` | Built into MAX core SDK | Banner, Native, Interstitial, Rewarded, App Open, Rewarded Interstitial |
+| **Google AdMob** | Demand Partner via MAX Adapter | `Integrated but Not Configured` | `com.applovin.mediation:google-adapter:23.6.0.0` | Banner, Native, Interstitial, Rewarded, App Open, Rewarded Interstitial |
+| **Meta Audience Network** | Demand Partner via MAX Adapter | `Integrated but Not Configured` | `com.applovin.mediation:facebook-adapter:6.18.0.0` | Banner, Native, Interstitial, Rewarded *(No App Open / Rewarded Interstitial)* |
+| **InMobi** | Demand Partner via MAX Adapter | `Integrated but Not Configured` | `com.applovin.mediation:inmobi-adapter:10.8.0.0` | Banner, Native, Interstitial, Rewarded *(No App Open / Rewarded Interstitial)* |
+| **Unity Ads** | Demand Partner via MAX Adapter | `Integrated but Not Configured` | `com.applovin.mediation:unityads-adapter:4.12.5.0` | Banner, Interstitial, Rewarded *(No Native / App Open)* |
+| **WebAppyPie Custom Ads** | House Ads Fallback | `Implemented and Tested` | Built into `wap_ads_sdk` | Banner, Native, Interstitial, Rewarded |
+
+---
+
+## Remote Switching vs. App Rebuild Matrix
+
+| Operation / Change | Takes Effect Remotely | Requires App Rebuild | Notes |
+| :--- | :---: | :---: | :--- |
+| Switching Strategy (`automatic` $\leftrightarrow$ `single_source`) | ✅ Yes | ❌ No | Fetched dynamically from WAPCentral |
+| Switching Single Source Demand Partner | ✅ Yes | ❌ No | If partner adapter was pre-bundled in build |
+| Enabling / Disabling Demand Sources | ✅ Yes | ❌ No | Adjusts active mediation waterfall dynamically |
+| Environment Toggle (`testing` $\leftrightarrow$ `production`) | ✅ Yes | ❌ No | Injects official sandbox test IDs or live IDs |
+| Updating Ad Unit IDs / Placements / Refresh Rates | ✅ Yes | ❌ No | Updated on next launch or config refresh |
+| Emergency Kill Switches | ✅ Yes | ❌ No | Instant ad suppression across all client devices |
+| Compiling in a New Adapter / SDK | ❌ No | ✅ Yes | Native binaries must be compiled into APK/IPA |
+| Updating AndroidManifest / Info.plist IDs | ❌ No | ✅ Yes | OS manifest keys are baked into compiled binary |
 
 Add `wap_ads_sdk` to your Flutter app's `pubspec.yaml`:
 

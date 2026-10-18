@@ -31,6 +31,7 @@ describe('Dashboard Release Metadata & Environment Safety', () => {
 
   it('must resolve to Production on Firebase Hosting live domains', () => {
     const prodHosts = [
+      'wapcentral.webappypie.com',
       'wapcentral-prod.web.app',
       'wapcentral-prod.firebaseapp.com',
       'central.webappypie.com',

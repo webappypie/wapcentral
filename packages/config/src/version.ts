@@ -62,6 +62,7 @@ export function resolveEnvironment(
 
     if (
       host.includes('wapcentral-prod') ||
+      host.includes('wapcentral.webappypie.com') ||
       host.includes('central.webappypie.com') ||
       (host.endsWith('.web.app') && !host.includes('dev') && !host.includes('stage')) ||
       (host.endsWith('.firebaseapp.com') && !host.includes('dev') && !host.includes('stage'))

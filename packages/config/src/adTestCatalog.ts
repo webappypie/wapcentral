@@ -503,7 +503,7 @@ export const OFFICIAL_AD_TEST_CATALOG: AdTestCatalogEntry[] = [
     iosSampleId: 'custom_inhouse_banner',
     defaultStatus: 'configured',
     statusDescription: 'Active house promo creative served on-device with zero external SDK dependencies',
-    documentationUrl: 'https://central.webappypie.com/ads',
+    documentationUrl: 'https://wapcentral.webappypie.com/ads',
     isUniversalId: true,
   },
   {
@@ -516,7 +516,7 @@ export const OFFICIAL_AD_TEST_CATALOG: AdTestCatalogEntry[] = [
     iosSampleId: 'custom_inhouse_native',
     defaultStatus: 'configured',
     statusDescription: 'Active house promo creative served on-device',
-    documentationUrl: 'https://central.webappypie.com/ads',
+    documentationUrl: 'https://wapcentral.webappypie.com/ads',
     isUniversalId: true,
   },
   {
@@ -529,7 +529,7 @@ export const OFFICIAL_AD_TEST_CATALOG: AdTestCatalogEntry[] = [
     iosSampleId: 'custom_inhouse_interstitial',
     defaultStatus: 'configured',
     statusDescription: 'Active house promo interstitial served on-device',
-    documentationUrl: 'https://central.webappypie.com/ads',
+    documentationUrl: 'https://wapcentral.webappypie.com/ads',
     isUniversalId: true,
   },
   {
@@ -542,7 +542,7 @@ export const OFFICIAL_AD_TEST_CATALOG: AdTestCatalogEntry[] = [
     iosSampleId: 'custom_inhouse_rewarded',
     defaultStatus: 'configured',
     statusDescription: 'Active house promo rewarded dialog served on-device',
-    documentationUrl: 'https://central.webappypie.com/ads',
+    documentationUrl: 'https://wapcentral.webappypie.com/ads',
     isUniversalId: true,
   },
   {
@@ -555,7 +555,7 @@ export const OFFICIAL_AD_TEST_CATALOG: AdTestCatalogEntry[] = [
     iosSampleId: 'custom_inhouse_app_open',
     defaultStatus: 'configured',
     statusDescription: 'Active house promo app launch overlay served on-device',
-    documentationUrl: 'https://central.webappypie.com/ads',
+    documentationUrl: 'https://wapcentral.webappypie.com/ads',
     isUniversalId: true,
   },
   {
@@ -568,7 +568,7 @@ export const OFFICIAL_AD_TEST_CATALOG: AdTestCatalogEntry[] = [
     iosSampleId: 'custom_inhouse_rewarded_interstitial',
     defaultStatus: 'configured',
     statusDescription: 'Active house promo rewarded interstitial served on-device',
-    documentationUrl: 'https://central.webappypie.com/ads',
+    documentationUrl: 'https://wapcentral.webappypie.com/ads',
     isUniversalId: true,
   },
 ];

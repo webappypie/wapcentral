@@ -49,8 +49,8 @@ const PLACEMENT_OPTIONS: Array<{
   {
     value: 'sponsored',
     label: 'Sponsored Home',
-    badge: 'Native 120dp',
-    description: 'Home screen native banner with clear sponsored header',
+    badge: 'Native 90dp',
+    description: 'Home screen native banner with clear sponsored header (max 90dp)',
     icon: Sparkles,
   },
   {
@@ -98,8 +98,10 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   const [periodHours, setPeriodHours] = useState<number>(24);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'form' | 'preview'>('form');
 
   useEffect(() => {
+    setActiveTab('form');
     if (initialCampaign) {
       setName(initialCampaign.name);
       setPromotedAppId(initialCampaign.promotedAppId);
@@ -241,13 +243,14 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       title={initialCampaign ? 'Edit Sponsorship Campaign' : 'Create Sponsorship Campaign'}
       description="Configure cross-app promotion, sponsor labels, and preview native mobile rendering in real-time."
       className="max-w-6xl w-full"
+      bodyClassName="p-3 sm:p-5 lg:p-6 overflow-hidden flex flex-col"
       footer={
-        <div className="flex items-center justify-between w-full">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span>Real-time mobile simulation active</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
             <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
               Cancel
             </Button>
@@ -258,11 +261,42 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
         </div>
       }
     >
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Form Controls (7 cols) */}
+      {/* Mobile / Tablet Tab Switcher (< lg) */}
+      <div className="flex lg:hidden items-center justify-center p-1 mb-4 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 shrink-0">
+        <button
+          type="button"
+          onClick={() => setActiveTab('form')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
+            activeTab === 'form'
+              ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Sliders className="w-3.5 h-3.5" />
+          <span>Campaign Form</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('preview')}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
+            activeTab === 'preview'
+              ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+          }`}
+        >
+          <Smartphone className="w-3.5 h-3.5" />
+          <span>Live Mobile Preview</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch flex-1 min-h-0">
+        {/* Left Column: Form Controls (7 cols on desktop, responsive tab visibility on mobile) */}
         <form
           onSubmit={handleSubmit}
-          className="lg:col-span-7 space-y-6 max-h-[72vh] overflow-y-auto pr-3 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800"
+          className={`lg:col-span-7 space-y-5 lg:h-[calc(85vh-160px)] lg:max-h-[660px] overflow-y-auto pr-0 lg:pr-3 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 ${
+            activeTab === 'form' ? 'block' : 'hidden lg:block'
+          }`}
         >
           {errors.general && (
             <div className="flex items-center gap-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 p-3.5 text-sm text-rose-500">
@@ -717,10 +751,14 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
           </div>
         </form>
 
-        {/* Right Column: Live Interactive Mobile Preview (5 cols) */}
-        <div className="lg:col-span-5 sticky top-0 flex flex-col items-center justify-start bg-slate-950/70 rounded-2xl border border-slate-800 p-5 shadow-inner">
+        {/* Right Column: Live Interactive Mobile Preview (5 cols on desktop, responsive tab visibility on mobile) */}
+        <div
+          className={`lg:col-span-5 flex flex-col items-center justify-between bg-slate-950/70 rounded-2xl border border-slate-800 p-4 sm:p-5 shadow-inner lg:h-[calc(85vh-160px)] lg:max-h-[660px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 ${
+            activeTab === 'preview' ? 'flex' : 'hidden lg:flex'
+          }`}
+        >
           {/* Top Live Stage Header */}
-          <div className="flex items-center justify-between w-full mb-4 px-1">
+          <div className="flex items-center justify-between w-full mb-3 px-1 shrink-0">
             <div className="flex items-center gap-2">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -736,7 +774,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
           </div>
 
           {/* Interactive Phone Frame */}
-          <div className="flex items-center justify-center w-full py-2">
+          <div className="flex items-center justify-center w-full py-1">
             <DevicePreview
               layoutVariant={layoutVariant}
               title={title}
@@ -750,12 +788,12 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
           </div>
 
           {/* Target Host App Indicator */}
-          <div className="w-full mt-4 pt-3 border-t border-slate-800/80 text-center">
+          <div className="w-full mt-3 pt-2.5 border-t border-slate-800/80 text-center shrink-0">
             <p className="text-[11px] text-slate-400">
               Simulated in: <span className="font-semibold text-slate-200">{promotedApp?.name || 'Preview App'}</span>
             </p>
             {targetApps.length > 0 && (
-              <p className="mt-1 text-[10px] text-slate-500 truncate max-w-full">
+              <p className="mt-0.5 text-[10px] text-slate-500 truncate max-w-full">
                 Active in: {targetApps.map((a) => a.name).join(', ')}
               </p>
             )}

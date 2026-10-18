@@ -1,4 +1,4 @@
-const HOSTING_URL = 'https://wapcentral-prod.web.app';
+const HOSTING_URL = 'https://wapcentral.webappypie.com';
 const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
 const payloadAdmin = Buffer.from(
   JSON.stringify({

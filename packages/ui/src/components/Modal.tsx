@@ -11,6 +11,7 @@ export interface ModalProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   className?: string;
+  bodyClassName?: string;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -21,6 +22,7 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   footer,
   className,
+  bodyClassName,
 }) => {
   // Close on Escape key
   useEffect(() => {
@@ -54,7 +56,7 @@ export const Modal: React.FC<ModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto"
     >
       {/* Backdrop */}
       <div
@@ -66,12 +68,12 @@ export const Modal: React.FC<ModalProps> = ({
       {/* Dialog Content */}
       <div
         className={cn(
-          'relative z-10 w-full rounded-xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 sm:rounded-2xl',
+          'relative z-10 w-full flex flex-col max-h-[calc(100vh-1.5rem)] sm:max-h-[calc(100vh-2rem)] md:max-h-[calc(100vh-3rem)] rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:rounded-2xl overflow-hidden my-auto',
           !className?.includes('max-w-') && 'max-w-lg',
           className,
         )}
       >
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 px-5 pt-5 pb-3 sm:px-6 sm:pt-6 sm:pb-4 border-b border-slate-100 dark:border-slate-800/80 shrink-0">
           <div>
             <h2
               id="modal-title"
@@ -88,7 +90,7 @@ export const Modal: React.FC<ModalProps> = ({
             size="icon"
             onClick={onClose}
             aria-label="Close modal"
-            className="text-slate-400 hover:text-slate-500 dark:hover:text-slate-300"
+            className="text-slate-400 hover:text-slate-500 dark:hover:text-slate-300 shrink-0 -mr-1"
           >
             <svg
               className="h-4 w-4"
@@ -103,10 +105,12 @@ export const Modal: React.FC<ModalProps> = ({
           </Button>
         </div>
 
-        <div className="mt-4">{children}</div>
+        <div className={cn('flex-1 overflow-y-auto min-h-0 p-5 sm:p-6', bodyClassName)}>
+          {children}
+        </div>
 
         {footer && (
-          <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <div className="flex items-center justify-end gap-3 border-t border-slate-100 px-5 py-3.5 sm:px-6 sm:py-4 dark:border-slate-800 shrink-0 bg-slate-50/50 dark:bg-slate-900/50">
             {footer}
           </div>
         )}

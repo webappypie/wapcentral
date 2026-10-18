@@ -32,7 +32,7 @@ WAPCentral operates across three completely isolated Firebase projects:
 | --------------- | -------------------- | --------------------------------------------- | ---------------------------------------- |
 | **Development** | `wapcentral-dev`     | Local development, emulator testing, CI tests | `http://localhost:3000`                  |
 | **Staging**     | `wapcentral-staging` | Pre-production validation & QA                | `https://staging.central.webappypie.com` |
-| **Production**  | `wapcentral-prod`    | Live production control plane                 | `https://central.webappypie.com`         |
+| **Production**  | `wapcentral-prod`    | Live production control plane                 | `https://wapcentral.webappypie.com`         |
 
 ---
 

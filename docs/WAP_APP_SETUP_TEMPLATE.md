@@ -21,9 +21,9 @@ APP_ID=my-app-slug-android
 APP_ENVIRONMENT=production
 
 # WAPCentral Platform Service Endpoints
-# Production: https://api.wapcentral.webappypie.com
+# Production: https://wapcentral.webappypie.com
 # Staging:    https://staging-api.wapcentral.webappypie.com
-WAPCENTRAL_BASE_URL=https://api.wapcentral.webappypie.com
+WAPCENTRAL_BASE_URL=https://wapcentral.webappypie.com
 
 # Public Client SDK Credential (Issued in WAPCentral Console)
 # Format: wap_pub_live_<hash> or wap_pub_test_<hash>
@@ -62,7 +62,7 @@ flutter run \
 flutter build appbundle --release \
   --dart-define=APP_ID=my-app-slug-android \
   --dart-define=APP_ENVIRONMENT=production \
-  --dart-define=WAPCENTRAL_BASE_URL=https://api.wapcentral.webappypie.com \
+  --dart-define=WAPCENTRAL_BASE_URL=https://wapcentral.webappypie.com \
   --dart-define=WAP_PUBLIC_APP_KEY=wap_pub_live_REPLACE_WITH_YOUR_KEY \
   --dart-define=WAP_ADS_TEST_MODE=false
 ```
@@ -136,7 +136,7 @@ import 'package:wap_notifications_sdk/wap_notifications.dart';
 Future<void> initWapPlatformServices() async {
   const appId = String.fromEnvironment('APP_ID', defaultValue: 'my-app-slug-android');
   const appKey = String.fromEnvironment('WAP_PUBLIC_APP_KEY', defaultValue: 'wap_pub_live_placeholder');
-  const baseUrl = String.fromEnvironment('WAPCENTRAL_BASE_URL', defaultValue: 'https://api.wapcentral.webappypie.com');
+  const baseUrl = String.fromEnvironment('WAPCENTRAL_BASE_URL', defaultValue: 'https://wapcentral.webappypie.com');
 
   // 1. Initialize Ads SDK
   await WapAds.initialize(

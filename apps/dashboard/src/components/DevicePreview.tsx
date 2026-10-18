@@ -38,7 +38,7 @@ export const DevicePreview: React.FC<DevicePreviewProps> = ({
   return (
     <div className={`flex flex-col items-center select-none ${className}`}>
       {/* Device Frame */}
-      <div className="relative w-[285px] h-[560px] rounded-[42px] bg-slate-900 p-2.5 shadow-2xl border-4 border-slate-700/80 ring-1 ring-slate-900/50">
+      <div className="relative w-[275px] sm:w-[285px] h-[510px] sm:h-[530px] rounded-[38px] sm:rounded-[42px] bg-slate-900 p-2.5 shadow-2xl border-4 border-slate-700/80 ring-1 ring-slate-900/50">
         {/* Dynamic Island / Notch */}
         <div className="absolute top-5 left-1/2 -translate-x-1/2 z-30 h-5 w-24 rounded-full bg-black flex items-center justify-between px-2">
           <div className="h-2.5 w-2.5 rounded-full bg-slate-800" />
@@ -46,7 +46,7 @@ export const DevicePreview: React.FC<DevicePreviewProps> = ({
         </div>
 
         {/* Screen Bezel / Container */}
-        <div className="relative h-full w-full overflow-hidden rounded-[34px] bg-slate-950 text-white flex flex-col font-sans">
+        <div className="relative h-full w-full overflow-hidden rounded-[30px] sm:rounded-[34px] bg-slate-950 text-white flex flex-col font-sans">
           {/* Status Bar */}
           <div className="flex items-center justify-between px-6 pt-3 text-[11px] font-medium text-slate-300 z-20">
             <span>9:41</span>
@@ -106,8 +106,8 @@ export const DevicePreview: React.FC<DevicePreviewProps> = ({
             )}
 
             {/* Mock Feed Content */}
-            <div className="h-20 rounded-xl bg-slate-900/80 border border-slate-800/80 p-3 flex flex-col justify-center">
-              <div className="h-3 w-3/4 bg-slate-800 rounded mb-2" />
+            <div className="h-16 rounded-xl bg-slate-900/80 border border-slate-800/80 p-3 flex flex-col justify-center">
+              <div className="h-2.5 w-3/4 bg-slate-800 rounded mb-2" />
               <div className="h-2 w-1/2 bg-slate-800/70 rounded" />
             </div>
 
@@ -154,34 +154,34 @@ export const DevicePreview: React.FC<DevicePreviewProps> = ({
               </div>
             )}
 
-            {/* Sponsored Native Placement on App Home Screen (Max 120dp height) */}
+            {/* Sponsored Native Placement on App Home Screen (Max 90dp height) */}
             {layoutVariant === 'sponsored' && (
-              <div className="my-1 max-h-[120px] rounded-xl bg-slate-900 border border-brand-500/40 p-2.5 shadow-md flex flex-col justify-between">
+              <div className="my-1 max-h-[90px] rounded-xl bg-slate-900 border border-brand-500/40 p-2 shadow-md flex flex-col justify-between overflow-hidden">
                 {/* Clear Sponsored Header Label */}
                 <div className="flex items-center gap-1.5 mb-1">
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-brand-400 bg-brand-500/20 px-1.5 py-0.5 rounded">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-brand-400 bg-brand-500/20 px-1.5 py-0.5 rounded leading-none">
                     {sponsorLabel?.trim() || 'Sponsored'}
                   </span>
                 </div>
 
                 {/* Compact Native Row */}
-                <div className="flex items-center gap-2.5 min-h-0">
+                <div className="flex items-center gap-2 min-h-0">
                   {displayImage && (
                     <img
                       src={displayImage}
                       alt={displayTitle}
-                      className="w-12 h-12 rounded-lg object-cover flex-shrink-0 border border-slate-800"
+                      className="w-10 h-10 rounded-lg object-cover flex-shrink-0 border border-slate-800"
                     />
                   )}
                   <div className="flex-1 min-w-0">
                     <h4 className="text-xs font-semibold text-white truncate">{displayTitle}</h4>
-                    <p className="text-[10px] text-slate-300 line-clamp-2 mt-0.5 leading-snug">
+                    <p className="text-[10px] text-slate-300 line-clamp-1 mt-0.5 leading-tight">
                       {displayDescription}
                     </p>
                   </div>
                   <button
                     type="button"
-                    className="px-2.5 py-1 text-[10px] font-semibold bg-brand-500 hover:bg-brand-600 text-white rounded-md shadow-xs flex-shrink-0"
+                    className="px-2 py-1 text-[10px] font-semibold bg-brand-500 hover:bg-brand-600 text-white rounded-md shadow-xs flex-shrink-0"
                   >
                     {displayCta}
                   </button>
@@ -190,13 +190,13 @@ export const DevicePreview: React.FC<DevicePreviewProps> = ({
             )}
 
             {/* Additional Mock Cards */}
-            <div className="h-16 rounded-xl bg-slate-900/60 border border-slate-800/60 p-3 flex flex-col justify-center">
-              <div className="h-3 w-2/3 bg-slate-800 rounded mb-2" />
+            <div className="h-14 rounded-xl bg-slate-900/60 border border-slate-800/60 p-2.5 flex flex-col justify-center">
+              <div className="h-2.5 w-2/3 bg-slate-800 rounded mb-2" />
               <div className="h-2 w-1/3 bg-slate-800/70 rounded" />
             </div>
 
-            <div className="h-16 rounded-xl bg-slate-900/60 border border-slate-800/60 p-3 flex flex-col justify-center">
-              <div className="h-3 w-4/5 bg-slate-800 rounded mb-2" />
+            <div className="h-14 rounded-xl bg-slate-900/60 border border-slate-800/60 p-2.5 flex flex-col justify-center">
+              <div className="h-2.5 w-4/5 bg-slate-800 rounded mb-2" />
               <div className="h-2 w-2/5 bg-slate-800/70 rounded" />
             </div>
 

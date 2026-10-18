@@ -9,17 +9,31 @@ import '../telemetry/ad_telemetry.dart';
 class WapNativeAd extends StatefulWidget {
   final String? placementKey;
   final Widget Function(BuildContext context, Map<String, dynamic> data)? customBuilder;
+  final Widget Function(BuildContext context, Map<String, dynamic> data)? builder;
   final VoidCallback? onLoaded;
   final Function(String error)? onFailed;
   final VoidCallback? onClicked;
+  final VoidCallback? onAdLoaded;
+  final Function(String error)? onAdFailedToLoad;
+  final VoidCallback? onAdClicked;
+
+  Widget Function(BuildContext context, Map<String, dynamic> data)? get effectiveBuilder =>
+      customBuilder ?? builder;
+  VoidCallback? get effectiveOnLoaded => onLoaded ?? onAdLoaded;
+  Function(String error)? get effectiveOnFailed => onFailed ?? onAdFailedToLoad;
+  VoidCallback? get effectiveOnClicked => onClicked ?? onAdClicked;
 
   const WapNativeAd({
     super.key,
     this.placementKey,
     this.customBuilder,
+    this.builder,
     this.onLoaded,
     this.onFailed,
     this.onClicked,
+    this.onAdLoaded,
+    this.onAdFailedToLoad,
+    this.onAdClicked,
   });
 
   @override
@@ -50,7 +64,7 @@ class _WapNativeAdState extends State<WapNativeAd> {
     final core = WapAdsCore.instance;
 
     if (!core.isInitialized) {
-      widget.onFailed?.call('WAP Ads SDK is not initialized.');
+      widget.effectiveOnFailed?.call('WAP Ads SDK is not initialized.');
       return;
     }
 
@@ -113,7 +127,7 @@ class _WapNativeAdState extends State<WapNativeAd> {
           _currentAdWidget = provider.buildNative(
             context,
             tier.adUnitId,
-            customBuilder: widget.customBuilder,
+            customBuilder: widget.effectiveBuilder,
             onLoaded: () {
               core.frequencyManager.recordDisplay(AdFormat.native, placementKey: widget.placementKey);
               AdTelemetryDispatcher.dispatch(
@@ -126,7 +140,7 @@ class _WapNativeAdState extends State<WapNativeAd> {
                   requestId: _activeRequestId,
                 ),
               );
-              widget.onLoaded?.call();
+              widget.effectiveOnLoaded?.call();
             },
             onFailed: (error) {
               AdTelemetryDispatcher.dispatch(
@@ -154,7 +168,7 @@ class _WapNativeAdState extends State<WapNativeAd> {
                   requestId: _activeRequestId,
                 ),
               );
-              widget.onClicked?.call();
+              widget.effectiveOnClicked?.call();
             },
           );
         });
@@ -187,20 +201,21 @@ class _WapNativeAdState extends State<WapNativeAd> {
         _currentAdWidget = customProvider.buildNative(
           context,
           customFallback.campaignId,
+          customBuilder: widget.effectiveBuilder,
           onLoaded: () {
             core.frequencyManager.recordDisplay(AdFormat.native, placementKey: widget.placementKey);
-            widget.onLoaded?.call();
+            widget.effectiveOnLoaded?.call();
           },
           onFailed: (err) {
             setState(() => _currentAdWidget = const SizedBox.shrink());
-            widget.onFailed?.call(err);
+            widget.effectiveOnFailed?.call(err);
           },
-          onClicked: widget.onClicked,
+          onClicked: widget.effectiveOnClicked,
         );
       });
     } else {
       setState(() => _currentAdWidget = const SizedBox.shrink());
-      widget.onFailed?.call('All native mediation tiers failed to load.');
+      widget.effectiveOnFailed?.call('All native mediation tiers failed to load.');
     }
   }
 

@@ -5,7 +5,7 @@ import '../../wap_promo_sdk.dart';
 ///
 /// Key Requirements:
 /// - Clear **Sponsored** label prominently displayed above the creative.
-/// - Maximum container/creative height capped at **120 logical pixels (dp)**.
+/// - Maximum container/creative height capped at **90 logical pixels (dp)**.
 /// - Native-ad-style layout integrating seamlessly into host application design.
 /// - Completely hides (`SizedBox.shrink()`) if no valid, non-expired campaign is available.
 /// - Opens the configured destination upon interaction.
@@ -20,7 +20,7 @@ class WapSponsoredPlacement extends StatefulWidget {
   const WapSponsoredPlacement({
     super.key,
     this.onDestinationTap,
-    this.margin = const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+    this.margin = const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
     this.elevation = 0.5,
     this.backgroundColor,
     this.borderRadius,
@@ -64,7 +64,7 @@ class _WapSponsoredPlacementState extends State<WapSponsoredPlacement> {
           label: '$labelText: ${promo.title ?? ""}',
           button: true,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 120.0),
+            constraints: const BoxConstraints(maxHeight: 90.0),
             child: Padding(
               padding: widget.margin,
               child: Material(
@@ -87,7 +87,7 @@ class _WapSponsoredPlacementState extends State<WapSponsoredPlacement> {
                     widget.onDestinationTap?.call(promo.storeUrl ?? '');
                   },
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -96,7 +96,7 @@ class _WapSponsoredPlacementState extends State<WapSponsoredPlacement> {
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.0),
                               decoration: BoxDecoration(
                                 color: theme.colorScheme.primary.withAlpha(20),
                                 borderRadius: BorderRadius.circular(3),
@@ -104,7 +104,7 @@ class _WapSponsoredPlacementState extends State<WapSponsoredPlacement> {
                               child: Text(
                                 labelText.toUpperCase(),
                                 style: TextStyle(
-                                  fontSize: 9.5,
+                                  fontSize: 8.5,
                                   letterSpacing: 0.5,
                                   fontWeight: FontWeight.w700,
                                   color: theme.colorScheme.primary,
@@ -113,17 +113,17 @@ class _WapSponsoredPlacementState extends State<WapSponsoredPlacement> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 4),
                         // Compact native content row
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             if (promo.imageUrl != null && promo.imageUrl!.isNotEmpty) ...[
                               ClipRRect(
-                                borderRadius: BorderRadius.circular(8.0),
+                                borderRadius: BorderRadius.circular(6.0),
                                 child: SizedBox(
-                                  width: 48,
-                                  height: 48,
+                                  width: 40,
+                                  height: 40,
                                   child: Image.network(
                                     promo.imageUrl!,
                                     fit: BoxFit.cover,
@@ -131,12 +131,13 @@ class _WapSponsoredPlacementState extends State<WapSponsoredPlacement> {
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 8),
                             ],
                             Expanded(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
                                     promo.title ?? '',
@@ -144,17 +145,17 @@ class _WapSponsoredPlacementState extends State<WapSponsoredPlacement> {
                                     overflow: TextOverflow.ellipsis,
                                     style: theme.textTheme.titleSmall?.copyWith(
                                       fontWeight: FontWeight.w600,
-                                      fontSize: 13.0,
+                                      fontSize: 12.0,
                                     ),
                                   ),
                                   if (promo.description != null && promo.description!.isNotEmpty) ...[
-                                    const SizedBox(height: 2),
+                                    const SizedBox(height: 1.5),
                                     Text(
                                       promo.description!,
-                                      maxLines: 2,
+                                      maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: theme.textTheme.bodySmall?.copyWith(
-                                        fontSize: 11.5,
+                                        fontSize: 10.5,
                                         color: theme.textTheme.bodySmall?.color?.withAlpha(180),
                                       ),
                                     ),
@@ -172,16 +173,16 @@ class _WapSponsoredPlacementState extends State<WapSponsoredPlacement> {
                                 widget.onDestinationTap?.call(promo.storeUrl ?? '');
                               },
                               style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                minimumSize: const Size(0, 30),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                minimumSize: const Size(0, 26),
                                 visualDensity: VisualDensity.compact,
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6.0),
+                                  borderRadius: BorderRadius.circular(5.0),
                                 ),
                               ),
                               child: Text(
                                 promo.ctaText?.isNotEmpty == true ? promo.ctaText! : 'Open',
-                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                                style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600),
                               ),
                             ),
                           ],

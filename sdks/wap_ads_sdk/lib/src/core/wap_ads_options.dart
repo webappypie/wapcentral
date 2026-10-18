@@ -13,7 +13,7 @@ class WapAdsOptions {
   /// Deployment environment ('production' | 'staging' | 'development').
   final String environment;
 
-  /// WAPCentral backend base URL. Defaults to production Cloud Run endpoint.
+  /// WAPCentral backend base URL. Defaults to canonical custom domain endpoint.
   final String baseUrl;
 
   /// Whether the app is running in developer test mode.
@@ -35,7 +35,7 @@ class WapAdsOptions {
     required this.appId,
     required this.appKey,
     this.environment = 'production',
-    this.baseUrl = 'https://wapcentral-admin-api-174781611765.asia-south1.run.app',
+    this.baseUrl = 'https://wapcentral.webappypie.com',
     this.testMode = false,
     this.autoRefreshConfig = true,
     this.refreshInterval = const Duration(minutes: 15),
@@ -62,4 +62,11 @@ class WapAdsOptions {
       telemetryListener: telemetryListener,
     );
   }
+}
+
+/// Environment constants for WAP Ads initialization.
+abstract class WapEnvironment {
+  static const String production = 'production';
+  static const String staging = 'staging';
+  static const String development = 'development';
 }

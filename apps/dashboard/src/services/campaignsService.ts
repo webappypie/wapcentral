@@ -5,10 +5,9 @@ import {
   deleteDoc,
   onSnapshot,
   serverTimestamp,
-  query,
-  orderBy,
 } from 'firebase/firestore';
-import { db, isOfflineMode } from '../lib/firestore.js';
+import { db, isOfflineMode, isTestEnv } from '../lib/firestore.js';
+import { auth } from '../lib/firebase.js';
 import { COLLECTIONS } from '@wapcentral/config';
 import {
   CreateCampaignSchema,
@@ -95,59 +94,113 @@ export function subscribeCampaigns(
   onError?: (err: Error) => void,
 ): () => void {
   if (isOfflineMode) {
-    onData(memoryCampaigns);
+    onData([...memoryCampaigns]);
     return () => {};
   }
 
   try {
-    const colRef = collection(db, COLLECTIONS.CAMPAIGNS);
-    const q = query(colRef, orderBy('createdAt', 'desc'));
+    let firestoreUnsub: (() => void) | null = null;
+    let authUnsub: (() => void) | null = null;
+    let isCleanedUp = false;
 
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        if (snapshot.empty && memoryCampaigns.length > 0) {
-          onData(memoryCampaigns);
-          return;
+    const startFirestoreSubscription = () => {
+      if (firestoreUnsub || isCleanedUp) return;
+      const colRef = collection(db, COLLECTIONS.CAMPAIGNS);
+
+      // Do NOT use orderBy('createdAt', 'desc') on the Firestore query because
+      // Firestore strictly omits any documents where the orderBy field is undefined.
+      // We query the collection and sort client-side.
+      firestoreUnsub = onSnapshot(
+        colRef,
+        (snapshot) => {
+          const campaigns: Campaign[] = snapshot.docs.map((docSnap) => {
+            const data = docSnap.data();
+            const createdAtStr =
+              data['createdAt']?.toDate?.()?.toISOString() ||
+              (typeof data['createdAt'] === 'string' ? data['createdAt'] : undefined) ||
+              data['updatedAt']?.toDate?.()?.toISOString() ||
+              (typeof data['updatedAt'] === 'string' ? data['updatedAt'] : undefined) ||
+              new Date().toISOString();
+
+            const updatedAtStr =
+              data['updatedAt']?.toDate?.()?.toISOString() ||
+              (typeof data['updatedAt'] === 'string' ? data['updatedAt'] : undefined) ||
+              createdAtStr;
+
+            const camp: Campaign = {
+              id: docSnap.id,
+              name: data['name'] || data['title'] || 'Untitled Campaign',
+              promotedAppId: data['promotedAppId'] || '',
+              targetAppIds: Array.isArray(data['targetAppIds']) ? data['targetAppIds'] : [],
+              title: data['title'] || '',
+              description: data['description'] || '',
+              ctaText: data['ctaText'] || 'Learn More',
+              storeUrl: data['storeUrl'] || '',
+              ...(data['sponsorLabel'] ? { sponsorLabel: data['sponsorLabel'] } : {}),
+              ...(data['imageUrl'] ? { imageUrl: data['imageUrl'] } : {}),
+              ...(data['animationUrl'] ? { animationUrl: data['animationUrl'] } : {}),
+              layoutVariant: data['layoutVariant'] || 'sponsored',
+              ...(data['scheduleStart'] ? { scheduleStart: data['scheduleStart'] } : {}),
+              ...(data['scheduleEnd'] ? { scheduleEnd: data['scheduleEnd'] } : {}),
+              priority: typeof data['priority'] === 'number' ? data['priority'] : 50,
+              enabled: data['enabled'] !== undefined ? Boolean(data['enabled']) : data['status'] === 'published',
+              status: (data['status'] as CampaignStatus) || (data['enabled'] ? 'published' : 'draft'),
+              ...(data['frequencyCap'] ? { frequencyCap: data['frequencyCap'] } : {}),
+              ...(data['targetingRules'] ? { targetingRules: data['targetingRules'] } : {}),
+              ...(data['analytics'] ? { analytics: data['analytics'] } : {}),
+              createdAt: createdAtStr,
+              updatedAt: updatedAtStr,
+            };
+            return camp;
+          });
+
+          // Sort in-memory: higher priority first, then most recently updated/created
+          campaigns.sort((a, b) => {
+            if (b.priority !== a.priority) {
+              return b.priority - a.priority;
+            }
+            const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+            const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+            return timeB - timeA;
+          });
+
+          // Always deliver real Firestore campaigns
+          onData(campaigns);
+        },
+        (err) => {
+          if (onError) onError(err);
+        },
+      );
+    };
+
+    if (auth.currentUser || isTestEnv) {
+      startFirestoreSubscription();
+    } else {
+      // Safe auth guard: wait for auth state before initiating query, preventing premature permission-denied
+      authUnsub = auth.onAuthStateChanged((user) => {
+        if (user && !firestoreUnsub && !isCleanedUp) {
+          startFirestoreSubscription();
+          if (authUnsub) {
+            authUnsub();
+            authUnsub = null;
+          }
         }
+      });
+    }
 
-        const campaigns: Campaign[] = snapshot.docs.map((docSnap) => {
-          const data = docSnap.data();
-          const camp: Campaign = {
-            id: docSnap.id,
-            name: data.name,
-            promotedAppId: data.promotedAppId,
-            targetAppIds: data.targetAppIds || [],
-            title: data.title,
-            description: data.description,
-            ctaText: data.ctaText,
-            storeUrl: data.storeUrl,
-            ...(data.imageUrl ? { imageUrl: data.imageUrl } : {}),
-            ...(data.animationUrl ? { animationUrl: data.animationUrl } : {}),
-            layoutVariant: data.layoutVariant,
-            ...(data.scheduleStart ? { scheduleStart: data.scheduleStart } : {}),
-            ...(data.scheduleEnd ? { scheduleEnd: data.scheduleEnd } : {}),
-            priority: data.priority ?? 50,
-            enabled: data.enabled ?? true,
-            status: data.status || 'draft',
-            ...(data.frequencyCap ? { frequencyCap: data.frequencyCap } : {}),
-            ...(data.targetingRules ? { targetingRules: data.targetingRules } : {}),
-            ...(data.analytics ? { analytics: data.analytics } : {}),
-            createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-            updatedAt: data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-          };
-          return camp;
-        });
-
-        onData(campaigns.length > 0 ? campaigns : memoryCampaigns);
-      },
-      (err) => {
-        onData(memoryCampaigns);
-        if (onError) onError(err);
-      },
-    );
-  } catch {
-    onData(memoryCampaigns);
+    return () => {
+      isCleanedUp = true;
+      if (authUnsub) {
+        authUnsub();
+        authUnsub = null;
+      }
+      if (firestoreUnsub) {
+        firestoreUnsub();
+        firestoreUnsub = null;
+      }
+    };
+  } catch (err: unknown) {
+    if (onError && err instanceof Error) onError(err);
     return () => {};
   }
 }
@@ -210,8 +263,11 @@ export async function createCampaign(
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-    } catch {
-      // Memory fallback
+    } catch (err: unknown) {
+      // Surface the failure: a swallowed error made unsaved changes look saved.
+      throw new Error(
+        `Could not save campaign to Firestore: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
@@ -252,8 +308,11 @@ export async function updateCampaign(
         },
         { merge: true },
       );
-    } catch {
-      // Memory fallback
+    } catch (err: unknown) {
+      // Surface the failure: a swallowed error made unsaved changes look saved.
+      throw new Error(
+        `Could not save campaign to Firestore: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
@@ -295,8 +354,11 @@ export async function setCampaignStatus(
         },
         { merge: true },
       );
-    } catch {
-      // Memory fallback
+    } catch (err: unknown) {
+      // Surface the failure: a swallowed error made unsaved changes look saved.
+      throw new Error(
+        `Could not save campaign to Firestore: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
@@ -323,8 +385,11 @@ export async function deleteCampaign(
     try {
       const docRef = doc(db, COLLECTIONS.CAMPAIGNS, campaignId);
       await deleteDoc(docRef);
-    } catch {
-      // Memory fallback
+    } catch (err: unknown) {
+      // Surface the failure: a swallowed error made unsaved changes look saved.
+      throw new Error(
+        `Could not save campaign to Firestore: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 

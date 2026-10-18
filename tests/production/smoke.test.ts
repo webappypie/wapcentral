@@ -32,7 +32,7 @@ describe('Phase 13 — Production Release & Operational Readiness', () => {
       expect(prodConfig.region).toBe('us-central1');
       expect(prodConfig.hostingSite).toBe('wapcentral-prod');
       expect(prodConfig.features.emulator).toBe(false);
-      expect(prodConfig.allowedOrigins).toContain('https://central.webappypie.com');
+      expect(prodConfig.allowedOrigins).toContain('https://wapcentral.webappypie.com');
     });
 
     it('should enforce strict security headers in root and infrastructure firebase.json', () => {
@@ -87,7 +87,7 @@ describe('Phase 13 — Production Release & Operational Readiness', () => {
       expect(workflowContent).toContain('--traffic=100');
       expect(workflowContent).toContain('OPENAI_API_KEY=OPENAI_API_KEY:latest');
       expect(workflowContent).toContain('PROMOTION_SIGNING_SECRET=PROMOTION_SIGNING_SECRET:latest');
-      expect(workflowContent).toContain('central.webappypie.com');
+      expect(workflowContent).toContain('wapcentral.webappypie.com');
     });
 
     it('should validate multi-stage Dockerfile and cloudbuild.yaml exist for container builds', () => {
@@ -155,7 +155,7 @@ describe('Phase 13 — Production Release & Operational Readiness', () => {
       expect(fs.existsSync(uptimeYamlPath)).toBe(true);
 
       const uptimeContent = fs.readFileSync(uptimeYamlPath, 'utf-8');
-      expect(uptimeContent).toContain('host: central.webappypie.com');
+      expect(uptimeContent).toContain('host: wapcentral.webappypie.com');
       expect(uptimeContent).toContain('host: admin.central.webappypie.com');
       expect(uptimeContent).toContain('host: promo.central.webappypie.com');
       expect(uptimeContent).toContain('host: ai.central.webappypie.com');
@@ -188,7 +188,7 @@ describe('Phase 13 — Production Release & Operational Readiness', () => {
       expect(fs.existsSync(releaseRunbookPath)).toBe(true);
 
       const releaseContent = fs.readFileSync(releaseRunbookPath, 'utf-8');
-      expect(releaseContent).toContain('central.webappypie.com');
+      expect(releaseContent).toContain('wapcentral.webappypie.com');
       expect(releaseContent).toContain('sa-admin-api@wapcentral-prod.iam.gserviceaccount.com');
       expect(releaseContent).toContain('OPENAI_API_KEY');
       expect(releaseContent).toContain('PROMOTION_SIGNING_SECRET');

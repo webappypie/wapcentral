@@ -1,12 +1,12 @@
 async function inspect() {
-  const res = await fetch('https://wapcentral-prod.web.app/index.html');
+  const res = await fetch('https://wapcentral.webappypie.com/index.html');
   const text = await res.text();
   console.log('Index HTML length:', text.length);
   const matches = [...text.matchAll(/src="([^"]+\.js)"/g)].map(m => m[1]);
   console.log('Scripts:', matches);
 
   for (const scriptUrl of matches) {
-    const fullUrl = scriptUrl.startsWith('http') ? scriptUrl : `https://wapcentral-prod.web.app${scriptUrl}`;
+    const fullUrl = scriptUrl.startsWith('http') ? scriptUrl : `https://wapcentral.webappypie.com${scriptUrl}`;
     console.log('\nFetching', fullUrl);
     const jsRes = await fetch(fullUrl);
     const jsText = await jsRes.text();

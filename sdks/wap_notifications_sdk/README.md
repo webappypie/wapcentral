@@ -86,7 +86,7 @@ void main() async {
     const WapNotificationsOptions(
       appId: 'filezen', // Registered app ID in WAPCentral
       appKey: 'wap_key_filezen_prod', // Public app client credential
-      baseUrl: 'https://api.wapcentral.io',
+      baseUrl: 'https://wapcentral.webappypie.com',
       environment: 'production',
       enableLogging: false,
     ),

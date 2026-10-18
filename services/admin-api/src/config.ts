@@ -6,8 +6,16 @@ export const config = {
   firebaseProjectId:
     process.env['FIREBASE_PROJECT_ID'] || process.env['GOOGLE_CLOUD_PROJECT'] || 'wapcentral-dev',
   corsOrigins: process.env['CORS_ORIGINS']
-    ? process.env['CORS_ORIGINS'].split(',')
-    : ['http://localhost:3000', 'http://localhost:5173'],
+    ? process.env['CORS_ORIGINS'].split(',').map((s) => s.trim())
+    : process.env['CORS_ORIGIN']
+      ? process.env['CORS_ORIGIN'].split(',').map((s) => s.trim())
+      : [
+          'http://localhost:3000',
+          'http://localhost:5173',
+          'https://wapcentral.webappypie.com',
+          'https://wapcentral-prod.web.app',
+          'https://central.webappypie.com',
+        ],
   isTest: process.env['NODE_ENV'] === 'test' || !!process.env['VITEST'],
 };
 

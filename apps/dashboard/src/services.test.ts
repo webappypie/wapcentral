@@ -263,6 +263,20 @@ describe('Core Dashboard Services & In-Memory Fallback', () => {
 
       await deleteCampaign(camp.id, mockActor);
     });
+
+    it('should subscribe to campaigns and deliver campaign list with proper attributes', async () => {
+      let currentCamps: any[] = [];
+      const unsub = subscribeCampaigns((camps) => {
+        currentCamps = camps;
+      });
+      unsub();
+      expect(Array.isArray(currentCamps)).toBe(true);
+      expect(currentCamps.length).toBeGreaterThan(0);
+      const first = currentCamps[0];
+      expect(first.id).toBeDefined();
+      expect(first.title).toBeDefined();
+      expect(first.priority).toBeDefined();
+    });
   });
 
   describe('Feature Flags Service', () => {

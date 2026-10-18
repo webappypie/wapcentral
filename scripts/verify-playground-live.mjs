@@ -12,7 +12,7 @@ const testToken = `${header}.${payload}.sig`;
 
 console.log('[Auth] Constructed Super Admin JWT token.');
 
-const baseUrl = 'https://wapcentral-prod.web.app/api/admin';
+const baseUrl = 'https://wapcentral.webappypie.com/api/admin';
 
 // 1. Test Unauthenticated request (should be 401)
 console.log('\n--- Test 1: Unauthenticated request ---');

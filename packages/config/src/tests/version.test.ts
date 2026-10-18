@@ -28,6 +28,7 @@ describe('Release Version & Environment Resolution (@wapcentral/config)', () => 
   describe('resolveEnvironment()', () => {
     it('should resolve production Firebase Hosting domains to Production', () => {
       const prodDomains = [
+        'wapcentral.webappypie.com',
         'wapcentral-prod.web.app',
         'wapcentral-prod.firebaseapp.com',
         'central.webappypie.com',

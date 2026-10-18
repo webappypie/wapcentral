@@ -14,7 +14,7 @@ uptimeChecks:
     monitoredResource:
       type: uptime_url
       labels:
-        host: central.webappypie.com
+        host: wapcentral.webappypie.com
     httpCheck:
       path: /
       port: 443

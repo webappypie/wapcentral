@@ -18,7 +18,7 @@ const payload = Buffer.from(JSON.stringify({
 const idToken = `${header}.${payload}.sig`;
 console.log('✓ Generated super admin token for webappypie@gmail.com');
 
-const BASE_URL = 'https://wapcentral-prod.web.app';
+const BASE_URL = 'https://wapcentral.webappypie.com';
 
 async function run() {
   console.log('\n--- 1. Testing GET /api/admin/v1/infrastructure/overview ---');

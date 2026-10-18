@@ -3,7 +3,7 @@
 // App Isolation, Admin Authorization, Filters, Time-series, Exports,
 // and strictly verifies "Not connected" revenue honesty (zero fabricated revenue).
 
-const HOSTING_URL = 'https://wapcentral-prod.web.app';
+const HOSTING_URL = 'https://wapcentral.webappypie.com';
 const CLOUD_RUN_URL = 'https://wapcentral-admin-api-174781611765.asia-south1.run.app';
 
 const FILEZEN_ID = 'filezen';

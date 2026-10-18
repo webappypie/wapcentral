@@ -4,7 +4,7 @@ import re
 
 print("--- 1. Live Index.html & Bundle Verification ---")
 req = urllib.request.Request(
-    'https://wapcentral-prod.web.app/index.html',
+    'https://wapcentral.webappypie.com/index.html',
     headers={'User-Agent': 'Mozilla/5.0'}
 )
 html = urllib.request.urlopen(req).read().decode('utf-8')
@@ -17,7 +17,7 @@ if not m:
 else:
     script_path = m.group(1)
     print(f"Active Live Script: {script_path}")
-    bundle_url = f"https://wapcentral-prod.web.app{script_path}"
+    bundle_url = f"https://wapcentral.webappypie.com{script_path}"
     bundle_content = urllib.request.urlopen(bundle_url).read().decode('utf-8', errors='ignore')
     print(f"Bundle Size: {len(bundle_content)} bytes")
     print(f"Contains '0.2.1': {'0.2.1' in bundle_content}")
@@ -26,7 +26,7 @@ else:
 
 print("\n--- 2. Live Admin API Health Verification ---")
 health_urls = [
-    'https://wapcentral-prod.web.app/api/admin/health',
+    'https://wapcentral.webappypie.com/api/admin/health',
     'https://wapcentral-admin-api-174781611765.asia-south1.run.app/health'
 ]
 
@@ -41,7 +41,7 @@ for url in health_urls:
         print(f"Failed {url}: {e}")
 
 print("\n--- 3. Live AI Providers Verification ---")
-providers_url = 'https://wapcentral-prod.web.app/api/admin/v1/ai/providers'
+providers_url = 'https://wapcentral.webappypie.com/api/admin/v1/ai/providers'
 try:
     res = urllib.request.urlopen(providers_url)
     body = json.loads(res.read().decode('utf-8'))

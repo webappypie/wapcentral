@@ -75,7 +75,7 @@ Before embedding `wap_ads_sdk` in your mobile application, ensure you have gathe
    - `appKey` / Public Client Key (issued in WAPCentral Dashboard; e.g., `wap_pub_live_...`)
    - `signingSecret` / Promotion Signing Secret (configured in WAPCentral Console for HMAC-SHA256 campaign signature verification in `wap_promo_sdk`)
 3. **Platform Environment Base URL**:
-   - Production: `https://api.wapcentral.webappypie.com` (or Cloud Run platform endpoint)
+   - Production: `https://wapcentral.webappypie.com` (or Cloud Run platform endpoint)
    - Staging/Local: `https://staging-api.wapcentral.webappypie.com`
 4. **Platform Tooling**:
    - Flutter SDK $\ge 3.19.0$
@@ -182,21 +182,18 @@ Future<void> main() async {
 
   const appId = 'filezen-android';
   const appKey = String.fromEnvironment('WAP_PUBLIC_APP_KEY', defaultValue: 'wap_pub_live_sample_key');
-  const baseUrl = 'https://api.wapcentral.webappypie.com';
+  const baseUrl = 'https://wapcentral.webappypie.com';
 
   // 1. Initialize WAP Ads SDK (AppLovin MAX Mediation)
   await WapAds.initialize(
-    options: WapAdsOptions(
+    const WapAdsOptions(
       appId: appId,
       appKey: appKey,
       baseUrl: baseUrl,
       environment: WapEnvironment.production,
       testMode: false,
       autoRefreshConfig: true,
-      refreshInterval: const Duration(minutes: 15),
-      telemetryListener: (event) {
-        debugPrint('[WapAds Telemetry] ${event.eventType} on ${event.placementKey} (${event.provider})');
-      },
+      refreshInterval: Duration(minutes: 15),
     ),
   );
 
@@ -275,26 +272,38 @@ The consuming app interacts solely with the top-level `WapAds` facade and declar
                   (/api/platform/v1/ads/config)
 ```
 
-### Mediation Engine & Lightweight Adapter Strategy
+### Mediation Engine & Provider-Independent Architecture
 
-1. **Sole Mediation Engine**: AppLovin MAX serves as the single unified mediation engine across all WebAppyPie mobile apps and games. Unity LevelPlay is not bundled or supported to avoid duplicate mediation platform complexity and app bloat.
-2. **Supported Demand Sources via MAX**:
-   - **AppLovin Demand**: Direct real-time bidding demand through MAX core SDK.
-   - **Google AdMob**: High-fill bidding and waterfall demand via MAX AdMob adapter.
-   - **Meta Audience Network**: Social bidding demand via MAX Meta adapter.
-   - **InMobi**: Premium international demand via MAX InMobi adapter.
-   - **Unity Ads**: Mobile game and rewarded video demand via MAX Unity adapter.
-   - **WebAppyPie Custom Ads**: Centrally managed promotional campaigns for house apps, rendered directly and never misrepresented as third-party impressions.
-3. **Ad Strategies**:
-   - **Automatic Mediation**: AppLovin MAX orchestrates competition among all enabled, bundled demand sources in real time using unified bidding auctions and waterfalls.
-   - **Single Demand Source**: Routes ad requests exclusively to one chosen demand partner through MAX, while preserving MAX as the underlying mediation engine.
-4. **Lightweight SDK Principle**:
-   - Apps bundle only the adapters required by their selected demand partners.
-   - WAPCentral enforces strict build-time vs remote-activation isolation: if a network is enabled remotely while its required adapter is not compiled into the app, WAPCentral flags it as **Requires app update** and safely omits it from the client payload to protect app startup speed and binary size.
+1. **Sole Mediation Engine**: AppLovin MAX serves as the **sole unified mediation platform** across all WebAppyPie mobile apps and games. Unity LevelPlay is strictly excluded and not bundled to avoid duplicate mediation platform overhead, thread conflicts, and app bloat.
+2. **Master Provider & Demand Source Integration Roster (All 7 Providers)**:
+   The advertising architecture integrates all intended demand sources in advance so that provider switching can occur remotely from the WAPCentral Dashboard without app releases:
+
+   | Provider / Demand Source | Role & Architecture | Integration Status | Required Mobile SDK / Adapter | Supported Formats | Configuration Keys |
+   | :--- | :--- | :---: | :--- | :--- | :--- |
+   | **AppLovin MAX** | Primary Mediation Platform | `Implemented and Tested` | `applovin_max: ^4.0.1`<br>(Android: `com.applovin:applovin-sdk:13.1.0`, iOS: `AppLovinSDK`) | Banner, Native, Interstitial, Rewarded, App Open, Rewarded Interstitial | AppLovin SDK Key (`AppLovinSdkKey`), MAX Ad Unit IDs |
+   | **AppLovin Demand** | Direct Bidding Demand | `Implemented and Tested` | Built into MAX core SDK (No separate adapter required) | Banner, Native, Interstitial, Rewarded, App Open, Rewarded Interstitial | Managed via MAX Ad Unit IDs |
+   | **Google AdMob** | Demand Partner via MAX Adapter | `Integrated but Not Configured` | `com.applovin.mediation:google-adapter:23.6.0.0`<br>(iOS: `AppLovinMediationGoogleAdapter`) | Banner, Native, Interstitial, Rewarded, App Open, Rewarded Interstitial | Google Mobile Ads App ID (`APPLICATION_ID`), Ad Unit IDs |
+   | **Meta Audience Network** | Demand Partner via MAX Adapter | `Integrated but Not Configured` | `com.applovin.mediation:facebook-adapter:6.18.0.0`<br>(iOS: `AppLovinMediationFacebookAdapter`) | Banner, Native, Interstitial, Rewarded<br>*(App Open & Rewarded Interstitial NOT supported)* | Meta Placement IDs, `app-ads.txt` verification |
+   | **InMobi** | Demand Partner via MAX Adapter | `Integrated but Not Configured` | `com.applovin.mediation:inmobi-adapter:10.8.0.0`<br>(iOS: `AppLovinMediationInMobiAdapter`) | Banner, Native, Interstitial, Rewarded<br>*(App Open & Rewarded Interstitial NOT supported)* | InMobi Account ID, Placement IDs |
+   | **Unity Ads** | Demand Partner via MAX Adapter | `Integrated but Not Configured` | `com.applovin.mediation:unityads-adapter:4.12.5.0`<br>(iOS: `AppLovinMediationUnityAdsAdapter`) | Banner, Interstitial, Rewarded<br>*(Native & App Open NOT supported)* | Unity Game ID, Placement IDs |
+   | **WAPCentral Promotions** | House Campaigns / Fallback | `Implemented and Tested` | `wap_promo_sdk`<br>*(Zero 3rd-party dependencies, completely decoupled)* | Banner, Native Card, Interstitial, Sponsored Placement | Signing Secret (`HMAC-SHA256`), App ID, Public Client Key |
+
+3. **Pre-Bundled Adapter Strategy (Zero-Rebuild Provider Switching)**:
+   - Operating systems (Android/iOS) do NOT allow dynamic download of native C++/Java/Kotlin binaries at runtime.
+   - To enable switching mediation strategies or active demand partners directly from the WAPCentral Dashboard without submitting a new app store release, the application can **pre-bundle the adapters** for all intended demand sources in `build.gradle` and `Podfile`.
+   - When pre-bundled, activating a demand source or switching between **Automatic Mediation** and **Single Demand Source** takes effect immediately on the next app launch or config sync.
+   - If an adapter is omitted from the build, enabling that network remotely will be marked as **Requires App Update** and safely skipped until a new binary is released.
+
+4. **Decoupled House Promotion System (`wap_promo_sdk`)**:
+   - WAPCentral Promotions runs independently from third-party advertising demand.
+   - It is never entered into third-party ad auctions or bidding pools.
+   - Serves as the ultimate zero-dependency fallback when third-party ad networks return no-fill or timeout, ensuring 100% ad inventory utilization with authentic WebAppyPie internal campaigns.
 
 ---
 
 ## Section I: Supported Ad Formats
+
+The `WapAds` facade exports clean, typed methods and widgets for every implemented format. Always pass the active `BuildContext context` to full-screen ad methods.
 
 ### 1. Banner Ads
 
@@ -361,23 +370,26 @@ WapAds.native(
 
 ### 3. Interstitial Ads
 
-Fullscreen break ads displayed during natural transition points (e.g., after completing a file export or level transition).
+Fullscreen break ads displayed during natural transition points (e.g., after completing a file export or level transition). Returns `Future<bool>` indicating whether the ad was displayed.
 
 ```dart
 Future<void> onFileExportCompleted(BuildContext context) async {
   // Trigger interstitial through WAPCentral mediation
-  final result = await WapAds.showInterstitial(
+  final bool shown = await WapAds.showInterstitial(
+    context,
     placementKey: 'export_completion_interstitial',
   );
 
-  if (result.success) {
-    debugPrint('Interstitial served via ${result.provider}');
+  if (shown) {
+    debugPrint('Interstitial served and displayed successfully');
   } else {
-    debugPrint('Interstitial suppressed or failed: ${result.error?.message}');
+    debugPrint('Interstitial suppressed by cooldown, cap, kill-switch, or no-fill');
   }
 
   // Continue user flow regardless of ad fill
-  navigateToNextScreen(context);
+  if (context.mounted) {
+    navigateToNextScreen(context);
+  }
 }
 ```
 
@@ -385,13 +397,18 @@ Future<void> onFileExportCompleted(BuildContext context) async {
 
 ### 4. Rewarded Ads
 
-User-initiated ads granting in-app perks (e.g., extra Cloud Storage, OCR credits, unlocks).
+User-initiated ads granting in-app perks (e.g., extra Cloud Storage, OCR credits, unlocks). Returns `Future<RewardedAdResult>`.
+
+> ⚠️ **CRITICAL REWARD RULE**: Perks must **ONLY** be granted after verifying `result.rewardGranted == true`. Never grant rewards on ad open, click, or failure.
 
 ```dart
 Future<void> onWatchAdForExtraStorage(BuildContext context) async {
-  final result = await WapAds.showRewarded(
+  final RewardedAdResult result = await WapAds.showRewarded(
+    context,
     placementKey: 'storage_bonus_rewarded',
   );
+
+  if (!context.mounted) return;
 
   if (result.rewardGranted) {
     // REWARD MUST ONLY BE GRANTED AFTER SDK VERIFIES VALID COMPLETION
@@ -400,11 +417,11 @@ Future<void> onWatchAdForExtraStorage(BuildContext context) async {
       amount: result.rewardAmount ?? 100, // MB
     );
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Granted +${result.rewardAmount} MB storage!')),
+      SnackBar(content: Text('Granted +${result.rewardAmount ?? 100} MB storage!')),
     );
   } else {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Ad was not completed: ${result.error?.message ?? "Cancelled"}')),
+      SnackBar(content: Text('Ad was not completed: ${result.error ?? "Cancelled"}')),
     );
   }
 }
@@ -414,15 +431,16 @@ Future<void> onWatchAdForExtraStorage(BuildContext context) async {
 
 ### 5. App Open Ads
 
-Fullscreen ads displayed when the user launches or returns to the application from the background.
+Fullscreen ads displayed when the user launches or returns to the application from the background. Returns `Future<bool>`.
 
 ```dart
 // Typically triggered in your AppLifecycleState listener:
-void onAppResumed() async {
-  final result = await WapAds.showAppOpen(
+void onAppResumed(BuildContext context) async {
+  final bool shown = await WapAds.showAppOpen(
+    context,
     placementKey: 'cold_or_warm_app_open',
   );
-  if (result.success) {
+  if (shown) {
     debugPrint('App open ad displayed');
   }
 }
@@ -434,10 +452,11 @@ void onAppResumed() async {
 
 ### 6. Rewarded Interstitial Ads
 
-Pre-roll or naturally paced rewarded experiences where the user can opt-in to watch an interstitial to earn rewards without complete lock-in.
+Pre-roll or naturally paced rewarded experiences where the user can opt-in to watch an interstitial to earn rewards without complete lock-in. Returns `Future<RewardedAdResult>`.
 
 ```dart
-final result = await WapAds.showRewardedInterstitial(
+final RewardedAdResult result = await WapAds.showRewardedInterstitial(
+  context,
   placementKey: 'level_clear_rewarded_interstitial',
 );
 
@@ -498,7 +517,7 @@ void main() async {
     const WapNotificationsOptions(
       appId: 'filezen', // Registered app ID in WAPCentral
       appKey: 'wap_key_filezen_prod', // Public app client credential
-      baseUrl: 'https://api.wapcentral.io',
+      baseUrl: 'https://wapcentral.webappypie.com',
       environment: 'production',
       autoFetchBell: true,
       enableLogging: false,
@@ -738,7 +757,7 @@ Initialize `wap_promo_sdk` using the immutable `PromoConfig` data structure:
 |---|---|:---:|---|---|
 | `appId` | `String` | **Yes** | — | Unique host application ID (e.g., `'filezen-android'`) |
 | `appKey` | `String` | **Yes** | — | Public app key sent in `X-App-Key` header |
-| `baseUrl` | `String` | **Yes** | — | Platform Promotion API URL (e.g., `'https://api.wapcentral.webappypie.com'`) |
+| `baseUrl` | `String` | **Yes** | — | Platform Promotion API URL (e.g., `'https://wapcentral.webappypie.com'`) |
 | `signingSecret` | `String` | **Yes** | — | Shared secret for HMAC-SHA256 campaign signature verification |
 | `appVersion` | `String` | No | `'1.0.0'` | Host application semantic version |
 | `platform` | `String` | No | `'android'` | Target client OS (`'android'`, `'ios'`, `'web'`) |
@@ -763,7 +782,7 @@ void main() async {
     const PromoConfig(
       appId: 'filezen-android',
       appKey: String.fromEnvironment('WAP_APP_KEY', defaultValue: 'wap_pub_live_filezen_sample'),
-      baseUrl: 'https://api.wapcentral.webappypie.com',
+      baseUrl: 'https://wapcentral.webappypie.com',
       signingSecret: String.fromEnvironment('WAP_PROMO_SECRET', defaultValue: 'wap_promo_secret_filezen'),
       appVersion: '1.2.0',
       platform: 'android',
@@ -788,7 +807,7 @@ void main() async {
 
 #### Strict Placement Requirements:
 - **Sponsored Label**: Prominently renders a clear **SPONSORED** label (or custom `sponsorLabel` if provided) above the creative content.
-- **Maximum Height Constraint**: The container height is capped at **120 logical pixels (dp)** (`BoxConstraints(maxHeight: 120.0)`).
+- **Maximum Height Constraint**: The container height is capped at **90 logical pixels (dp)** (`BoxConstraints(maxHeight: 90.0)`).
 - **Clean Fallback**: If no campaign is eligible, active, or if the campaign has expired, it automatically renders `SizedBox.shrink()` without leaving blank space or broken frames.
 - **Single Impression Telemetry**: Dispatches post-frame impression telemetry (`WapPromoSdk.recordImpression(campaignId)`) exactly once per campaign lifecycle.
 - **Interactive Action**: On tap, dispatches click telemetry (`WapPromoSdk.recordClick(campaignId)`) and invokes `onDestinationTap(destinationUrl)`.
@@ -952,38 +971,58 @@ When the limit is reached, `WapPromoSdk` automatically clears the active notifie
 
 ---
 
-## Section L: Dashboard Configuration
+## Section L: Dashboard Configuration & Provider Switching
 
-All ad parameters are configured in the WAPCentral Console:
+All advertising parameters, mediation strategies, and provider assignments are controlled centrally in the WAPCentral Console:
 
 1. Navigate to **https://wapcentral.webappypie.com** and log in with your Admin credentials.
-2. Go to **Ads & Monetization Control Center** (`/ads`).
-3. Select your application from the **App Selector** dropdown.
-4. Customize each format independently:
-   - **Tiers Waterfall**: Drag and drop AdMob, Meta, AppLovin, and Custom Ads to adjust priority.
-   - **Ad Unit Mapping**: Enter provider placement IDs for Android and iOS.
-   - **Frequency & Cooldown**: Set cooldown interval (seconds), session cap, and daily cap.
-   - **Content Safety**: Enforce category exclusions (gambling, adult, violence, etc.).
-   - **Fallback Creatives**: Configure active WebAppyPie Custom Ad campaigns.
-5. Click **Save Configuration**. The changes are committed with an updated SHA-256 version hash and immediately pushed to mobile apps on their next sync cycle.
+2. Go to **Applications → [App Name] → Ads** or the **Ads & Monetization Control Center** (`/ads`).
+3. Select your application from the dropdown.
+
+### 1. Ad Mediation Strategy Modes
+
+WAPCentral provides two primary server-authoritative mediation strategies:
+
+#### Strategy A: Automatic Mediation via AppLovin MAX
+- **Multi-Network Competition:** AppLovin MAX runs real-time unified auctions and waterfalls across all enabled, pre-bundled demand sources.
+- **Provider Toggling:** Administrators can enable or disable individual demand sources (AdMob, Meta, InMobi, Unity, AppLovin) at any time.
+- **Dynamic Optimization:** The server adjusts priority tiers, floor prices, and enabled networks dynamically.
+
+#### Strategy B: Single Demand Source via MAX
+- **Exclusive Partner Routing:** Routes 100% of mediation requests exclusively to one chosen demand partner (e.g., InMobi, Unity Ads, Google AdMob, or AppLovin Demand) through the AppLovin MAX mediation core.
+- **Zero-Code Switching:** Administrators can switch the active demand partner from the WAPCentral Dashboard dropdown without touching mobile code, provided the partner's adapter is pre-bundled in the build.
+
+### 2. Dashboard Controls & Configuration Steps
+
+- **Master Ads Switch:** One-click instant toggle to enable or disable all ads for the application.
+- **Strategy Selector:** Choose between **Automatic Mediation** and **Single Demand Source**. If Single Demand Source is chosen, pick the active network from the dropdown.
+- **Demand Sources Checkboxes:** Check/uncheck demand partners to participate in mediation.
+- **Bundled Adapters Flags:** Check the adapters that have been pre-bundled in your application build. WAPCentral uses this to avoid returning demand partners that lack native adapters in the client app.
+- **Format Master Switches:** Independently toggle `banner`, `native`, `interstitial`, `rewarded`, `appOpen`, and `rewardedInterstitial`.
+- **Production Ad Unit Mapping:** Enter production placement IDs, AdMob Ad Unit IDs, Meta Placement IDs, InMobi Account/Placement IDs, and Unity Game ID.
+- **Environment Toggle:** Switch seamlessly between **Testing Mode** (injects official test IDs and enables MAX test mode) and **Production Mode** (serves genuine third-party ads).
+- **Emergency Kill Switches:** Instantly suppress ads across 5 tiers (Global, App, Network, Format, Placement) within seconds.
 
 ---
 
-## Section M: What Can Be Controlled From WAPCentral
+## Section M: What Can Be Controlled Remotely vs. Mobile App Rebuild Matrix
 
-Everything critical to monetization is controlled remotely without app updates:
+WAPCentral is designed to avoid unnecessary app releases. However, native mobile operating system constraints dictate what can be changed over the air versus what requires a compiled binary release:
 
-| Dimension | Control Capabilities |
-|---|---|
-| **Master Ads Switch** | Turn all ads ON or OFF across the entire application instantly. |
-| **Format Switches** | Independently toggle Banner, Native, Interstitial, Rewarded, App Open, or Rewarded Interstitial. |
-| **Mediation Priority** | Re-order provider waterfalls (e.g., promote AppLovin to Tier 1 during high eCPM campaigns). |
-| **Provider Availability** | Disable a specific ad network (e.g., disable Meta if an SDK issue occurs). |
-| **Refresh Intervals** | Modify banner refresh time (from 30s to 180s). |
-| **Frequency Pacing** | Tighten or loosen session/daily impression caps and interstitial cooldowns. |
-| **Content Safety** | Exclude prohibited advertising categories. |
-| **Custom Ads Inventory** | Launch house campaigns, modify banner images, update CTA text, and change target URLs. |
-| **Emergency Kill Switches** | Instant multi-layer kill switches taking effect in seconds. |
+| Operation / Configuration Change | Applies Remotely (NO App Release) | Requires Mobile App Rebuild & Store Release | Technical Rationale & Behavior |
+| :--- | :---: | :---: | :--- |
+| **Switching Mediation Strategy** (`automatic` $\leftrightarrow$ `single_source`) | ✅ **Yes** | ❌ No | Fetched dynamically from `/api/platform/v1/ads/config` on app launch. |
+| **Switching Active Network in Single Source Mode** (e.g. InMobi $\leftrightarrow$ Unity Ads) | ✅ **Yes** | ❌ No | Takes effect immediately if the partner's adapter is pre-bundled in the APK/IPA. |
+| **Enabling / Disabling Individual Demand Sources** | ✅ **Yes** | ❌ No | Remote configuration adjusts the active network waterfall dynamically. |
+| **Switching Environment** (`testing` $\leftrightarrow$ `production`) | ✅ **Yes** | ❌ No | Injects official sandbox test IDs or live production IDs automatically. |
+| **Updating Production Ad Unit IDs / Placements** | ✅ **Yes** | ❌ No | Updated IDs take effect on next config sync; zero hardcoded IDs in app code. |
+| **Adjusting Banner Refresh Intervals** | ✅ **Yes** | ❌ No | Dynamically applied (strictly clamped to $\ge 30\text{s}$, default $60\text{s}$). |
+| **Activating Emergency Kill Switches** (Global, App, Format, Placement) | ✅ **Yes** | ❌ No | Instant ad suppression across all client devices without app updates. |
+| **Updating House Fallback Creatives / Campaigns** | ✅ **Yes** | ❌ No | WAPCentral Custom Ads and `wap_promo_sdk` fetch new campaigns over HTTP. |
+| **Adding a New Adapter NOT Compiled into the Build** | ❌ No | ✅ **Yes** | Native SDK binaries must be compiled into the binary payload. |
+| **Updating Android Manifest `APPLICATION_ID` or `AppLovinSdkKey`** | ❌ No | ✅ **Yes** | OS manifest metadata is baked into the compiled application package. |
+| **Updating iOS `SKAdNetworkItems` / Info.plist** | ❌ No | ✅ **Yes** | Apple requires SKAdNetwork attribution identifiers inside `Info.plist`. |
+| **Upgrading Native SDK or Adapter Package Versions** | ❌ No | ✅ **Yes** | Dependency version upgrades require recompilation and store release. |
 
 ---
 
@@ -998,59 +1037,159 @@ Consuming apps that also utilize Firebase for authentication or crash reporting 
 
 ## Section O: Android Requirements
 
-1. **Minimum SDK**: In `android/app/build.gradle`:
-   ```groovy
-   minSdkVersion 21
-   targetSdkVersion 34
-   ```
+### 1. SDK Version & Permissions
+In `android/app/build.gradle`:
+```groovy
+android {
+    compileSdkVersion 34
+    defaultConfig {
+        minSdkVersion 21
+        targetSdkVersion 34
+        multiDexEnabled true
+    }
+}
+```
 
-2. **Internet Permission**: In `android/app/src/main/AndroidManifest.xml`:
-   ```xml
-   <uses-permission android:name="android.permission.INTERNET"/>
-   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-   ```
+In `android/app/src/main/AndroidManifest.xml`:
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- Optional: AdMob / AppLovin advertising ID permission -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID"/>
 
-3. **Google Mobile Ads App ID**:
-   Add the public AdMob App ID inside the `<application>` tag:
-   ```xml
-   <meta-data
-       android:name="com.google.android.gms.ads.APPLICATION_ID"
-       android:value="ca-app-pub-3940256099942544~3347511713"/> <!-- Test or registered App ID -->
-   ```
+    <application ...>
+        <!-- 1. Google Mobile Ads App ID (Required if AdMob adapter is included) -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713"/> <!-- Test or live App ID -->
 
-4. **ProGuard / R8 Rules** (if code obfuscation is enabled):
-   In `android/app/proguard-rules.pro`:
-   ```proguard
-   -keep class com.google.android.gms.ads.** { *; }
-   -keep class com.facebook.ads.** { *; }
-   -keep class com.applovin.** { *; }
-   ```
+        <!-- 2. AppLovin SDK Key (Required for AppLovin MAX) -->
+        <meta-data
+            android:name="applovin.sdk.key"
+            android:value="YOUR_APPLOVIN_SDK_KEY"/>
+    </application>
+</manifest>
+```
+
+### 2. Pre-Bundled Mediation Adapters (Zero-Rebuild Provider Switching)
+To allow switching demand sources directly from the WAPCentral Dashboard without submitting new app releases, pre-bundle the mediation adapters in `android/app/build.gradle`:
+
+```groovy
+dependencies {
+    // Note: Core applovin_max is pulled in automatically by the flutter plugin.
+    // Pre-bundle desired mediation adapters for instant dashboard switching:
+    implementation 'com.applovin.mediation:google-adapter:23.6.0.0'
+    implementation 'com.applovin.mediation:facebook-adapter:6.18.0.0'
+    implementation 'com.applovin.mediation:inmobi-adapter:10.8.0.0'
+    implementation 'com.applovin.mediation:unityads-adapter:4.12.5.0'
+}
+```
+
+### 3. ProGuard / R8 Rules
+If code shrinking/obfuscation is enabled, add the following to `android/app/proguard-rules.pro`:
+
+```proguard
+# AppLovin MAX
+-keep class com.applovin.** { *; }
+-dontwarn com.applovin.**
+
+# Google AdMob
+-keep class com.google.android.gms.ads.** { *; }
+-dontwarn com.google.android.gms.ads.**
+
+# Meta Audience Network
+-keep class com.facebook.ads.** { *; }
+-dontwarn com.facebook.ads.**
+
+# InMobi
+-keep class com.inmobi.** { *; }
+-dontwarn com.inmobi.**
+
+# Unity Ads
+-keep class com.unity3d.ads.** { *; }
+-keep class com.unity3d.services.** { *; }
+-dontwarn com.unity3d.ads.**
+```
 
 ---
 
 ## Section P: iOS Requirements
 
-1. **Deployment Target**: iOS 13.0 or higher in `ios/Podfile`:
-   ```ruby
-   platform :ios, '13.0'
-   ```
+### 1. Deployment Target & CocoaPods Configuration
+In `ios/Podfile`:
+```ruby
+platform :ios, '13.0'
 
-2. **Info.plist Configuration**: In `ios/Runner/Info.plist`:
-   ```xml
-   <key>GADApplicationIdentifier</key>
-   <string>ca-app-pub-3940256099942544~1458002511</string> <!-- Test or registered App ID -->
-   <key>SKAdNetworkItems</key>
-   <array>
-       <!-- AdMob SKAdNetwork identifiers -->
-       <dict>
-           <key>SKAdNetworkIdentifier</key>
-           <string>cstr6suwn9.skadnetwork</string>
-       </dict>
-   </array>
-   ```
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
 
-3. **App Tracking Transparency (ATT)**:
-   If your app requests IDFA tracking on iOS 14.5+, present the ATT dialog prior to requesting personalized ads.
+  # Pre-bundle MAX mediation adapters for zero-rebuild dashboard switching:
+  pod 'AppLovinMediationGoogleAdapter'
+  pod 'AppLovinMediationFacebookAdapter'
+  pod 'AppLovinMediationInMobiAdapter'
+  pod 'AppLovinMediationUnityAdsAdapter'
+end
+```
+
+### 2. Info.plist Configuration
+In `ios/Runner/Info.plist`:
+
+```xml
+<!-- 1. Google Mobile Ads Application Identifier -->
+<key>GADApplicationIdentifier</key>
+<string>ca-app-pub-3940256099942544~1458002511</string> <!-- Test or live ID -->
+
+<!-- 2. AppLovin SDK Key -->
+<key>AppLovinSdkKey</key>
+<string>YOUR_APPLOVIN_SDK_KEY</string>
+
+<!-- 3. App Tracking Transparency (ATT) Description -->
+<key>NSUserTrackingUsageDescription</key>
+<string>This identifier will be used to deliver personalized ads to you.</string>
+
+<!-- 4. SKAdNetwork Attribution Identifiers -->
+<key>SKAdNetworkItems</key>
+<array>
+    <!-- AppLovin -->
+    <dict>
+        <key>SKAdNetworkIdentifier</key>
+        <string>2u9pt9hc89.skadnetwork</string>
+    </dict>
+    <dict>
+        <key>SKAdNetworkIdentifier</key>
+        <string>4468km3ulz.skadnetwork</string>
+    </dict>
+    <!-- Google AdMob -->
+    <dict>
+        <key>SKAdNetworkIdentifier</key>
+        <string>cstr6suwn9.skadnetwork</string>
+    </dict>
+    <!-- Meta Audience Network -->
+    <dict>
+        <key>SKAdNetworkIdentifier</key>
+        <string>v9wttpbfk9.skadnetwork</string>
+    </dict>
+    <dict>
+        <key>SKAdNetworkIdentifier</key>
+        <string>n38lu8286q.skadnetwork</string>
+    </dict>
+    <!-- InMobi -->
+    <dict>
+        <key>SKAdNetworkIdentifier</key>
+        <string>wzmmz9fp6w.skadnetwork</string>
+    </dict>
+    <!-- Unity Ads -->
+    <dict>
+        <key>SKAdNetworkIdentifier</key>
+        <string>4dzt52r2t5.skadnetwork</string>
+    </dict>
+</array>
+```
+
+### 3. App Tracking Transparency (ATT)
+If your application requests IDFA tracking on iOS 14.5+, present the ATT dialog (`AppTrackingTransparency.requestTrackingAuthorization()`) before requesting personalized ad units.
 
 ---
 
@@ -1178,7 +1317,7 @@ Before submitting an app update to Google Play or Apple App Store:
 - [ ] App is registered in WAPCentral Console with correct package name/bundle ID.
 - [ ] Production public key (`wap_pub_live_...`) is configured via `--dart-define` or secure build config.
 - [ ] `testMode` is set to `false`.
-- [ ] WAPCentral Base URL points to live production endpoint (`https://api.wapcentral.webappypie.com`).
+- [ ] WAPCentral Base URL points to live production endpoint (`https://wapcentral.webappypie.com`).
 - [ ] AndroidManifest contains valid AdMob Application ID `<meta-data>`.
 - [ ] iOS Info.plist contains valid `GADApplicationIdentifier` and `SKAdNetworkItems`.
 - [ ] ProGuard rules are present in `android/app/proguard-rules.pro`.
@@ -1208,18 +1347,18 @@ void main() async {
     'WAP_PUBLIC_APP_KEY',
     defaultValue: 'wap_pub_live_filezen_sample',
   );
-  const baseUrl = 'https://api.wapcentral.webappypie.com';
+  const baseUrl = 'https://wapcentral.webappypie.com';
 
   // 1. Initialize WAP Ads SDK (AppLovin MAX Mediation)
   await WapAds.initialize(
-    options: WapAdsOptions(
+    const WapAdsOptions(
       appId: appId,
       appKey: appKey,
       baseUrl: baseUrl,
       environment: WapEnvironment.production,
       testMode: false,
       autoRefreshConfig: true,
-      refreshInterval: const Duration(minutes: 15),
+      refreshInterval: Duration(minutes: 15),
     ),
   );
 
@@ -1280,19 +1419,20 @@ class _FileZenHomeScreenState extends State<FileZenHomeScreen> with WidgetsBindi
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.resumed && mounted) {
       // Trigger App Open ad on resume
-      WapAds.showAppOpen(placementKey: 'app_resume_open');
+      WapAds.showAppOpen(context, placementKey: 'app_resume_open');
     }
   }
 
   // Interstitial example
   Future<void> _handleFileCompress() async {
     // Show interstitial before or after file action
-    final result = await WapAds.showInterstitial(
+    final bool shown = await WapAds.showInterstitial(
+      context,
       placementKey: 'compress_done_interstitial',
     );
-    debugPrint('Interstitial result: ${result.success}');
+    debugPrint('Interstitial displayed: $shown');
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1302,7 +1442,8 @@ class _FileZenHomeScreenState extends State<FileZenHomeScreen> with WidgetsBindi
 
   // Rewarded ad example
   Future<void> _handleGetBonusStorage() async {
-    final result = await WapAds.showRewarded(
+    final RewardedAdResult result = await WapAds.showRewarded(
+      context,
       placementKey: 'extra_storage_rewarded',
     );
 
@@ -1313,11 +1454,11 @@ class _FileZenHomeScreenState extends State<FileZenHomeScreen> with WidgetsBindi
         _bonusStorageMb += (result.rewardAmount ?? 100).toInt();
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Reward granted! +${result.rewardAmount} MB added.')),
+        SnackBar(content: Text('Reward granted! +${result.rewardAmount ?? 100} MB added.')),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No reward: ${result.error?.message ?? "Ad was skipped"}')),
+        SnackBar(content: Text('No reward: ${result.error ?? "Ad was skipped"}')),
       );
     }
   }
@@ -1347,7 +1488,7 @@ class _FileZenHomeScreenState extends State<FileZenHomeScreen> with WidgetsBindi
             onPressed: _handleFileCompress,
           ),
           const SizedBox(height: 20),
-          // WAPCentral Sponsored Placement (Capped at 120dp height, clear 'Sponsored' label, auto-hides if no campaign)
+          // WAPCentral Sponsored Placement (Capped at 90dp height, clear 'Sponsored' label, auto-hides if no campaign)
           WapSponsoredPlacement(
             margin: EdgeInsets.zero,
             elevation: 0.5,

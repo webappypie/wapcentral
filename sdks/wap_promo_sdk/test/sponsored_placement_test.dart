@@ -71,7 +71,7 @@ void main() {
       expect(find.text('SPONSORED'), findsNothing);
     });
 
-    testWidgets('renders compact sponsored native layout with max 120dp height and custom sponsorLabel',
+    testWidgets('renders compact sponsored native layout with max 90dp height and custom sponsorLabel',
         (tester) async {
       final mockClient = MockClient((_) async => http.Response('{}', 200));
       await WapPromoSdk.init(testConfig, cache: cache, client: mockClient);
@@ -116,16 +116,16 @@ void main() {
       expect(find.text('Get 100GB cloud storage securely for life'), findsOneWidget);
       expect(find.text('Claim'), findsOneWidget);
 
-      // Verify height constraints (must not exceed 120 dp)
+      // Verify height constraints (must not exceed 90 dp)
       final boxFinder = find.byWidgetPredicate(
         (widget) =>
             widget is ConstrainedBox &&
-            widget.constraints.maxHeight <= 120.0,
+            widget.constraints.maxHeight <= 90.0,
       );
       expect(boxFinder, findsWidgets);
 
       final renderBox = tester.renderObject<RenderBox>(find.byType(WapSponsoredPlacement));
-      expect(renderBox.size.height, lessThanOrEqualTo(120.0));
+      expect(renderBox.size.height, lessThanOrEqualTo(90.0));
 
       // Test tap dispatches destination
       await tester.tap(find.text('Claim'));

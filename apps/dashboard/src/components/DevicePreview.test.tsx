@@ -62,7 +62,7 @@ describe('DevicePreview Component', () => {
     expect(html).toContain('NATIVE');
   });
 
-  it('should render sponsored native placement with clear Sponsored label and max 120dp constraint', () => {
+  it('should render sponsored native placement with clear Sponsored label and max 90dp constraint', () => {
     const html = renderToString(
       <DevicePreview
         layoutVariant="sponsored"
@@ -78,7 +78,7 @@ describe('DevicePreview Component', () => {
     expect(html).toContain('Encrypted backup for your device data');
     expect(html).toContain('Claim Now');
     expect(html).toContain('Sponsored by WebAppyPie');
-    expect(html).toContain('max-h-[120px]');
+    expect(html).toContain('max-h-[90px]');
     expect(html).toContain('Live Mock Preview:');
     expect(html).toContain('SPONSORED');
   });

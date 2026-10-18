@@ -223,7 +223,7 @@ describe('App-Specific Integration Guide Generator', () => {
 
       // Startup Sequence
       expect(md).toContain('10. App Startup Sequence');
-      expect(md).toContain('https://wapcentral-prod.web.app/api/platform/v1');
+      expect(md).toContain('https://wapcentral.webappypie.com/api/platform/v1');
       expect(md).toContain('preferLocal');
 
       // Checklists

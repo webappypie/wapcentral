@@ -10,7 +10,7 @@ const payload = Buffer.from(JSON.stringify({
 })).toString('base64url');
 const testToken = `${header}.${payload}.sig`;
 
-const baseUrl = 'https://wapcentral-prod.web.app/api/admin';
+const baseUrl = 'https://wapcentral.webappypie.com/api/admin';
 
 const geminiModels = [
   {

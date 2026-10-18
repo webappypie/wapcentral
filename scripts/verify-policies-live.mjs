@@ -23,7 +23,7 @@ const payload = Buffer.from(JSON.stringify({
 const idToken = `${header}.${payload}.sig`;
 console.log('✓ Generated super admin token for webappypie@gmail.com');
 
-const baseUrl = 'https://wapcentral-prod.web.app/api/admin/v1';
+const baseUrl = 'https://wapcentral.webappypie.com/api/admin/v1';
 const authHeaders = {
   'Content-Type': 'application/json',
   Authorization: `Bearer ${idToken}`,

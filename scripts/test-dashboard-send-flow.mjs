@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
-const HOSTING_URL = 'https://wapcentral-prod.web.app';
+const HOSTING_URL = 'https://wapcentral.webappypie.com';
 const TARGET_APP_ID = 'app_1791324566055';
 const TARGET_DEVICE_ID = 'fz_c53efb11b4de241d0ef35ff37053618a';
 

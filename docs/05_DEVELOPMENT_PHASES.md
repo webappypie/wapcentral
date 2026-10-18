@@ -262,7 +262,7 @@ documentation.
 Deliverables:
 
 - Production Firebase project fully configured
-- Custom domain for dashboard (e.g. `central.webappypie.com`)
+- Custom domain for dashboard (`wapcentral.webappypie.com`)
 - Full production deployment pipeline (GitHub Actions)
 - Uptime monitoring
 - Automated backup strategy for Firestore

@@ -140,21 +140,29 @@ jobs:
       matrix:
         service:
           - name: admin-api
+            cloud_run_name: wapcentral-admin-api
+            region: asia-south1
             port: 8080
             min-instances: 1
             max-instances: 20
             memory: '512Mi'
           - name: promotion-api
+            cloud_run_name: wapcentral-promotion-api
+            region: asia-south1
             port: 8081
             min-instances: 2
             max-instances: 50
             memory: '512Mi'
           - name: ai-gateway
+            cloud_run_name: wapcentral-ai-gateway
+            region: asia-south1
             port: 8082
             min-instances: 2
             max-instances: 50
             memory: '1Gi'
           - name: workers
+            cloud_run_name: wapcentral-workers
+            region: asia-south1
             port: 8083
             min-instances: 1
             max-instances: 10
@@ -173,21 +181,25 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Configure Docker for Google Artifact Registry
-        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+        run: gcloud auth configure-docker ${{ matrix.service.region || env.GCP_REGION }}-docker.pkg.dev --quiet
 
       - name: Build Container Image via Cloud Build
         run: |
-          IMAGE_TAG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PRODUCTION_PROJECT_ID }}/wapcentral/${{ matrix.service.name }}:${{ github.sha }}"
+          SERVICE_REGION="${{ matrix.service.region || env.GCP_REGION }}"
+          SERVICE_RUN_NAME="${{ matrix.service.cloud_run_name || matrix.service.name }}"
+          IMAGE_TAG="${SERVICE_REGION}-docker.pkg.dev/${{ env.PRODUCTION_PROJECT_ID }}/wapcentral/${SERVICE_RUN_NAME}:${{ github.sha }}"
           gcloud builds submit . \
             --config=infrastructure/gcloud/cloudbuild.yaml \
             --substitutions=_SERVICE=${{ matrix.service.name }},_IMAGE_TAG=${IMAGE_TAG}
 
       - name: Deploy to Cloud Run (Zero Downtime Rolling Update)
         run: |
-          IMAGE_TAG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PRODUCTION_PROJECT_ID }}/wapcentral/${{ matrix.service.name }}:${{ github.sha }}"
-          gcloud run deploy ${{ matrix.service.name }} \
+          SERVICE_REGION="${{ matrix.service.region || env.GCP_REGION }}"
+          SERVICE_RUN_NAME="${{ matrix.service.cloud_run_name || matrix.service.name }}"
+          IMAGE_TAG="${SERVICE_REGION}-docker.pkg.dev/${{ env.PRODUCTION_PROJECT_ID }}/wapcentral/${SERVICE_RUN_NAME}:${{ github.sha }}"
+          gcloud run deploy ${SERVICE_RUN_NAME} \
             --image=${IMAGE_TAG} \
-            --region=${{ env.GCP_REGION }} \
+            --region=${SERVICE_REGION} \
             --project=${{ env.PRODUCTION_PROJECT_ID }} \
             --platform=managed \
             --port=${{ matrix.service.port }} \
@@ -195,7 +207,9 @@ jobs:
             --min-instances=${{ matrix.service.min-instances }} \
             --max-instances=${{ matrix.service.max-instances }} \
             --service-account=sa-${{ matrix.service.name }}@${{ env.PRODUCTION_PROJECT_ID }}.iam.gserviceaccount.com \
+            --set-env-vars=NODE_ENV=production,ENVIRONMENT=production,FIREBASE_PROJECT_ID=${{ env.PRODUCTION_PROJECT_ID }},PORT=${{ matrix.service.port }},CORS_ORIGINS="https://wapcentral.webappypie.com,https://wapcentral-prod.web.app" \
             --set-secrets=OPENAI_API_KEY=OPENAI_API_KEY:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,PROMOTION_SIGNING_SECRET=PROMOTION_SIGNING_SECRET:latest \
+            --allow-unauthenticated \
             --traffic=100
 
   # ============================================================

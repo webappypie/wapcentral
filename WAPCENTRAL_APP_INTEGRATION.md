@@ -15,6 +15,7 @@
 - [Section E: appKey / Public SDK Credential](#section-e-appkey--public-sdk-credential)
 - [Section F: Flutter SDK Installation](#section-f-flutter-sdk-installation)
 - [Section G: Initialization](#section-g-initialization)
+- [Section G.2: Remote App Service Control](#section-g2-remote-app-service-control)
 - [Section H: Ads Integration Architecture](#section-h-ads-integration-architecture)
 - [Section I: Supported Ad Formats](#section-i-supported-ad-formats)
   - [1. Banner Ads](#1-banner-ads)
@@ -25,6 +26,16 @@
   - [6. Rewarded Interstitial Ads](#6-rewarded-interstitial-ads)
 - [Section J: Central Notification System Integration](#section-j-central-notification-system-integration)
 - [Section K: Central Promotions & Sponsorship Integration (wap_promo_sdk)](#section-k-central-promotions--sponsorship-integration-wap_promo_sdk)
+- [Section K.2: Central Weather Service Integration (wap_weather_sdk)](#section-k2-central-weather-service-integration-wap_weather_sdk)
+  - [1. Overview & Multi-App Architecture](#1-overview--multi-app-architecture)
+  - [2. Dependencies & Flutter SDK Installation](#2-dependencies--flutter-sdk-installation)
+  - [3. Client Initialization](#3-client-initialization)
+  - [4. Current Weather API](#4-current-weather-api)
+  - [5. 3-Day Forecast & Hourly Conditions](#5-3-day-forecast--hourly-conditions)
+  - [6. Global Location Search & Autocomplete](#6-global-location-search--autocomplete)
+  - [7. Mandatory Attribution & Free Tier Disclaimers](#7-mandatory-attribution--free-tier-disclaimers)
+  - [8. Caching Limits & Monthly Quota Governance](#8-caching-limits--monthly-quota-governance)
+  - [9. Error Codes & Resilience](#9-error-codes--resilience)
   - [1. Purpose & Separation from Third-Party Ads](#1-purpose--separation-from-third-party-ads)
   - [2. Dependencies Installation](#2-dependencies-installation)
   - [3. PromoConfig Configuration Model](#3-promoconfig-configuration-model)
@@ -235,6 +246,68 @@ Future<void> main() async {
 
 ---
 
+## Section G.2: Remote App Service Control
+
+WAPCentral provides an authoritative, per-app **Remote Service Status** control mechanism. The administrator can remotely pause or restore application service at any time from the WAPCentral Dashboard without submitting a mobile app store update.
+
+### 1. Functional Capabilities:
+- **Remote Service Switch**: Enable or disable an app's service remotely from the WAPCentral Dashboard.
+- **Custom Blocking Dialog**: Configure custom popup `title`, `message`, `buttonText`, and `destinationUrl`.
+- **Live Preview**: Preview the mobile blocking dialog directly in the dashboard before saving and publishing.
+- **Published Status Tracking**: View current published status (`Active` or `Paused`) across apps.
+
+### 2. Remote Service Control API Contract:
+- **Method**: `GET`
+- **Route**: `/api/platform/v1/apps/{appId}/service-status` (or `/api/platform/v1/service-status`)
+- **Headers**:
+  - `X-App-Id: {appId}`
+  - `X-App-Key: {appKey}`
+
+#### Response Schema:
+```json
+{
+  "success": true,
+  "appId": "filezen",
+  "service": "service_control",
+  "data": {
+    "enabled": false,
+    "title": "Scheduled Maintenance",
+    "message": "We are currently upgrading server systems. Please check back shortly.",
+    "buttonText": "Check System Status",
+    "destinationUrl": "https://webappypie.com/status",
+    "updatedAt": "2026-10-18T12:00:00.000Z"
+  }
+}
+```
+
+### 3. Mobile Lifecycle Handling Rules:
+1. **App Startup**:
+   - During the cold start sequence (splash screen / `main.dart`), the app queries the service status endpoint.
+   - If `data.enabled === false`, render a full-screen, non-dismissible blocking dialog (`PopScope(canPop: false)`).
+   - Display the configured `title`, `message`, and action button.
+   - The action button opens `destinationUrl` in the external browser using system URL handlers (`url_launcher`).
+   - Normal application features remain completely blocked.
+2. **App Resume & Foreground Events**:
+   - Listen to app lifecycle events (`WidgetsBindingObserver.didChangeAppLifecycleState` or `AppLifecycleListener.onResume`).
+   - When the user returns to the app from the background, re-query the service status endpoint.
+   - If service has been paused while the app was backgrounded, immediately display the blocking dialog.
+3. **Temporary Network Failures & Offline Mode (Local-First Resilience)**:
+   - The application must operate **local-first and resiliently**.
+   - If the endpoint is temporarily unreachable (e.g. no internet, timeout, DNS error, HTTP 5xx), the client must **fail open** (`enabled: true`) to prevent locking offline users out of local utilities.
+   - Log a non-fatal diagnostic warning and retry on the next foreground resume event.
+4. **Missing or Invalid Remote Configuration**:
+   - If the remote configuration is missing, malformed, or fails validation, default to `enabled: true` (fail-open).
+5. **Service Restoration**:
+   - When the administrator re-enables service in the dashboard (`enabled: true`), the next foreground check or periodic poll receives `enabled: true`.
+   - The blocking dialog is automatically dismissed, restoring normal app flow instantly.
+6. **Older App Versions**:
+   - Older app builds that lack the Service Control client will continue normal operation. Administrators requiring mandatory version deprecation should configure minimum version requirements.
+7. **Security Rules**:
+   - Only public identifiers (`appId`) and standard client auth (`X-App-Key`) are used.
+   - Never embed private backend signing secrets or admin credentials in the mobile app.
+
+---
+
 ## Section H: Ads Integration Architecture
 
 The consuming app interacts solely with the top-level `WapAds` facade and declarative widgets:
@@ -274,28 +347,45 @@ The consuming app interacts solely with the top-level `WapAds` facade and declar
 
 ### Mediation Engine & Provider-Independent Architecture
 
-1. **Sole Mediation Engine**: AppLovin MAX serves as the **sole unified mediation platform** across all WebAppyPie mobile apps and games. Unity LevelPlay is strictly excluded and not bundled to avoid duplicate mediation platform overhead, thread conflicts, and app bloat.
-2. **Master Provider & Demand Source Integration Roster (All 7 Providers)**:
-   The advertising architecture integrates all intended demand sources in advance so that provider switching can occur remotely from the WAPCentral Dashboard without app releases:
+1. **Multi-Provider Monetization Architecture**:
+   - WAPCentral supports **Google AdMob**, **AppLovin MAX**, **WebAppyPie Promotions**, **Meta Audience Network**, **InMobi**, and **Unity Ads**.
+   - Each advertising provider can be enabled or disabled independently per application from the WAPCentral Dashboard.
+   - For applications utilizing unified mediation, AppLovin MAX serves as the primary mediation engine coordinating active demand partners.
+   - For applications configured exclusively with Google AdMob, the architecture operates in direct GMA mode without requiring AppLovin MAX, Promotions, or third-party mediation adapters.
+
+2. **Strict Per-App Documentation Filtering Rule**:
+   - **Only explicitly enabled providers are included in each app's generated or downloadable integration documentation (`.md`).**
+   - Disabled advertising providers, unrelated SDKs, and unused credentials are completely omitted from the app's documentation, configuration output, tables, and setup instructions.
+   - When an administrator modifies enabled providers in the dashboard, the documentation generation service regenerates the guide dynamically so the next download immediately reflects the latest saved configuration.
+   - If no advertising providers are enabled for an application, the generated documentation clearly states that advertising is disabled and includes zero provider setup instructions.
+
+3. **Testing vs. Production Configuration Separation**:
+   - Every enabled provider includes both official testing configuration (verified test App IDs, test Ad Unit IDs, test keys) and production configuration (live App IDs, production Ad Unit IDs).
+   - **Testing credentials and production credentials are strictly separated in the dashboard, API responses, and generated guides.**
+   - **Never use or click live production ads during development or automated testing.**
+   - Production credentials are kept securely on the server; private signing secrets, reporting API keys, and service account tokens are never exposed in mobile apps or downloadable documentation.
+
+4. **Master Provider & Demand Source Integration Matrix (All Supported Providers)**:
+   The following matrix audits all supported advertising demand partners, mediation roles, formats, and required keys:
 
    | Provider / Demand Source | Role & Architecture | Integration Status | Required Mobile SDK / Adapter | Supported Formats | Configuration Keys |
    | :--- | :--- | :---: | :--- | :--- | :--- |
    | **AppLovin MAX** | Primary Mediation Platform | `Implemented and Tested` | `applovin_max: ^4.0.1`<br>(Android: `com.applovin:applovin-sdk:13.1.0`, iOS: `AppLovinSDK`) | Banner, Native, Interstitial, Rewarded, App Open, Rewarded Interstitial | AppLovin SDK Key (`AppLovinSdkKey`), MAX Ad Unit IDs |
    | **AppLovin Demand** | Direct Bidding Demand | `Implemented and Tested` | Built into MAX core SDK (No separate adapter required) | Banner, Native, Interstitial, Rewarded, App Open, Rewarded Interstitial | Managed via MAX Ad Unit IDs |
-   | **Google AdMob** | Demand Partner via MAX Adapter | `Integrated but Not Configured` | `com.applovin.mediation:google-adapter:23.6.0.0`<br>(iOS: `AppLovinMediationGoogleAdapter`) | Banner, Native, Interstitial, Rewarded, App Open, Rewarded Interstitial | Google Mobile Ads App ID (`APPLICATION_ID`), Ad Unit IDs |
-   | **Meta Audience Network** | Demand Partner via MAX Adapter | `Integrated but Not Configured` | `com.applovin.mediation:facebook-adapter:6.18.0.0`<br>(iOS: `AppLovinMediationFacebookAdapter`) | Banner, Native, Interstitial, Rewarded<br>*(App Open & Rewarded Interstitial NOT supported)* | Meta Placement IDs, `app-ads.txt` verification |
-   | **InMobi** | Demand Partner via MAX Adapter | `Integrated but Not Configured` | `com.applovin.mediation:inmobi-adapter:10.8.0.0`<br>(iOS: `AppLovinMediationInMobiAdapter`) | Banner, Native, Interstitial, Rewarded<br>*(App Open & Rewarded Interstitial NOT supported)* | InMobi Account ID, Placement IDs |
-   | **Unity Ads** | Demand Partner via MAX Adapter | `Integrated but Not Configured` | `com.applovin.mediation:unityads-adapter:4.12.5.0`<br>(iOS: `AppLovinMediationUnityAdsAdapter`) | Banner, Interstitial, Rewarded<br>*(Native & App Open NOT supported)* | Unity Game ID, Placement IDs |
-   | **WAPCentral Promotions** | House Campaigns / Fallback | `Implemented and Tested` | `wap_promo_sdk`<br>*(Zero 3rd-party dependencies, completely decoupled)* | Banner, Native Card, Interstitial, Sponsored Placement | Signing Secret (`HMAC-SHA256`), App ID, Public Client Key |
+   | **Google AdMob** | Direct Provider OR Demand Partner via MAX Adapter | `Configured & Verified` | `com.applovin.mediation:google-adapter:23.6.0.0` (Mediation)<br>`google_mobile_ads: ^5.2.0` (Direct GMA) | Banner, Native, Interstitial, Rewarded, App Open, Rewarded Interstitial | Google Mobile Ads App ID (`APPLICATION_ID`), Ad Unit IDs |
+   | **Meta Audience Network** | Demand Partner via MAX Adapter | `Configured & Verified` | `com.applovin.mediation:facebook-adapter:6.18.0.0`<br>(iOS: `AppLovinMediationFacebookAdapter`) | Banner, Native, Interstitial, Rewarded<br>*(App Open & Rewarded Interstitial NOT supported)* | Meta Placement IDs, `app-ads.txt` verification |
+   | **InMobi** | Demand Partner via MAX Adapter | `Configured & Verified` | `com.applovin.mediation:inmobi-adapter:10.8.0.0`<br>(iOS: `AppLovinMediationInMobiAdapter`) | Banner, Native, Interstitial, Rewarded<br>*(App Open & Rewarded Interstitial NOT supported)* | InMobi Account ID, Placement IDs |
+   | **Unity Ads** | Demand Partner via MAX Adapter | `Configured & Verified` | `com.applovin.mediation:unityads-adapter:4.12.5.0`<br>(iOS: `AppLovinMediationUnityAdsAdapter`) | Banner, Interstitial, Rewarded<br>*(Native & App Open NOT supported)* | Unity Game ID, Placement IDs |
+   | **WebAppyPie Promotions** | House Campaigns / Guaranteed Fallback | `Implemented and Tested` | `wap_promo_sdk`<br>*(Zero 3rd-party dependencies, completely decoupled)* | Banner, Native Card, Interstitial, Sponsored Placement | App ID, Public Client Key |
 
-3. **Pre-Bundled Adapter Strategy (Zero-Rebuild Provider Switching)**:
+5. **Pre-Bundled Adapter Strategy (Zero-Rebuild Provider Switching)**:
    - Operating systems (Android/iOS) do NOT allow dynamic download of native C++/Java/Kotlin binaries at runtime.
    - To enable switching mediation strategies or active demand partners directly from the WAPCentral Dashboard without submitting a new app store release, the application can **pre-bundle the adapters** for all intended demand sources in `build.gradle` and `Podfile`.
    - When pre-bundled, activating a demand source or switching between **Automatic Mediation** and **Single Demand Source** takes effect immediately on the next app launch or config sync.
-   - If an adapter is omitted from the build, enabling that network remotely will be marked as **Requires App Update** and safely skipped until a new binary is released.
+   - If an adapter is omitted from the build, enabling that network remotely will be safely ignored until a new binary is released.
 
-4. **Decoupled House Promotion System (`wap_promo_sdk`)**:
-   - WAPCentral Promotions runs independently from third-party advertising demand.
+6. **Decoupled House Promotion System (`wap_promo_sdk`)**:
+   - WAPCentral Promotions runs independently from third-party advertising demand auctions.
    - It is never entered into third-party ad auctions or bidding pools.
    - Serves as the ultimate zero-dependency fallback when third-party ad networks return no-fill or timeout, ensuring 100% ad inventory utilization with authentic WebAppyPie internal campaigns.
 
@@ -968,6 +1058,252 @@ Campaigns include optional frequency capping parameters (`PromoFrequencyCap`):
 - `periodHours`: Rolling time window in hours (default: 24 hours).
 
 When the limit is reached, `WapPromoSdk` automatically clears the active notifier value to prevent visual fatigue.
+
+---
+
+## Section K.2: Central Weather Service Integration (wap_weather_sdk)
+
+### 1. Overview & Multi-App Architecture
+
+WAPCentral provides a centralized, production-ready **Weather Service Gateway** that shields mobile applications from upstream third-party credentials while enforcing strict multi-app rate limiting, quota protection, and caching compliance.
+
+#### Core Principles:
+- **Zero Mobile Secret Exposure**: Third-party WeatherAPI.com credentials reside strictly in Google Cloud Secret Manager (`WEATHER_API_KEY`). Mobile apps authenticate with WAPCentral using `X-App-Id` and `X-App-Key`.
+- **WeatherAPI.com Provider**: Integrated as the upstream weather provider (Free plan: 100,000 requests/month, 3-day forecast, hourly data, global search).
+- **Multi-App Licensing Compliance**:
+  - WeatherAPI.com permits up to 5 distinct API keys per account sharing the account's monthly quota.
+  - WAPCentral supports **Global Key Fallback** (`WEATHER_API_KEY`) and **App-Specific Overrides** (`WEATHER_API_KEY_<APPID>`). If an application requires an independent subscription or isolated quota, an app-specific secret is configured in Secret Manager without changing mobile client code.
+- **Normalized Data Contracts**: Responses from upstream providers are normalized into a unified, strongly-typed WAPCentral response envelope.
+- **Cache Compliance**: Complies with WeatherAPI terms: real-time current weather cached up to 60 minutes; multi-day forecasts cached up to 24 hours; location search cached up to 24 hours.
+
+---
+
+### 2. Dependencies & Flutter SDK Installation
+
+Only install `wap_weather_sdk` in applications where Weather Service is explicitly enabled. Do not bundle it in apps where weather features are disabled.
+
+In `pubspec.yaml`:
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  wap_core_sdk:
+    path: ../../sdks/wap_core_sdk
+  wap_weather_sdk:
+    path: ../../sdks/wap_weather_sdk
+```
+
+---
+
+### 3. Client Initialization
+
+Initialize `WapWeather` in your service layer or dependency injection container (`lib/main.dart`):
+
+```dart
+import 'package:wap_core_sdk/wap_core_sdk.dart';
+import 'package:wap_weather_sdk/wap_weather_sdk.dart';
+
+final weatherClient = WapWeather(
+  config: WapConfig(
+    baseUrl: 'https://wapcentral.webappypie.com/api/platform/v1',
+    appId: 'filezen-android',
+    appKey: const String.fromEnvironment('WAP_APP_KEY', defaultValue: 'wap_pub_live_...'),
+  ),
+);
+```
+
+---
+
+### 4. Current Weather API
+
+Fetches real-time weather conditions for any location worldwide using a city name or latitude/longitude coordinates.
+
+#### Flutter SDK Usage:
+```dart
+// By City / Region Name:
+final result = await weatherClient.getCurrentWeather(
+  query: 'Tokyo',
+  aqi: true, // Request air quality index
+);
+
+if (result.success && result.data != null) {
+  final current = result.data!.weather;
+  print('Location: ${current.location.name}, ${current.location.country}');
+  print('Temperature: ${current.temperatureC}°C (${current.temperatureF}°F)');
+  print('Condition: ${current.condition.text}');
+  print('Wind: ${current.windKph} km/h ${current.windDirection}');
+  print('Humidity: ${current.humidity}%');
+  print('Attribution: ${result.data!.attribution.text}');
+}
+
+// By GPS Coordinates:
+final geoResult = await weatherClient.getCurrentWeather(
+  latitude: 35.6762,
+  longitude: 139.6503,
+);
+```
+
+#### Raw REST Endpoint:
+- **Route**: `POST /api/platform/v1/weather/current` (also supports `GET /api/platform/v1/weather/current?q=Tokyo&aqi=yes`)
+- **Headers**:
+  ```http
+  X-App-Id: filezen-android
+  X-App-Key: wap_pub_live_...
+  Content-Type: application/json
+  ```
+- **Request Body**:
+  ```json
+  {
+    "query": "Tokyo",
+    "aqi": true
+  }
+  ```
+- **Response Format**:
+  ```json
+  {
+    "success": true,
+    "requestId": "req_1731089200_1234",
+    "appId": "filezen-android",
+    "service": "weather",
+    "version": "v1",
+    "data": {
+      "weather": {
+        "location": {
+          "name": "Tokyo",
+          "region": "Tokyo",
+          "country": "Japan",
+          "latitude": 35.68,
+          "longitude": 139.69,
+          "timezone": "Asia/Tokyo",
+          "localtime": "2026-11-08 20:30",
+          "localtimeEpoch": 1794150600
+        },
+        "temperatureC": 18.2,
+        "temperatureF": 64.8,
+        "feelsLikeC": 18.2,
+        "feelsLikeF": 64.8,
+        "condition": {
+          "text": "Clear",
+          "icon": "//cdn.weatherapi.com/weather/64x64/night/113.png",
+          "code": 1000
+        },
+        "windKph": 12.5,
+        "windMph": 7.8,
+        "windDegree": 160,
+        "windDirection": "SSE",
+        "pressureMb": 1016.0,
+        "humidity": 55,
+        "isDay": false,
+        "uvIndex": 0.0,
+        "visibilityKm": 10.0,
+        "lastUpdated": "2026-11-08 20:15"
+      },
+      "attribution": {
+        "provider": "WeatherAPI.com",
+        "text": "Powered by WeatherAPI.com",
+        "url": "https://www.weatherapi.com/",
+        "required": true,
+        "disclaimer": "Weather data provided by WeatherAPI.com. Free tier terms require visible attribution and disclaimer in consuming apps."
+      },
+      "cache": {
+        "cached": false,
+        "cacheKey": "weather:current:q:tokyo:aqi",
+        "cacheTtlSeconds": 1800,
+        "cacheExpiresAt": "2026-11-08T21:00:00.000Z",
+        "cacheAgeSeconds": 0
+      }
+    },
+    "executionSource": "external_provider",
+    "usage": { "latencyMs": 142 },
+    "timestamp": "2026-11-08T20:30:00.000Z"
+  }
+  ```
+
+---
+
+### 5. 3-Day Forecast & Hourly Conditions
+
+Fetches 1 to 3 days of daily summaries and 24-hour hourly condition breakdowns, including sunrise/sunset times, precipitation probability, and weather alerts.
+
+#### Flutter SDK Usage:
+```dart
+final forecastRes = await weatherClient.getForecast(
+  query: 'London',
+  days: 3,
+  aqi: true,
+  alerts: true,
+);
+
+for (final day in forecastRes.data!.forecast.forecastDays) {
+  print('Date: ${day.date}');
+  print('High: ${day.day.maxTempC}°C | Low: ${day.day.minTempC}°C');
+  print('Rain Chance: ${day.day.chanceOfRainPct}%');
+  print('Sunrise: ${day.astro.sunrise} | Sunset: ${day.astro.sunset}');
+
+  // Hourly items:
+  for (final hour in day.hourly) {
+    print('  ${hour.time}: ${hour.tempC}°C - ${hour.condition.text}');
+  }
+}
+```
+
+---
+
+### 6. Global Location Search & Autocomplete
+
+Allows end users to search for cities, municipalities, or regions worldwide for quick selection.
+
+#### Flutter SDK Usage:
+```dart
+final searchRes = await weatherClient.searchLocations('San Fran');
+for (final loc in searchRes.data!.results) {
+  print('${loc.name}, ${loc.region}, ${loc.country} (${loc.latitude}, ${loc.longitude})');
+}
+```
+
+---
+
+### 7. Mandatory Attribution & Free Tier Disclaimers
+
+> **LEGAL REQUIREMENT (WeatherAPI.com Terms)**:  
+> When operating on the Free Plan, consuming mobile applications **must display visible attribution** to WeatherAPI.com anywhere weather data is presented to end users.
+>
+> 1. **Text**: `Powered by WeatherAPI.com`
+> 2. **Hyperlink**: Must link directly to `https://www.weatherapi.com/`
+> 3. **Placement**: In the weather screen footer or in the app's About / Legal attributions section.
+>
+> Every response from WAPCentral includes the required metadata in the `data.attribution` object. Consuming mobile apps should read this directly from the response rather than hardcoding attribution strings.
+
+---
+
+### 8. Caching Limits & Monthly Quota Governance
+
+To ensure compliance with provider terms and avoid exhausting the **100,000 monthly call quota**, WAPCentral enforces automated tiered caching:
+
+| Data Type | Cache TTL | Permitted Provider Limit | Cache Behavior |
+| :--- | :--- | :--- | :--- |
+| **Current Weather** | **30 minutes** | Up to 60 minutes | Spatial key rounded to 3 decimals (~110m). Consecutive nearby calls hit cache with `cached: true` and sub-millisecond response. |
+| **Forecast** | **6 hours** | Up to 24 hours | Daily summaries and 24-hr hourly matrices cached server-side. |
+| **Location Search** | **24 hours** | Unlimited | City and coordinate resolution cached for 1 day. |
+
+#### Client-Side Cache Directives:
+- Mobile applications should also retain the last fetched weather response in local SQLite or SharedPreferences to allow instant offline rendering upon app boot.
+- If a user triggers a pull-to-refresh, the mobile client can pass `forceRefresh: true` to bypass server cache if allowed by rate limits.
+
+---
+
+### 9. Error Codes & Resilience
+
+WAPCentral normalizes upstream provider failures into standard application error envelopes:
+
+| Error Code | HTTP Status | Cause | Client Action |
+| :--- | :---: | :--- | :--- |
+| `VALIDATION_ERROR` | `400` | Missing query or invalid coordinates | Fix query arguments |
+| `LOCATION_NOT_FOUND` | `404` | No matching city or region found | Prompt user to refine search |
+| `APP_NOT_AUTHORIZED` | `403` | Weather service disabled for this app | Enable in WAPCentral Dashboard |
+| `SERVICE_KILL_SWITCHED` | `503` | Admin temporarily paused Weather service | Fallback to cached local weather |
+| `PROVIDER_QUOTA_EXCEEDED`| `429` | 100k monthly calls exceeded | Show cached data; upgrade plan |
+| `PROVIDER_UNAVAILABLE` | `503` | WeatherAPI network timeout | Retry with exponential backoff |
 
 ---
 

@@ -27,12 +27,15 @@ import {
   ShieldCheck,
   Eye,
   EyeOff,
+  Power,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.js';
 import type { App, AppModule } from '@wapcentral/types';
 import {
   subscribeApp,
   updateApp,
+  updateAppServiceControl,
   regenerateAppKey,
   downloadAppIntegrationGuide,
 } from '../services/appsService.js';
@@ -47,6 +50,7 @@ const AVAILABLE_SERVICES: { id: AppModule; label: string; desc: string }[] = [
   { id: 'ocr', label: 'OCR Engine', desc: 'Optical character recognition processing' },
   { id: 'image_intelligence', label: 'Image Intelligence', desc: 'Neural photo enhancement' },
   { id: 'file_intelligence', label: 'File Intelligence', desc: 'Document analysis and indexing' },
+  { id: 'weather', label: 'Weather Service', desc: 'Centralized WeatherAPI gateway for forecasts, current conditions, and location search' },
 ];
 
 export const ApplicationDetailPage: React.FC = () => {
@@ -84,6 +88,16 @@ export const ApplicationDetailPage: React.FC = () => {
   const [genModules, setGenModules] = useState<AppModule[]>([]);
   const [isSavingGeneral, setIsSavingGeneral] = useState(false);
 
+  // Remote Service Control state
+  const [serviceEnabled, setServiceEnabled] = useState(true);
+  const [serviceTitle, setServiceTitle] = useState('Service Notice');
+  const [serviceMessage, setServiceMessage] = useState('We are currently performing scheduled maintenance. Please check back shortly.');
+  const [serviceButtonText, setServiceButtonText] = useState('Learn More');
+  const [serviceDestinationUrl, setServiceDestinationUrl] = useState('https://webappypie.com');
+  const [serviceUpdatedAt, setServiceUpdatedAt] = useState<string | null>(null);
+  const [isSavingServiceControl, setIsSavingServiceControl] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+
   useEffect(() => {
     if (!appId) return;
     setLoading(true);
@@ -110,6 +124,24 @@ export const ApplicationDetailPage: React.FC = () => {
         setGenStoreUrlAndroid(loadedApp.storeUrl?.android || '');
         setGenStoreUrlIos(loadedApp.storeUrl?.ios || '');
         setGenModules(loadedApp.enabledModules || []);
+
+        const sc = loadedApp.remoteServiceControl;
+        if (sc) {
+          setServiceEnabled(sc.enabled !== false);
+          setServiceTitle(sc.title || 'Service Notice');
+          setServiceMessage(sc.message || 'We are currently performing scheduled maintenance. Please check back shortly.');
+          setServiceButtonText(sc.buttonText || 'Learn More');
+          setServiceDestinationUrl(sc.destinationUrl || 'https://webappypie.com');
+          setServiceUpdatedAt(sc.updatedAt || null);
+        } else {
+          setServiceEnabled(true);
+          setServiceTitle('Service Notice');
+          setServiceMessage('We are currently performing scheduled maintenance. Please check back shortly.');
+          setServiceButtonText('Learn More');
+          setServiceDestinationUrl('https://webappypie.com');
+          setServiceUpdatedAt(null);
+        }
+
         setLoading(false);
       },
       (err) => {
@@ -216,6 +248,39 @@ export const ApplicationDetailPage: React.FC = () => {
       setFeedbackError(err.message || 'Failed to save application details.');
     } finally {
       setIsSavingGeneral(false);
+    }
+  };
+
+  const handleSaveServiceControl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!app) return;
+    setIsSavingServiceControl(true);
+    setFeedbackError(null);
+    setFeedbackSuccess(null);
+
+    const actor = {
+      uid: user?.uid || 'usr_admin',
+      email: user?.email || 'admin@webappypie.com',
+    };
+
+    try {
+      await updateAppServiceControl(
+        app.id,
+        {
+          enabled: serviceEnabled,
+          title: serviceTitle.trim() || 'Service Notice',
+          message: serviceMessage.trim() || 'We are currently performing scheduled maintenance. Please check back shortly.',
+          buttonText: serviceButtonText.trim() || 'Learn More',
+          destinationUrl: serviceDestinationUrl.trim() || 'https://webappypie.com',
+        },
+        actor,
+      );
+      setServiceUpdatedAt(new Date().toISOString());
+      setFeedbackSuccess(`Remote Service Control settings saved & published successfully for ${app.name}.`);
+    } catch (err: any) {
+      setFeedbackError(err.message || 'Failed to save Remote Service Control settings.');
+    } finally {
+      setIsSavingServiceControl(false);
     }
   };
 
@@ -529,6 +594,202 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
         </Modal>
       )}
+
+      {/* REMOTE SERVICE CONTROL PREVIEW MODAL */}
+      {showPreviewModal && (
+        <Modal
+          isOpen={showPreviewModal}
+          onClose={() => setShowPreviewModal(false)}
+          title="Mobile Blocking Dialog Preview"
+          footer={
+            <Button variant="outline" size="sm" onClick={() => setShowPreviewModal(false)}>
+              Close Preview
+            </Button>
+          }
+        >
+          <div className="p-4 bg-slate-950/85 rounded-xl flex items-center justify-center min-h-[300px]">
+            <div className="w-full max-w-xs bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-center space-y-3">
+              <div className="mx-auto w-12 h-12 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-950 dark:text-amber-400 flex items-center justify-center font-bold">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                {serviceTitle.trim() || 'Service Notice'}
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line">
+                {serviceMessage.trim() || 'We are currently performing scheduled maintenance. Please check back shortly.'}
+              </p>
+              <div className="pt-2">
+                <a
+                  href={serviceDestinationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs transition-colors shadow"
+                  onClick={(e) => e.preventDefault()}
+                >
+                  {serviceButtonText.trim() || 'Learn More'}
+                </a>
+              </div>
+              <p className="text-[10px] text-slate-400 font-mono truncate">
+                Target URL: {serviceDestinationUrl || 'None configured'}
+              </p>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* REMOTE APP SERVICE CONTROL CARD */}
+      <Card className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className={`p-2 rounded-lg ${serviceEnabled ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400'}`}>
+                <Power className="h-4 w-4" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  Remote App Service Control
+                  <Badge
+                    variant={serviceEnabled ? 'success' : 'destructive'}
+                    className="text-[10px] font-mono"
+                  >
+                    {serviceEnabled ? 'Service Active (Online)' : 'Service Disabled (Blocking Dialog Active)'}
+                  </Badge>
+                </CardTitle>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Remotely control application service status for {app.name}. When disabled, mobile clients render a non-dismissible blocking dialog directing users to the destination URL.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPreviewModal(true)}
+                className="text-xs h-8 px-3 flex items-center gap-1.5"
+                title="Preview blocking popup dialog"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                <span>Preview Popup</span>
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <form onSubmit={handleSaveServiceControl} className="space-y-4">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-slate-50/50 dark:bg-slate-900/50 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider block">
+                  Enable App Service Remotely
+                </span>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  When enabled, mobile users interact normally. When disabled, users are blocked by the popup dialog until service is restored.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setServiceEnabled(!serviceEnabled)}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    serviceEnabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-700'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      serviceEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Popup Dialog Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={serviceTitle}
+                  onChange={(e) => setServiceTitle(e.target.value)}
+                  placeholder="e.g. Service Notice"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Action Button Text *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={serviceButtonText}
+                  onChange={(e) => setServiceButtonText(e.target.value)}
+                  placeholder="e.g. Learn More / Check Status"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                Popup Dialog Message *
+              </label>
+              <textarea
+                required
+                rows={3}
+                value={serviceMessage}
+                onChange={(e) => setServiceMessage(e.target.value)}
+                placeholder="e.g. We are currently performing scheduled maintenance. Please check back shortly."
+                className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                Destination URL *
+              </label>
+              <div className="relative">
+                <input
+                  type="url"
+                  required
+                  value={serviceDestinationUrl}
+                  onChange={(e) => setServiceDestinationUrl(e.target.value)}
+                  placeholder="https://webappypie.com/status"
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white pr-10"
+                />
+                <a
+                  href={serviceDestinationUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-indigo-600 transition-colors"
+                  title="Open destination URL in new tab"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                The mobile button opens this link in the external browser using system URL handlers.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+              <span className="text-xs text-slate-500 font-mono">
+                {serviceUpdatedAt ? `Published: ${new Date(serviceUpdatedAt).toLocaleString()}` : 'Not yet saved remotely'}
+              </span>
+              <Button
+                type="submit"
+                disabled={isSavingServiceControl || !hasRole('editor')}
+                className="flex items-center gap-1.5"
+              >
+                <Save className="h-4 w-4" />
+                <span>{isSavingServiceControl ? 'Saving...' : 'Save & Publish Service Status'}</span>
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
       {/* APPLICATION CONFIGURATION FORM */}
       <form onSubmit={handleSaveGeneral} className="space-y-6">

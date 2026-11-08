@@ -15,6 +15,10 @@ import {
   PlatformOcrExtractRequestSchema,
   PlatformFileSearchRequestSchema,
   PlatformFileClassifyRequestSchema,
+  PlatformWeatherCurrentRequestSchema,
+  PlatformWeatherForecastRequestSchema,
+  PlatformWeatherSearchRequestSchema,
+  PlatformWeatherTestRequestSchema,
 } from './index.js';
 
 describe('CreateAppSchema', () => {
@@ -269,6 +273,75 @@ describe('Platform Services Schemas', () => {
           sizeBytes: 10240,
         },
       ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept valid PlatformWeatherCurrentRequest with city name', () => {
+    const result = PlatformWeatherCurrentRequestSchema.safeParse({
+      appId: 'filezen',
+      query: 'Tokyo',
+      aqi: true,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept valid PlatformWeatherCurrentRequest with lat/lon coordinates', () => {
+    const result = PlatformWeatherCurrentRequestSchema.safeParse({
+      appId: 'filezen',
+      latitude: 35.6762,
+      longitude: 139.6503,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject PlatformWeatherCurrentRequest without query or coordinates', () => {
+    const result = PlatformWeatherCurrentRequestSchema.safeParse({
+      appId: 'filezen',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept valid PlatformWeatherForecastRequest with days and hourly filter', () => {
+    const result = PlatformWeatherForecastRequestSchema.safeParse({
+      appId: 'optilens',
+      query: 'Paris',
+      days: 3,
+      hour: 14,
+      alerts: true,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject PlatformWeatherForecastRequest with days > 3 (free tier limit)', () => {
+    const result = PlatformWeatherForecastRequestSchema.safeParse({
+      appId: 'optilens',
+      query: 'Paris',
+      days: 5,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept valid PlatformWeatherSearchRequest', () => {
+    const result = PlatformWeatherSearchRequestSchema.safeParse({
+      appId: 'filezen',
+      query: 'New York',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject PlatformWeatherSearchRequest with too short query', () => {
+    const result = PlatformWeatherSearchRequestSchema.safeParse({
+      appId: 'filezen',
+      query: 'N',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept valid PlatformWeatherTestRequest', () => {
+    const result = PlatformWeatherTestRequestSchema.safeParse({
+      apiKey: 'test_key_123',
+      query: 'London',
     });
     expect(result.success).toBe(true);
   });

@@ -1,6 +1,10 @@
-import type { App } from '@wapcentral/types';
+import type { App, AppRemoteServiceControl } from '@wapcentral/types';
 import { COLLECTIONS } from '@wapcentral/config';
-import { CreateAppSchema, UpdateAppSchema } from '@wapcentral/validation';
+import {
+  CreateAppSchema,
+  UpdateAppSchema,
+  AppRemoteServiceControlSchema,
+} from '@wapcentral/validation';
 import { Router } from 'express';
 import type { Response } from 'express';
 
@@ -33,6 +37,13 @@ let memoryApps: App[] = [
     allowedServices: ['ai', 'ocr', 'files', 'ads', 'notifications'],
     enabledModules: ['ai', 'ocr', 'files' as any, 'ads', 'notifications'],
     status: 'active',
+    remoteServiceControl: {
+      enabled: true,
+      title: 'Service Operational',
+      message: 'FileZen is fully operational.',
+      buttonText: 'OK',
+      destinationUrl: 'https://webappypie.com',
+    },
     simpleAdsConfig: {
       adsEnabled: true,
       strategy: 'automatic',
@@ -96,6 +107,13 @@ let memoryApps: App[] = [
     allowedServices: ['image', 'ai', 'ads', 'notifications'],
     enabledModules: ['image_intelligence', 'ai', 'ads', 'notifications'],
     status: 'active',
+    remoteServiceControl: {
+      enabled: true,
+      title: 'Service Operational',
+      message: 'OptiLens AI is fully operational.',
+      buttonText: 'OK',
+      destinationUrl: 'https://webappypie.com',
+    },
     simpleAdsConfig: {
       adsEnabled: true,
       strategy: 'automatic',
@@ -356,12 +374,21 @@ appsRouter.post('/', requireRole('editor'), async (req: AuthenticatedRequest, re
         }
       : {}),
     enabledModules: validated.enabledModules || [],
+    remoteServiceControl: validated.remoteServiceControl || { enabled: true },
+    ...(validated.simpleAdsConfig ? { simpleAdsConfig: validated.simpleAdsConfig } : {}),
     status: 'active',
     createdAt: now,
     updatedAt: now,
   };
 
   memoryApps.unshift(newApp);
+
+  try {
+    const db = getFirestoreDb();
+    await db.collection(COLLECTIONS.APPS).doc(appId).set(newApp);
+  } catch {
+    // Non-blocking in mock environments
+  }
 
   if (req.user) {
     const maskedApp = {
@@ -425,10 +452,19 @@ appsRouter.put('/:id', requireRole('editor'), async (req: AuthenticatedRequest, 
     ...(parsed.data.status ? { status: parsed.data.status } : {}),
     ...(parsed.data.enabledModules ? { enabledModules: parsed.data.enabledModules } : {}),
     ...(parsed.data.adConfig ? { adConfig: parsed.data.adConfig } : {}),
+    ...(parsed.data.remoteServiceControl ? { remoteServiceControl: parsed.data.remoteServiceControl } : {}),
+    ...(parsed.data.simpleAdsConfig ? { simpleAdsConfig: parsed.data.simpleAdsConfig } : {}),
     updatedAt: new Date().toISOString(),
   };
 
   memoryApps[appIndex] = updatedApp;
+
+  try {
+    const db = getFirestoreDb();
+    await db.collection(COLLECTIONS.APPS).doc(appId).set(updatedApp, { merge: true });
+  } catch {
+    // Non-blocking in mock environments
+  }
 
   if (req.user) {
     await logAdminAction({
@@ -447,6 +483,88 @@ appsRouter.put('/:id', requireRole('editor'), async (req: AuthenticatedRequest, 
     timestamp: updatedApp.updatedAt,
   });
 });
+
+// PUT /v1/apps/:id/service-control - Update Remote Service Control settings (Editor+)
+appsRouter.put(
+  '/:id/service-control',
+  requireRole('editor'),
+  async (req: AuthenticatedRequest, res: Response) => {
+    const appId = String(req.params['id'] || '');
+    const app = await findAppById(appId);
+    if (!app) {
+      res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: `Application '${appId}' not found.` },
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    const parsed = AppRemoteServiceControlSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid service control payload',
+          details: parsed.error.format(),
+        },
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    const serviceControl: AppRemoteServiceControl = {
+      ...parsed.data,
+      updatedAt: new Date().toISOString(),
+      updatedBy: req.user?.email || 'admin@webappypie.com',
+    };
+
+    const appIndex = memoryApps.findIndex((a) => a.id === appId);
+    if (appIndex !== -1) {
+      memoryApps[appIndex] = {
+        ...memoryApps[appIndex]!,
+        remoteServiceControl: serviceControl,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    try {
+      const db = getFirestoreDb();
+      await db.collection(COLLECTIONS.APPS).doc(appId).set(
+        {
+          remoteServiceControl: serviceControl,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true },
+      );
+    } catch {
+      // Non-blocking in mock environments
+    }
+
+    if (req.user) {
+      await logAdminAction({
+        action: 'app.service_control_update',
+        actorUid: req.user.uid,
+        actorEmail: req.user.email,
+        resourceType: 'app',
+        resourceId: appId,
+        changes: {
+          serviceControl: {
+            before: app.remoteServiceControl || null,
+            after: serviceControl,
+          },
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      data: serviceControl,
+      timestamp: new Date().toISOString(),
+    });
+  },
+);
 
 // DELETE /v1/apps/:id - Archive an application (Admin+)
 appsRouter.delete(

@@ -18,6 +18,10 @@ import {
   TrackNotificationEventSchema,
   BatchAdTelemetryEventSchema,
   AdTelemetryEventInputSchema,
+  PlatformWeatherCurrentRequestSchema,
+  PlatformWeatherForecastRequestSchema,
+  PlatformWeatherSearchRequestSchema,
+  PlatformWeatherTestRequestSchema,
 } from '@wapcentral/validation';
 import { Router } from 'express';
 import type { Request, Response } from 'express';
@@ -60,6 +64,14 @@ import { executeImageAnalyze, executeImageEnhance } from '../services/platformIm
 import { executeOcrExtract } from '../services/platformOcrService.js';
 import { executeFileClassify, executeFileSearch } from '../services/platformFileService.js';
 import {
+  executeWeatherCurrent,
+  executeWeatherForecast,
+  executeWeatherSearch,
+  testWeatherConnection,
+  getWeatherServiceStatus,
+  WeatherServiceError,
+} from '../services/platformWeatherService.js';
+import {
   getKillSwitchState,
   setAppKillSwitch,
   setGlobalKillSwitch,
@@ -84,6 +96,7 @@ platformRouter.get('/health', (_req: Request, res: Response) => {
       image: ['/enhance', '/analyze'],
       ocr: ['/extract'],
       files: ['/search', '/classify'],
+      weather: ['/current', '/forecast', '/search', '/test', '/status'],
     },
   });
 });
@@ -115,10 +128,95 @@ platformRouter.get('/apps/:id', async (req: Request, res: Response) => {
       allowedServices: app.allowedServices || app.enabledModules,
       enabledModules: app.enabledModules,
       serviceQuotas: app.serviceQuotas,
+      remoteServiceControl: app.remoteServiceControl || {
+        enabled: true,
+      },
     },
     timestamp: new Date().toISOString(),
   });
 });
+
+// ============================================================
+// Remote App Service Control & Service Status Endpoint
+// ============================================================
+// GET /apps/:id/service-status & GET /service-status
+// Consumed by mobile SDK on cold start, resume/foreground, and periodic sync
+platformRouter.get(
+  ['/apps/:id/service-status', '/service-status'],
+  async (req: Request, res: Response) => {
+    const rawAppId =
+      req.params['id'] ||
+      (req as any).platformApp?.id ||
+      (req.headers['x-app-id'] as string) ||
+      '';
+    const appId = String(rawAppId).trim();
+    if (!appId) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'BAD_REQUEST',
+          message:
+            'Application ID is required (via route param, X-App-Id header, or platform authentication).',
+        },
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    const app = await resolveApp(appId);
+    if (!app) {
+      res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: `Application '${appId}' not found.` },
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
+    const serviceControl = app.remoteServiceControl || {
+      enabled: true,
+    };
+
+    const isEnabled = serviceControl.enabled !== false;
+
+    res.json({
+      success: true,
+      appId: app.id,
+      service: 'service_control',
+      version: 'v1',
+      data: {
+        enabled: isEnabled,
+        ...(serviceControl.title
+          ? { title: serviceControl.title }
+          : !isEnabled
+            ? { title: 'Service Unavailable' }
+            : {}),
+        ...(serviceControl.message
+          ? { message: serviceControl.message }
+          : !isEnabled
+            ? {
+                message: `${app.name} is currently undergoing scheduled maintenance. Please check back later or update your app.`,
+              }
+            : {}),
+        ...(serviceControl.buttonText
+          ? { buttonText: serviceControl.buttonText }
+          : !isEnabled
+            ? { buttonText: 'Learn More' }
+            : {}),
+        ...(serviceControl.destinationUrl
+          ? { destinationUrl: serviceControl.destinationUrl }
+          : !isEnabled
+            ? {
+                destinationUrl:
+                  app.storeUrl?.android || app.storeUrl?.ios || 'https://webappypie.com',
+              }
+            : {}),
+        updatedAt: serviceControl.updatedAt || app.updatedAt,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  },
+);
 
 // ============================================================
 // A. AI Services Endpoints
@@ -585,6 +683,272 @@ platformRouter.post(
     });
   },
 );
+
+// ============================================================
+// Weather Services Endpoints (/api/platform/v1/weather/*)
+// ============================================================
+
+// POST & GET /weather/current
+const handleWeatherCurrent = async (req: PlatformAuthenticatedRequest, res: Response) => {
+  const input = req.method === 'GET' ? {
+    appId: req.platformApp?.id,
+    requestId: req.platformRequestId,
+    query: typeof req.query['q'] === 'string' ? req.query['q'] : (typeof req.query['query'] === 'string' ? req.query['query'] : undefined),
+    latitude: req.query['lat'] !== undefined ? Number(req.query['lat']) : (req.query['latitude'] !== undefined ? Number(req.query['latitude']) : undefined),
+    longitude: req.query['lon'] !== undefined ? Number(req.query['lon']) : (req.query['longitude'] !== undefined ? Number(req.query['longitude']) : undefined),
+    aqi: req.query['aqi'] === 'true' || req.query['aqi'] === 'yes',
+    forceRefresh: req.query['forceRefresh'] === 'true',
+  } : req.body;
+
+  const parsed = PlatformWeatherCurrentRequestSchema.safeParse(input);
+  if (!parsed.success) {
+    res.status(400).json({
+      success: false,
+      requestId: req.platformRequestId,
+      appId: req.platformApp?.id,
+      service: 'weather',
+      version: 'v1',
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid Current Weather request',
+        details: parsed.error.format(),
+      },
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+
+  try {
+    const result = await executeWeatherCurrent(parsed.data, req.platformRequestId!, req.platformApp!);
+    res.status(200).json({
+      success: true,
+      requestId: req.platformRequestId,
+      appId: req.platformApp?.id,
+      service: 'weather',
+      version: 'v1',
+      data: result.data,
+      executionSource: result.executionSource,
+      usage: { latencyMs: result.latencyMs },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: unknown) {
+    if (err instanceof WeatherServiceError) {
+      res.status(err.statusCode).json({
+        success: false,
+        requestId: req.platformRequestId,
+        appId: req.platformApp?.id,
+        service: 'weather',
+        version: 'v1',
+        error: {
+          code: err.code,
+          message: err.message,
+          details: err.details,
+        },
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+    res.status(502).json({
+      success: false,
+      requestId: req.platformRequestId,
+      appId: req.platformApp?.id,
+      service: 'weather',
+      version: 'v1',
+      error: {
+        code: 'WEATHER_SERVICE_ERROR',
+        message: err instanceof Error ? err.message : 'Weather service internal error',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  }
+};
+
+platformRouter.post('/weather/current', requirePlatformService('weather'), handleWeatherCurrent);
+platformRouter.get('/weather/current', requirePlatformService('weather'), handleWeatherCurrent);
+
+// POST & GET /weather/forecast
+const handleWeatherForecast = async (req: PlatformAuthenticatedRequest, res: Response) => {
+  const input = req.method === 'GET' ? {
+    appId: req.platformApp?.id,
+    requestId: req.platformRequestId,
+    query: typeof req.query['q'] === 'string' ? req.query['q'] : (typeof req.query['query'] === 'string' ? req.query['query'] : undefined),
+    latitude: req.query['lat'] !== undefined ? Number(req.query['lat']) : (req.query['latitude'] !== undefined ? Number(req.query['latitude']) : undefined),
+    longitude: req.query['lon'] !== undefined ? Number(req.query['lon']) : (req.query['longitude'] !== undefined ? Number(req.query['longitude']) : undefined),
+    days: req.query['days'] !== undefined ? Number(req.query['days']) : undefined,
+    hour: req.query['hour'] !== undefined ? Number(req.query['hour']) : undefined,
+    aqi: req.query['aqi'] === 'true' || req.query['aqi'] === 'yes',
+    alerts: req.query['alerts'] === 'true' || req.query['alerts'] === 'yes',
+    forceRefresh: req.query['forceRefresh'] === 'true',
+  } : req.body;
+
+  const parsed = PlatformWeatherForecastRequestSchema.safeParse(input);
+  if (!parsed.success) {
+    res.status(400).json({
+      success: false,
+      requestId: req.platformRequestId,
+      appId: req.platformApp?.id,
+      service: 'weather',
+      version: 'v1',
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid Weather Forecast request',
+        details: parsed.error.format(),
+      },
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+
+  try {
+    const result = await executeWeatherForecast(parsed.data, req.platformRequestId!, req.platformApp!);
+    res.status(200).json({
+      success: true,
+      requestId: req.platformRequestId,
+      appId: req.platformApp?.id,
+      service: 'weather',
+      version: 'v1',
+      data: result.data,
+      executionSource: result.executionSource,
+      usage: { latencyMs: result.latencyMs },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: unknown) {
+    if (err instanceof WeatherServiceError) {
+      res.status(err.statusCode).json({
+        success: false,
+        requestId: req.platformRequestId,
+        appId: req.platformApp?.id,
+        service: 'weather',
+        version: 'v1',
+        error: {
+          code: err.code,
+          message: err.message,
+          details: err.details,
+        },
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+    res.status(502).json({
+      success: false,
+      requestId: req.platformRequestId,
+      appId: req.platformApp?.id,
+      service: 'weather',
+      version: 'v1',
+      error: {
+        code: 'WEATHER_SERVICE_ERROR',
+        message: err instanceof Error ? err.message : 'Weather service internal error',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  }
+};
+
+platformRouter.post('/weather/forecast', requirePlatformService('weather'), handleWeatherForecast);
+platformRouter.get('/weather/forecast', requirePlatformService('weather'), handleWeatherForecast);
+
+// POST & GET /weather/search
+const handleWeatherSearch = async (req: PlatformAuthenticatedRequest, res: Response) => {
+  const input = req.method === 'GET' ? {
+    appId: req.platformApp?.id,
+    requestId: req.platformRequestId,
+    query: typeof req.query['q'] === 'string' ? req.query['q'] : (typeof req.query['query'] === 'string' ? req.query['query'] : ''),
+  } : req.body;
+
+  const parsed = PlatformWeatherSearchRequestSchema.safeParse(input);
+  if (!parsed.success) {
+    res.status(400).json({
+      success: false,
+      requestId: req.platformRequestId,
+      appId: req.platformApp?.id,
+      service: 'weather',
+      version: 'v1',
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid Weather Search request',
+        details: parsed.error.format(),
+      },
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+
+  try {
+    const result = await executeWeatherSearch(parsed.data, req.platformRequestId!, req.platformApp!);
+    res.status(200).json({
+      success: true,
+      requestId: req.platformRequestId,
+      appId: req.platformApp?.id,
+      service: 'weather',
+      version: 'v1',
+      data: result.data,
+      executionSource: result.executionSource,
+      usage: { latencyMs: result.latencyMs },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: unknown) {
+    if (err instanceof WeatherServiceError) {
+      res.status(err.statusCode).json({
+        success: false,
+        requestId: req.platformRequestId,
+        appId: req.platformApp?.id,
+        service: 'weather',
+        version: 'v1',
+        error: {
+          code: err.code,
+          message: err.message,
+          details: err.details,
+        },
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+    res.status(502).json({
+      success: false,
+      requestId: req.platformRequestId,
+      appId: req.platformApp?.id,
+      service: 'weather',
+      version: 'v1',
+      error: {
+        code: 'WEATHER_SERVICE_ERROR',
+        message: err instanceof Error ? err.message : 'Weather service internal error',
+      },
+      timestamp: new Date().toISOString(),
+    });
+  }
+};
+
+platformRouter.post('/weather/search', requirePlatformService('weather'), handleWeatherSearch);
+platformRouter.get('/weather/search', requirePlatformService('weather'), handleWeatherSearch);
+
+// POST & GET /weather/test (Diagnostic endpoint for admins / integration tests)
+const handleWeatherTest = async (req: Request, res: Response) => {
+  const apiKey = req.body?.apiKey || (typeof req.query['apiKey'] === 'string' ? req.query['apiKey'] : undefined);
+  const location = req.body?.query || (typeof req.query['q'] === 'string' ? req.query['q'] : 'London');
+  const appId = req.body?.appId || (typeof req.query['appId'] === 'string' ? req.query['appId'] : undefined);
+
+  const testResult = await testWeatherConnection(apiKey, location, appId);
+  res.status(testResult.success ? 200 : 502).json({
+    success: testResult.success,
+    data: testResult,
+    timestamp: new Date().toISOString(),
+  });
+};
+
+platformRouter.post('/weather/test', handleWeatherTest);
+platformRouter.get('/weather/test', handleWeatherTest);
+
+// GET /weather/status (Status, Quota & Usage Monitor)
+platformRouter.get('/weather/status', async (req: Request, res: Response) => {
+  const appId = typeof req.query['appId'] === 'string' ? req.query['appId'] : undefined;
+  const status = await getWeatherServiceStatus(appId);
+  res.json({
+    success: true,
+    data: status,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 
 // ============================================================
 // E. Ads & Monetization Services Platform Endpoints

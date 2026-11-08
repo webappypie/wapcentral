@@ -96,6 +96,7 @@ function isServiceEnabledInApp(app: App, service: PlatformServiceType): boolean 
     promotion: ['promotion'],
     ads: ['ads'],
     notifications: ['notifications' as any],
+    weather: ['weather' as any],
   };
 
   const candidateModules = moduleMap[service] || [];

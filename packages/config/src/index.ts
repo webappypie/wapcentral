@@ -58,6 +58,32 @@ export const COLLECTIONS = {
   CUSTOM_AD_ANALYTICS: 'customAdAnalytics',
   NOTIFICATION_ANALYTICS: 'notificationAnalytics',
   ANALYTICS_DAILY_AGGREGATES: 'analyticsDailyAggregates',
+  WEATHER_CACHE: 'weatherCache',
+  WEATHER_METRICS: 'weatherMetrics',
+} as const;
+
+// ============================================================
+// Weather Service Constants
+// ============================================================
+export const WEATHER_CONFIG = {
+  PROVIDER: 'WeatherAPI.com',
+  BASE_URL: 'https://api.weatherapi.com/v1',
+  DEFAULT_CURRENT_CACHE_TTL_SECONDS: 1800, // 30 minutes (permitted limit: up to 60 mins)
+  MAX_CURRENT_CACHE_TTL_SECONDS: 3600, // 60 minutes
+  DEFAULT_FORECAST_CACHE_TTL_SECONDS: 21600, // 6 hours (permitted limit: up to 24 hours)
+  MAX_FORECAST_CACHE_TTL_SECONDS: 86400, // 24 hours
+  DEFAULT_SEARCH_CACHE_TTL_SECONDS: 86400, // 24 hours
+  FREE_TIER_MONTHLY_QUOTA: 100000, // 100,000 calls / month
+  MAX_FORECAST_DAYS_FREE_TIER: 3, // 3-day forecast on free plan
+  DEFAULT_RATE_LIMIT_RPM: 60,
+  ATTRIBUTION: {
+    PROVIDER: 'WeatherAPI.com',
+    TEXT: 'Powered by WeatherAPI.com',
+    URL: 'https://www.weatherapi.com/',
+    REQUIRED: true,
+    DISCLAIMER:
+      'Weather data provided by WeatherAPI.com. Free tier terms require visible attribution and disclaimer in consuming apps.',
+  },
 } as const;
 
 // ============================================================
@@ -224,6 +250,11 @@ export const PLATFORM_API_ROUTES = {
   ADS_CONFIG: '/api/platform/v1/ads/config',
   ADS_CUSTOM_TRACK: '/api/platform/v1/ads/custom/track',
   ADS_ANALYTICS_EVENTS: '/api/platform/v1/ads/analytics/events',
+  WEATHER_CURRENT: '/api/platform/v1/weather/current',
+  WEATHER_FORECAST: '/api/platform/v1/weather/forecast',
+  WEATHER_SEARCH: '/api/platform/v1/weather/search',
+  WEATHER_TEST: '/api/platform/v1/weather/test',
+  WEATHER_STATUS: '/api/platform/v1/weather/status',
 } as const;
 
 // ============================================================

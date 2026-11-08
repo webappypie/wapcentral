@@ -1,0 +1,21 @@
+name: wap_weather_sdk
+description: >
+  Production-ready Weather Client SDK for WebAppyPie mobile applications through WAPCentral.
+  Provides current weather conditions, 3-day hourly forecasts, and global location search
+  with zero mobile provider key exposure and built-in caching.
+version: 0.1.0
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  wap_core_sdk:
+    path: ../wap_core_sdk
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  http: ^1.2.0

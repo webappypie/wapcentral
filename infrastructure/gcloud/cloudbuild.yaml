@@ -24,7 +24,7 @@ images:
 
 substitutions:
   _SERVICE: 'admin-api'
-  _IMAGE_TAG: 'us-central1-docker.pkg.dev/wapcentral-prod/wapcentral/admin-api:latest'
+  _IMAGE_TAG: 'asia-south1-docker.pkg.dev/wapcentral-prod/wapcentral/wapcentral-admin-api:latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY

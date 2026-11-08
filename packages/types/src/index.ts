@@ -48,7 +48,8 @@ export type PlatformServiceType =
   | 'files'
   | 'promotion'
   | 'ads'
-  | 'notifications';
+  | 'notifications'
+  | 'weather';
 
 export interface ServiceQuotaConfig {
   dailyRequests?: number;
@@ -60,29 +61,40 @@ export interface App {
   id: string;
   name: string;
   packageId: string; // e.g. "com.webappypie.appname"
-  bundleId?: string; // iOS bundle ID
+  bundleId?: string | undefined; // iOS bundle ID
   platform: Platform;
   version: string;
   environment: Environment;
-  firebaseProjectId?: string;
-  firebaseAndroidAppId?: string; // Firebase Android App ID (e.g. 1:123456789:android:abc)
-  firebaseIosAppId?: string; // Firebase iOS App ID (e.g. 1:123456789:ios:abc)
-  fcmSenderId?: string; // FCM Sender ID (project number)
+  firebaseProjectId?: string | undefined;
+  firebaseAndroidAppId?: string | undefined; // Firebase Android App ID (e.g. 1:123456789:android:abc)
+  firebaseIosAppId?: string | undefined; // Firebase iOS App ID (e.g. 1:123456789:ios:abc)
+  fcmSenderId?: string | undefined; // FCM Sender ID (project number)
   storeUrl?: {
-    android?: string;
-    ios?: string;
-  };
-  adConfig?: AppAdConfig;
-  simpleAdsConfig?: AppSimpleAdsConfig;
+    android?: string | undefined;
+    ios?: string | undefined;
+  } | undefined;
+  adConfig?: AppAdConfig | undefined;
+  simpleAdsConfig?: AppSimpleAdsConfig | undefined;
   enabledModules: AppModule[];
-  allowedServices?: PlatformServiceType[];
-  appKey?: string;
-  sdkVersion?: string;
-  serviceQuotas?: Partial<Record<PlatformServiceType, ServiceQuotaConfig>>;
-  killSwitch?: boolean;
+  allowedServices?: PlatformServiceType[] | undefined;
+  appKey?: string | undefined;
+  sdkVersion?: string | undefined;
+  serviceQuotas?: Partial<Record<PlatformServiceType, ServiceQuotaConfig>> | undefined;
+  killSwitch?: boolean | undefined;
+  remoteServiceControl?: AppRemoteServiceControl | undefined;
   status: Status;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+}
+
+export interface AppRemoteServiceControl {
+  enabled: boolean;
+  title?: string | undefined;
+  message?: string | undefined;
+  buttonText?: string | undefined;
+  destinationUrl?: string | undefined;
+  updatedAt?: string | undefined;
+  updatedBy?: string | undefined;
 }
 
 export type AppModule =
@@ -94,7 +106,8 @@ export type AppModule =
   | 'ocr'
   | 'image_intelligence'
   | 'file_intelligence'
-  | 'notifications';
+  | 'notifications'
+  | 'weather';
 
 export type AdNetworkType = 'admob' | 'meta' | 'applovin' | 'wapads';
 
@@ -200,33 +213,33 @@ export interface AppAdsNetworkConfig {
   enabled: boolean;
   // Production IDs (only used when environment = 'production')
   admob?: {
-    appId?: string;
-    bannerId?: string;
-    nativeId?: string;
-    interstitialId?: string;
-    rewardedId?: string;
-    appOpenId?: string;
-    rewardedInterstitialId?: string;
-  };
+    appId?: string | undefined;
+    bannerId?: string | undefined;
+    nativeId?: string | undefined;
+    interstitialId?: string | undefined;
+    rewardedId?: string | undefined;
+    appOpenId?: string | undefined;
+    rewardedInterstitialId?: string | undefined;
+  } | undefined;
   meta?: {
-    placementIds?: Record<string, string>; // format -> placementId
-  };
+    placementIds?: Record<string, string> | undefined; // format -> placementId
+  } | undefined;
   applovin?: {
-    sdkKey?: string;
-    appId?: string;
-    placementIds?: Record<string, string>; // format -> placementId
-  };
+    sdkKey?: string | undefined;
+    appId?: string | undefined;
+    placementIds?: Record<string, string> | undefined; // format -> placementId
+  } | undefined;
   inmobi?: {
-    accountId?: string;
-    placementIds?: Record<string, string>; // format -> placementId
-  };
+    accountId?: string | undefined;
+    placementIds?: Record<string, string> | undefined; // format -> placementId
+  } | undefined;
   unity?: {
-    gameId?: string;
-    placementIds?: Record<string, string>; // format -> placementId
-  };
+    gameId?: string | undefined;
+    placementIds?: Record<string, string> | undefined; // format -> placementId
+  } | undefined;
   wapCustomAds?: {
-    campaignEnabled?: boolean;
-  };
+    campaignEnabled?: boolean | undefined;
+  } | undefined;
 }
 
 export interface AppAdsFormatConfig {
@@ -241,26 +254,26 @@ export interface AppAdsFormatConfig {
 export interface AppSimpleAdsConfig {
   adsEnabled: boolean;
   environment: AdEnvironment; // 'testing' | 'production'
-  strategy?: AdStrategy; // 'automatic' (AppLovin MAX mediation) | 'single_source' (one source via MAX)
-  singleSourceNetwork?: DemandSourceId;
+  strategy?: AdStrategy | undefined; // 'automatic' (AppLovin MAX mediation) | 'single_source' (one source via MAX)
+  singleSourceNetwork?: DemandSourceId | undefined;
   bundledAdapters?: {
-    applovin?: boolean; // AppLovin MAX core SDK
-    admob?: boolean; // Google AdMob MAX adapter
-    meta?: boolean; // Meta Audience Network MAX adapter
-    inmobi?: boolean; // InMobi MAX adapter
-    unity?: boolean; // Unity Ads MAX adapter
-    wapCustomAds?: boolean; // WebAppyPie custom ads engine
-  };
+    applovin?: boolean | undefined; // AppLovin MAX core SDK
+    admob?: boolean | undefined; // Google AdMob MAX adapter
+    meta?: boolean | undefined; // Meta Audience Network MAX adapter
+    inmobi?: boolean | undefined; // InMobi MAX adapter
+    unity?: boolean | undefined; // Unity Ads MAX adapter
+    wapCustomAds?: boolean | undefined; // WebAppyPie custom ads engine
+  } | undefined;
   enabledFormats: AppAdsFormatConfig;
   networks: {
     applovin: boolean;
     admob: boolean;
     meta: boolean;
-    inmobi?: boolean;
-    unity?: boolean;
+    inmobi?: boolean | undefined;
+    unity?: boolean | undefined;
     wapCustomAds: boolean;
   };
-  networkConfig?: AppAdsNetworkConfig;
+  networkConfig?: AppAdsNetworkConfig | undefined;
 }
 
 
@@ -828,6 +841,7 @@ export type AuditAction =
   | 'app.update'
   | 'app.archive'
   | 'app.regenerate_key'
+  | 'app.service_control_update'
   | 'provider.create'
   | 'provider.update'
   | 'provider.disable'
@@ -1349,7 +1363,244 @@ export interface PlatformFileClassifyResponse {
 }
 
 // ------------------------------------------------------------
-// E. Platform Kill Switches & Health
+// E. Weather Service Contracts
+// ------------------------------------------------------------
+
+export interface PlatformWeatherLocation {
+  name: string;
+  region: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  timezone: string;
+  localtime: string;
+  localtimeEpoch: number;
+}
+
+export interface PlatformWeatherCondition {
+  text: string;
+  icon: string;
+  code: number;
+}
+
+export interface PlatformWeatherAirQuality {
+  co?: number | undefined;
+  no2?: number | undefined;
+  o3?: number | undefined;
+  so2?: number | undefined;
+  pm2_5?: number | undefined;
+  pm10?: number | undefined;
+  usEpaIndex?: number | undefined;
+  gbDefraIndex?: number | undefined;
+}
+
+export interface PlatformCurrentWeather {
+  location: PlatformWeatherLocation;
+  temperatureC: number;
+  temperatureF: number;
+  feelsLikeC: number;
+  feelsLikeF: number;
+  condition: PlatformWeatherCondition;
+  windKph: number;
+  windMph: number;
+  windDegree: number;
+  windDirection: string;
+  pressureMb: number;
+  pressureIn: number;
+  precipMm: number;
+  precipIn: number;
+  humidity: number;
+  cloud: number;
+  isDay: boolean;
+  uvIndex: number;
+  visibilityKm: number;
+  visibilityMiles: number;
+  gustKph?: number | undefined;
+  gustMph?: number | undefined;
+  airQuality?: PlatformWeatherAirQuality | undefined;
+  lastUpdated: string;
+  lastUpdatedEpoch: number;
+}
+
+export interface PlatformForecastDaySummary {
+  maxTempC: number;
+  maxTempF: number;
+  minTempC: number;
+  minTempF: number;
+  avgTempC: number;
+  avgTempF: number;
+  maxWindKph: number;
+  maxWindMph: number;
+  totalPrecipMm: number;
+  totalPrecipIn: number;
+  avgHumidity: number;
+  condition: PlatformWeatherCondition;
+  uvIndex: number;
+  chanceOfRainPct: number;
+  chanceOfSnowPct: number;
+}
+
+export interface PlatformForecastAstro {
+  sunrise: string;
+  sunset: string;
+  moonrise: string;
+  moonset: string;
+  moonPhase: string;
+  moonIllumination: number | string;
+}
+
+export interface PlatformForecastHour {
+  time: string;
+  timeEpoch: number;
+  tempC: number;
+  tempF: number;
+  feelsLikeC: number;
+  feelsLikeF: number;
+  condition: PlatformWeatherCondition;
+  windKph: number;
+  windMph: number;
+  windDegree: number;
+  windDirection: string;
+  pressureMb: number;
+  humidity: number;
+  cloud: number;
+  chanceOfRainPct: number;
+  chanceOfSnowPct: number;
+  isDay: boolean;
+  uvIndex: number;
+}
+
+export interface PlatformForecastDay {
+  date: string;
+  dateEpoch: number;
+  day: PlatformForecastDaySummary;
+  astro: PlatformForecastAstro;
+  hourly: PlatformForecastHour[];
+}
+
+export interface PlatformWeatherAlert {
+  headline: string;
+  severity: string;
+  urgency: string;
+  areas: string;
+  category: string;
+  certainty: string;
+  event: string;
+  note: string;
+  effective: string;
+  expires: string;
+  desc: string;
+  instruction: string;
+}
+
+export interface PlatformWeatherForecast {
+  location: PlatformWeatherLocation;
+  current: PlatformCurrentWeather;
+  forecastDays: PlatformForecastDay[];
+  alerts?: PlatformWeatherAlert[] | undefined;
+}
+
+export interface PlatformLocationSearchResult {
+  id: number;
+  name: string;
+  region: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  url?: string | undefined;
+}
+
+export interface PlatformWeatherAttribution {
+  provider: string;
+  text: string;
+  url: string;
+  required: boolean;
+  disclaimer: string;
+}
+
+export interface PlatformWeatherCacheMetadata {
+  cached: boolean;
+  cacheKey?: string | undefined;
+  cacheTtlSeconds: number;
+  cacheExpiresAt?: string | undefined;
+  cacheAgeSeconds?: number | undefined;
+}
+
+export interface PlatformWeatherCurrentRequest {
+  appId?: string | undefined;
+  requestId?: string | undefined;
+  query?: string | undefined;
+  latitude?: number | undefined;
+  longitude?: number | undefined;
+  aqi?: boolean | undefined;
+  forceRefresh?: boolean | undefined;
+}
+
+export interface PlatformWeatherCurrentResponse {
+  weather: PlatformCurrentWeather;
+  attribution: PlatformWeatherAttribution;
+  cache: PlatformWeatherCacheMetadata;
+}
+
+export interface PlatformWeatherForecastRequest {
+  appId?: string | undefined;
+  requestId?: string | undefined;
+  query?: string | undefined;
+  latitude?: number | undefined;
+  longitude?: number | undefined;
+  days?: number | undefined;
+  hour?: number | undefined;
+  aqi?: boolean | undefined;
+  alerts?: boolean | undefined;
+  forceRefresh?: boolean | undefined;
+}
+
+export interface PlatformWeatherForecastResponse {
+  forecast: PlatformWeatherForecast;
+  attribution: PlatformWeatherAttribution;
+  cache: PlatformWeatherCacheMetadata;
+}
+
+export interface PlatformWeatherSearchRequest {
+  appId?: string | undefined;
+  requestId?: string | undefined;
+  query: string;
+}
+
+export interface PlatformWeatherSearchResponse {
+  results: PlatformLocationSearchResult[];
+  attribution: PlatformWeatherAttribution;
+  cache: PlatformWeatherCacheMetadata;
+}
+
+export interface PlatformWeatherTestResponse {
+  success: boolean;
+  provider: string;
+  providerKeySource: 'app_override' | 'global_secret_manager' | 'test_param' | 'none';
+  latencyMs: number;
+  location?: string | undefined;
+  country?: string | undefined;
+  tempC?: number | undefined;
+  condition?: string | undefined;
+  error?: string | undefined;
+  timestamp: string;
+}
+
+export interface PlatformWeatherServiceStatus {
+  enabled: boolean;
+  globalConfigured: boolean;
+  activeProvider: string;
+  monthlyQuota: number;
+  monthlyUsage: number;
+  remainingQuota: number;
+  quotaResetDate: string;
+  cacheActiveEntries: number;
+  attribution: PlatformWeatherAttribution;
+  timestamp: string;
+}
+
+// ------------------------------------------------------------
+// F. Platform Kill Switches & Health
 // ------------------------------------------------------------
 
 export interface PlatformKillSwitchConfig {

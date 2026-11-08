@@ -95,6 +95,8 @@ export const PlatformServiceTypeSchema = z.enum([
   'files',
   'promotion',
   'ads',
+  'notifications',
+  'weather',
 ]);
 
 export const ServiceQuotaConfigSchema = z.object({
@@ -113,7 +115,19 @@ export const AppModuleSchema = z.enum([
   'image_intelligence',
   'file_intelligence',
   'notifications',
+  'weather',
 ]);
+
+export const AppRemoteServiceControlSchema = z.object({
+  enabled: z.boolean().default(true),
+  title: z.string().max(200).optional(),
+  message: z.string().max(1000).optional(),
+  buttonText: z.string().max(100).optional(),
+  destinationUrl: z.string().url().max(500).or(z.literal('')).optional(),
+  updatedAt: z.string().optional(),
+  updatedBy: z.string().optional(),
+});
+export type AppRemoteServiceControlInput = z.infer<typeof AppRemoteServiceControlSchema>;
 
 export const CreateAppSchema = z.object({
   name: z.string().min(1).max(100),
@@ -143,6 +157,8 @@ export const CreateAppSchema = z.object({
   sdkVersion: z.string().nullable().optional(),
   serviceQuotas: z.record(ServiceQuotaConfigSchema).nullable().optional(),
   killSwitch: z.boolean().nullable().optional(),
+  remoteServiceControl: AppRemoteServiceControlSchema.optional(),
+  simpleAdsConfig: z.lazy(() => AppSimpleAdsConfigSchema).optional(),
 });
 
 export const UpdateAppSchema = CreateAppSchema.partial().extend({
@@ -783,7 +799,61 @@ export const PlatformFileClassifyRequestSchema = z.object({
 });
 
 // ------------------------------------------------------------
-// E. Platform Kill Switches & Health Schemas
+// E. Weather Service Validation Schemas
+// ------------------------------------------------------------
+
+export const PlatformWeatherCurrentRequestSchema = z
+  .object({
+    appId: z.string().optional(),
+    requestId: z.string().optional(),
+    query: z.string().min(1).max(200).optional(),
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
+    aqi: z.boolean().optional().default(false),
+    forceRefresh: z.boolean().optional().default(false),
+  })
+  .refine(
+    (data) => Boolean(data.query) || (data.latitude !== undefined && data.longitude !== undefined),
+    {
+      message:
+        "Either 'query' (city/location name) or both 'latitude' and 'longitude' must be provided.",
+    },
+  );
+
+export const PlatformWeatherForecastRequestSchema = z
+  .object({
+    appId: z.string().optional(),
+    requestId: z.string().optional(),
+    query: z.string().min(1).max(200).optional(),
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
+    days: z.number().int().min(1).max(3).optional().default(3),
+    hour: z.number().int().min(0).max(23).optional(),
+    aqi: z.boolean().optional().default(false),
+    alerts: z.boolean().optional().default(false),
+    forceRefresh: z.boolean().optional().default(false),
+  })
+  .refine(
+    (data) => Boolean(data.query) || (data.latitude !== undefined && data.longitude !== undefined),
+    {
+      message:
+        "Either 'query' (city/location name) or both 'latitude' and 'longitude' must be provided.",
+    },
+  );
+
+export const PlatformWeatherSearchRequestSchema = z.object({
+  appId: z.string().optional(),
+  requestId: z.string().optional(),
+  query: z.string().min(2).max(200),
+});
+
+export const PlatformWeatherTestRequestSchema = z.object({
+  apiKey: z.string().optional(),
+  query: z.string().min(1).max(200).optional().default('London'),
+});
+
+// ------------------------------------------------------------
+// F. Platform Kill Switches & Health Schemas
 // ------------------------------------------------------------
 
 export const PlatformKillSwitchConfigSchema = z.object({
@@ -805,6 +875,10 @@ export type PlatformImageAnalyzeRequestInput = z.infer<typeof PlatformImageAnaly
 export type PlatformOcrExtractRequestInput = z.infer<typeof PlatformOcrExtractRequestSchema>;
 export type PlatformFileSearchRequestInput = z.infer<typeof PlatformFileSearchRequestSchema>;
 export type PlatformFileClassifyRequestInput = z.infer<typeof PlatformFileClassifyRequestSchema>;
+export type PlatformWeatherCurrentRequestInput = z.infer<typeof PlatformWeatherCurrentRequestSchema>;
+export type PlatformWeatherForecastRequestInput = z.infer<typeof PlatformWeatherForecastRequestSchema>;
+export type PlatformWeatherSearchRequestInput = z.infer<typeof PlatformWeatherSearchRequestSchema>;
+export type PlatformWeatherTestRequestInput = z.infer<typeof PlatformWeatherTestRequestSchema>;
 export type PlatformKillSwitchConfigInput = z.infer<typeof PlatformKillSwitchConfigSchema>;
 
 // ============================================================

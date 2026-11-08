@@ -18,7 +18,7 @@ import {
   type CreateAppInput,
   type UpdateAppInput,
 } from '@wapcentral/validation';
-import type { App, AppSimpleAdsConfig } from '@wapcentral/types';
+import type { App, AppSimpleAdsConfig, AppRemoteServiceControl } from '@wapcentral/types';
 import { recordAuditLog } from './auditService.js';
 
 /**
@@ -116,6 +116,7 @@ export function subscribeApps(
               ...(data['storeUrl'] ? { storeUrl: data['storeUrl'] } : {}),
               ...(data['adConfig'] ? { adConfig: data['adConfig'] } : {}),
               ...(data['simpleAdsConfig'] ? { simpleAdsConfig: data['simpleAdsConfig'] } : {}),
+              ...(data['remoteServiceControl'] ? { remoteServiceControl: data['remoteServiceControl'] } : {}),
               ...(data['appKey'] ? { appKey: data['appKey'] } : {}),
               enabledModules: data['enabledModules'] || [],
               status: data['status'] || 'active',
@@ -214,6 +215,8 @@ export async function createApp(
           },
         }
       : {}),
+    ...(validated.simpleAdsConfig ? { simpleAdsConfig: validated.simpleAdsConfig } : {}),
+    ...(validated.remoteServiceControl ? { remoteServiceControl: validated.remoteServiceControl } : {}),
     enabledModules: validated.enabledModules || [],
     status: 'active',
     createdAt: now,
@@ -365,6 +368,7 @@ export function subscribeApp(
           ...(data['storeUrl'] ? { storeUrl: data['storeUrl'] } : {}),
           ...(data['adConfig'] ? { adConfig: data['adConfig'] } : {}),
           ...(data['simpleAdsConfig'] ? { simpleAdsConfig: data['simpleAdsConfig'] } : {}),
+          ...(data['remoteServiceControl'] ? { remoteServiceControl: data['remoteServiceControl'] } : {}),
           ...(data['appKey'] ? { appKey: data['appKey'] } : {}),
           enabledModules: data['enabledModules'] || [],
           status: data['status'] || 'active',
@@ -518,4 +522,21 @@ export async function downloadAppIntegrationGuide(appId: string, appName: string
   a.click();
   window.URL.revokeObjectURL(downloadUrl);
   document.body.removeChild(a);
+}
+
+/**
+ * Updates Remote Service Control configuration for an application.
+ */
+export async function updateAppServiceControl(
+  appId: string,
+  control: AppRemoteServiceControl,
+  actor: { uid: string; email: string },
+): Promise<void> {
+  const payload = {
+    remoteServiceControl: {
+      ...control,
+      updatedAt: new Date().toISOString(),
+    },
+  };
+  await updateApp(appId, payload as any, actor);
 }

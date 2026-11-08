@@ -7,7 +7,7 @@ export interface SecretItem {
   configured: boolean;
   version: number | null;
   lastUpdated: string | null;
-  category: 'ai' | 'ads' | 'security';
+  category: 'ai' | 'ads' | 'security' | 'weather';
 }
 
 const memorySecrets: SecretItem[] = [
@@ -82,6 +82,14 @@ const memorySecrets: SecretItem[] = [
     version: null,
     lastUpdated: null,
     category: 'security',
+  },
+  {
+    name: 'WEATHER_API_KEY',
+    description: 'WeatherAPI.com master API key (Free Tier 100,000 requests/month)',
+    configured: false,
+    version: null,
+    lastUpdated: null,
+    category: 'weather',
   },
 ];
 

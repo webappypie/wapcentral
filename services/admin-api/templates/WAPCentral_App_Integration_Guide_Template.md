@@ -21,7 +21,8 @@
 | **Firebase iOS App ID** | `{{FIREBASE_IOS_APP_ID}}` | `GoogleService-Info.plist` (`GOOGLE_APP_ID`) |
 | **Firebase Project Number / FCM Sender ID** | `{{FIREBASE_PROJECT_NUMBER}}` | Cloud Messaging Sender ID |
 | **Enabled WAP Services** | `{{ENABLED_SERVICES}}` | Centrally Authorized Modules |
-| **Ads Status** | `{{ADS_STATUS}}` | AppLovin MAX Mediation Engine |
+| **Ads Status** | `{{ADS_STATUS}}` | WAPCentral Monetization Engine |
+| **Service Status** | `{{SERVICE_STATUS}}` | Remote App Service Control |
 | **Notifications Status** | `{{NOTIFICATIONS_STATUS}}` | WAPCentral FCM Dispatch Engine |
 
 ---
@@ -62,13 +63,7 @@ This document is the official, app-specific implementation guide for **{{APP_NAM
 
 ## 3. Firebase Configuration Files
 
-Download the official configuration files directly from the Firebase Console for project `{{FIREBASE_PROJECT_ID}}`:
-
-- **Android:** `google-services.json` → place at `android/app/google-services.json`
-- **iOS:** `GoogleService-Info.plist` → place at `ios/Runner/GoogleService-Info.plist`
-
-> [!WARNING]
-> Firebase configuration files belong exclusively in your client project root. Never commit cloud service account private keys (`service-account.json`), database admin credentials, or backend signing keys into the mobile application repository.
+{{FIREBASE_CONFIG_SECTION}}
 
 ---
 
@@ -102,16 +97,14 @@ The unified core client connects to the production WAPCentral API gateway:
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
+{{FIREBASE_IMPORT}}
 import 'package:wap_core_sdk/wap_core_sdk.dart';
 {{SDK_IMPORTS}}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Initialize Firebase
-  await Firebase.initializeApp();
-
+{{FIREBASE_INIT}}
   // 2. Initialize WAPCentral Core Client
   await WapCore.initialize(
     baseUrl: 'https://wapcentral.webappypie.com/api/platform/v1',
@@ -144,7 +137,12 @@ The following table lists the WAPCentral Platform API endpoints and whether **{{
 
 ---
 
+{{SERVICE_CONTROL_SECTION}}
+
+---
+
 {{NOTIFICATIONS_SECTION}}
+{{WEATHER_SECTION}}
 
 ---
 
@@ -152,20 +150,13 @@ The following table lists the WAPCentral Platform API endpoints and whether **{{
 
 ---
 
-## 11. Project File Checklist
+## 12. Project File Checklist
 
-- [ ] `android/app/google-services.json` is present and matches package `{{ANDROID_PACKAGE_ID}}`
-- [ ] `ios/Runner/GoogleService-Info.plist` is present and matches bundle `{{IOS_BUNDLE_ID}}`
-- [ ] `pubspec.yaml` includes only the required WAP SDKs (`{{ENABLED_SDKS_LIST}}`)
-- [ ] No hardcoded third-party API keys (OpenAI, Gemini, Anthropic, InMobi) in source code
-- [ ] No WAPCentral `X-App-Key` printed to production device logs
-- [ ] No hardcoded production Ad Unit IDs in Flutter code (fetched dynamically from `/api/platform/v1/ads/config`)
-- [ ] No hardcoded push notification campaigns or device bypass endpoints in mobile code
-- [ ] App permissions and entitlements scoped to minimum requirements
+{{PROJECT_FILE_CHECKLIST}}
 
 ---
 
-## 12. Security & Compliance Rules
+## 13. Security & Compliance Rules
 
 1. **Transport Security:** All client-to-server traffic is strictly encrypted over TLS 1.3/HTTPS.
 2. **Server-Side Enforcement:** Every request is authenticated by `X-App-Id` and `X-App-Key`. Unauthorized modules return `403 Forbidden`.
@@ -175,45 +166,38 @@ The following table lists the WAPCentral Platform API endpoints and whether **{{
 
 ---
 
-## 13. What NOT To Do (Common Pitfalls)
+## 14. What NOT To Do (Common Pitfalls)
 
 - ❌ **Do NOT bundle multiple mediation platforms:** Never include Unity LevelPlay alongside AppLovin MAX.
 - ❌ **Do NOT bundle unneeded ad adapters:** Only include adapters for networks enabled in WAPCentral.
 - ❌ **Do NOT hardcode Ad Unit IDs:** Always fetch effective ad configurations from `/api/platform/v1/ads/config`.
 - ❌ **Do NOT place server secrets in mobile code:** Never store private FCM keys, service account JSON, or AI API tokens in Flutter.
 - ❌ **Do NOT bypass WAPCentral:** Do not call external AI APIs directly when the corresponding WAP service is available.
-- ❌ **Do NOT block app launch:** If WAPCentral is momentarily unreachable, fall back to local-first app functionality.
+- ❌ **Do NOT block app launch on network error:** If WAPCentral is momentarily unreachable, fall back to local-first app functionality.
 
 ---
 
-## 14. Release & Verification Checklist
+## 15. Release & Verification Checklist
 
-- [ ] **Android Build:** App compiles with Android minSdk and targetSdk versions.
-- [ ] **iOS Build:** App compiles with iOS deployment target and required privacy manifests.
-- [ ] **Firebase Initialization:** Firebase initializes cleanly on cold start without crashes.
-- [ ] **WAPCentral Health:** Cold-start check against `/api/platform/v1/health` succeeds.
-- [ ] **Service Access:** Enabled services respond with 200 OK; disabled services return 403 Forbidden.
-- [ ] **Ads Environment:** Testing mode shows official test ads; Production mode serves configured units.
-- [ ] **Custom Ads House Fallback:** Verify house promo banner displays gracefully when third-party fill is 0.
-- [ ] **FCM Device Registration:** Device registers token with `/api/platform/v1/notifications/devices/register`.
-- [ ] **Log Audit:** Verify no credentials, tokens, or PII appear in `flutter logs` or Android logcat.
+{{RELEASE_CHECKLIST}}
 
 ---
 
-## 15. New App Setup — Short Workflow
+## 16. New App Setup — Short Workflow
 
 1. **Register Application:** Add the app under WAPCentral Applications.
 2. **Configure Modules:** Enable required services (AI, Ads, Notifications) on the app details page.
-3. **Configure Ads:** Select Ad Strategy (Automatic Mediation vs Single Demand Source) and enable demand sources.
-4. **Download Guide:** Download this `.md` integration guide from Developer Resources.
-5. **Add Dependencies:** Add only the required WAP SDKs to `pubspec.yaml`.
-6. **Initialize Client:** Add initialization snippet to `lib/main.dart` with secure credential handling.
-7. **Verify & Release:** Run the release checklist before publishing to Google Play / App Store.
+3. **Configure Ads:** Enable required ad providers (AdMob, AppLovin MAX, Promotions) on the Ads page.
+4. **Configure Service Control:** Verify remote service status is active.
+5. **Download Guide:** Download this `.md` integration guide from Developer Resources.
+6. **Add Dependencies:** Add only the required WAP SDKs and enabled ad adapters to `pubspec.yaml`.
+7. **Initialize Client:** Add initialization snippet to `lib/main.dart` with secure credential handling and service guard.
+8. **Verify & Release:** Run the release checklist before publishing to Google Play / App Store.
 
 ---
 
-## 16. Source of Truth
+## 17. Source of Truth
 
-This integration guide is generated dynamically for **{{APP_NAME}}** (`{{APP_ID}}`). WAPCentral remains the authoritative source of truth for platform identity, Ads mediation, notification rules, and service access. Firebase remains the source of truth for mobile push credentials and analytics.
+This integration guide is generated dynamically for **{{APP_NAME}}** (`{{APP_ID}}`). WAPCentral remains the authoritative source of truth for platform identity, Ads mediation, remote service status, notification rules, and service access. Firebase remains the source of truth for mobile push credentials and analytics.
 
 *Generated by WAPCentral • {{APP_NAME}} • {{APP_ID}}*

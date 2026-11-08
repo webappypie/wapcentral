@@ -24,6 +24,8 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext.js';
 import { RoleGuard } from '../components/RoleGuard.js';
@@ -35,7 +37,11 @@ import type {
   DemandSourceId,
   AdKillSwitches,
 } from '@wapcentral/types';
-import { subscribeApps, updateAppAdsConfig } from '../services/appsService.js';
+import {
+  subscribeApps,
+  updateAppAdsConfig,
+  downloadAppIntegrationGuide,
+} from '../services/appsService.js';
 import { subscribeAdKillSwitches, updateAdKillSwitches } from '../services/adsService.js';
 import { ADMOB_OFFICIAL_TEST_IDS } from '@wapcentral/config';
 
@@ -82,6 +88,8 @@ export const AdsPage: React.FC = () => {
   const [netMeta, setNetMeta] = useState(false);
   const [netInmobi, setNetInmobi] = useState(false);
   const [netUnity, setNetUnity] = useState(false);
+  const [netWapCustomAds, setNetWapCustomAds] = useState(true);
+  const [isDownloadingGuide, setIsDownloadingGuide] = useState(false);
 
   // Production IDs
   const [applovinAppId, setApplovinAppId] = useState('');
@@ -180,6 +188,7 @@ export const AdsPage: React.FC = () => {
       setNetMeta(adsCfg.networks?.meta ?? false);
       setNetInmobi(adsCfg.networks?.inmobi ?? false);
       setNetUnity(adsCfg.networks?.unity ?? false);
+      setNetWapCustomAds(adsCfg.networks?.wapCustomAds ?? true);
 
       const netCfg = adsCfg.networkConfig;
       if (netCfg) {
@@ -226,6 +235,7 @@ export const AdsPage: React.FC = () => {
       setNetMeta(false);
       setNetInmobi(false);
       setNetUnity(false);
+      setNetWapCustomAds(true);
     }
   }, [selectedAppId, apps]);
 
@@ -235,6 +245,20 @@ export const AdsPage: React.FC = () => {
     navigator.clipboard.writeText(text);
     setCopiedTestId(text);
     setTimeout(() => setCopiedTestId(null), 2000);
+  };
+
+  const handleDownloadGuide = async () => {
+    if (!selectedApp) return;
+    try {
+      setIsDownloadingGuide(true);
+      setFeedbackError(null);
+      await downloadAppIntegrationGuide(selectedApp.id, selectedApp.name);
+      setFeedbackSuccess(`Downloaded integration guide for ${selectedApp.name}`);
+    } catch (err: any) {
+      setFeedbackError(err?.message || 'Failed to download integration guide.');
+    } finally {
+      setIsDownloadingGuide(false);
+    }
   };
 
   const handleToggleGlobalKill = async () => {
@@ -306,7 +330,10 @@ export const AdsPage: React.FC = () => {
       environment: adsEnvironment,
       strategy: adStrategy,
       ...(adStrategy === 'single_source' ? { singleSourceNetwork } : {}),
-      bundledAdapters,
+      bundledAdapters: {
+        ...bundledAdapters,
+        wapCustomAds: netWapCustomAds,
+      },
       enabledFormats: {
         banner: fmtBanner,
         native: fmtNative,
@@ -321,7 +348,7 @@ export const AdsPage: React.FC = () => {
         meta: netMeta,
         inmobi: netInmobi,
         unity: netUnity,
-        wapCustomAds: false,
+        wapCustomAds: netWapCustomAds,
       },
       networkConfig: {
         enabled: true,
@@ -371,7 +398,7 @@ export const AdsPage: React.FC = () => {
           },
         },
         wapCustomAds: {
-          campaignEnabled: false,
+          campaignEnabled: netWapCustomAds,
         },
       },
     };
@@ -503,8 +530,29 @@ export const AdsPage: React.FC = () => {
                     </Badge>
                   </div>
 
-                  {/* Kill Switch status */}
+                  {/* Actions & Kill Switch status */}
                   <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDownloadGuide}
+                      disabled={isDownloadingGuide}
+                      className="text-xs h-7 px-2.5 flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400"
+                      title="Download integration guide (.md) for this application"
+                    >
+                      {isDownloadingGuide ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <span>Downloading...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="h-3 w-3" />
+                          <span>Download Guide (.md)</span>
+                        </>
+                      )}
+                    </Button>
                     {isAppKilled && (
                       <Badge variant="destructive" className="text-[10px]">
                         App Kill Switch Engaged
@@ -628,6 +676,7 @@ export const AdsPage: React.FC = () => {
                         <option value="meta">Meta Audience Network</option>
                         <option value="inmobi">InMobi</option>
                         <option value="unity">Unity Ads</option>
+                        <option value="wapCustomAds">WebAppyPie Promotions</option>
                       </select>
                     </div>
                   )}
@@ -1058,6 +1107,37 @@ export const AdsPage: React.FC = () => {
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* 5. WebAppyPie Promotions / House Ads */}
+                <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-slate-900 dark:text-white">WebAppyPie Promotions</span>
+                      <Badge variant="outline" className="text-[10px] font-mono">House Campaigns / Fallback</Badge>
+                      <Badge variant={netWapCustomAds ? 'success' : 'secondary'} className="text-[10px]">
+                        {netWapCustomAds ? 'Active Fallback' : 'Disabled'}
+                      </Badge>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={netWapCustomAds}
+                        onChange={(e) => setNetWapCustomAds(e.target.checked)}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span>Active</span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Decoupled in-house cross-promotion and house ad campaign engine. When third-party ad networks return zero fill or timeout, WAPCentral automatically serves internal promotional creatives without blank spaces or crashes.
+                  </p>
+                  {netWapCustomAds && (
+                    <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 p-2.5 text-xs text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                      <span>Internal campaigns are centrally scheduled in the WAPCentral Campaigns manager.</span>
+                      <Badge variant="outline" className="text-[10px] font-mono">custom_inhouse</Badge>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

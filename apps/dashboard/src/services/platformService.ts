@@ -99,6 +99,16 @@ export const PLATFORM_SERVICES_CATALOG: PlatformServiceDescriptor[] = [
     status: 'active',
     consumingApps: ['filezen'],
   },
+  {
+    id: 'weather',
+    name: 'Centralized Weather Service',
+    category: 'Environmental & Geospatial',
+    description: 'Centralized weather data gateway providing real-time current conditions, 3-day hourly forecasts, and global location search powered by WeatherAPI.com with zero mobile key leakage and strict caching.',
+    localFirstPolicy: 'Local in-app cache -> WAPCentral Gateway cache (up to 60m current, 24h forecast) -> WeatherAPI upstream provider.',
+    endpointsCount: 3,
+    status: 'active',
+    consumingApps: ['filezen', 'optilens'],
+  },
 ];
 
 export const PLATFORM_ENDPOINTS_CATALOG: PlatformEndpointDescriptor[] = [
@@ -198,6 +208,33 @@ export const PLATFORM_ENDPOINTS_CATALOG: PlatformEndpointDescriptor[] = [
     service: 'files',
     description: 'Batch file category classification, auto-tagging, and duplicate detection.',
     requiredPermission: 'files',
+    authMethod: 'X-App-Id + X-App-Key',
+    status: 'active',
+  },
+  {
+    path: PLATFORM_API_ROUTES.WEATHER_CURRENT,
+    method: 'POST',
+    service: 'weather',
+    description: 'Current real-time weather conditions with temperature, conditions, wind, and air quality.',
+    requiredPermission: 'weather',
+    authMethod: 'X-App-Id + X-App-Key',
+    status: 'active',
+  },
+  {
+    path: PLATFORM_API_ROUTES.WEATHER_FORECAST,
+    method: 'POST',
+    service: 'weather',
+    description: '3-day daily forecast and 24-hour detailed hourly conditions with precipitation chance.',
+    requiredPermission: 'weather',
+    authMethod: 'X-App-Id + X-App-Key',
+    status: 'active',
+  },
+  {
+    path: PLATFORM_API_ROUTES.WEATHER_SEARCH,
+    method: 'POST',
+    service: 'weather',
+    description: 'Global location search and autocomplete for worldwide cities, regions, and coordinates.',
+    requiredPermission: 'weather',
     authMethod: 'X-App-Id + X-App-Key',
     status: 'active',
   },
@@ -310,6 +347,17 @@ export const PLATFORM_SDKS_CATALOG: PlatformSdkDescriptor[] = [
     responsibilities: ['Cache-First Startup', 'HMAC Signature Verification', 'Sponsored Native Placement', 'Frequency Capping', 'Impression & Click Telemetry'],
     installSnippet: 'dependencies:\n  wap_promo_sdk:\n    path: ../wap_promo_sdk',
   },
+  {
+    id: 'wap_weather_sdk',
+    name: 'WAP Weather SDK',
+    package: 'wap_weather_sdk',
+    version: '0.1.0',
+    description: 'Centralized weather client providing real-time current weather, 3-day hourly forecasts, and global location search with caching and automatic attribution.',
+    supportedPlatforms: ['Flutter', 'Dart', 'Android', 'iOS'],
+    releaseStatus: 'Production Ready',
+    responsibilities: ['Real-time Current Weather', '3-Day Hourly Forecast', 'Location Search / Autocomplete', 'Provider Attribution Compliance', 'Local Caching Support'],
+    installSnippet: 'dependencies:\n  wap_weather_sdk:\n    path: ../wap_weather_sdk',
+  },
 ];
 
 const DEFAULT_KILL_SWITCHES: PlatformKillSwitchConfig = {
@@ -319,6 +367,7 @@ const DEFAULT_KILL_SWITCHES: PlatformKillSwitchConfig = {
     image: false,
     ocr: false,
     files: false,
+    weather: false,
   },
   apps: {
     filezen: false,
@@ -507,5 +556,44 @@ export async function fetchPlatformUsageMetrics(): Promise<PlatformUsageMetrics>
         optilens: { requests: 630, costUsd: 0.46 },
       },
     };
+  }
+}
+
+
+export async function testWeatherConnection(
+  apiKey?: string,
+  query: string = 'London',
+  appId?: string,
+): Promise<any> {
+  const adminApiUrl = (import.meta as any).env?.VITE_ADMIN_API_URL || 'http://localhost:3001';
+  try {
+    const res = await fetch(`${adminApiUrl}/api/platform/v1/weather/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey, query, appId }),
+    });
+    const json = await res.json();
+    return json.data || json;
+  } catch (err: unknown) {
+    return {
+      success: false,
+      provider: 'WeatherAPI.com',
+      providerKeySource: 'none',
+      latencyMs: 0,
+      error: err instanceof Error ? err.message : String(err),
+      timestamp: new Date().toISOString(),
+    };
+  }
+}
+
+export async function fetchWeatherStatus(appId?: string): Promise<any> {
+  const adminApiUrl = (import.meta as any).env?.VITE_ADMIN_API_URL || 'http://localhost:3001';
+  try {
+    const query = appId ? `?appId=${encodeURIComponent(appId)}` : '';
+    const res = await fetch(`${adminApiUrl}/api/platform/v1/weather/status${query}`);
+    const json = await res.json();
+    return json.data || null;
+  } catch {
+    return null;
   }
 }

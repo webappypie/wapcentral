@@ -219,6 +219,7 @@ export const AppsPage: React.FC = () => {
                     <TableHead>Platform</TableHead>
                     <TableHead>Version</TableHead>
                     <TableHead>Environment</TableHead>
+                    <TableHead>Service Status</TableHead>
                     <TableHead>Enabled Modules</TableHead>
                     {hasRole('editor') && <TableHead className="text-right">Actions</TableHead>}
                   </TableRow>
@@ -226,7 +227,7 @@ export const AppsPage: React.FC = () => {
                 <TableBody>
                   {filteredApps.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-slate-500">
+                      <TableCell colSpan={8} className="text-center py-8 text-slate-500">
                         No applications matched your filter criteria.
                       </TableCell>
                     </TableRow>
@@ -284,6 +285,17 @@ export const AppsPage: React.FC = () => {
                           >
                             {app.environment}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {app.remoteServiceControl?.enabled === false ? (
+                            <Badge variant="destructive" className="text-[10px]">
+                              Paused
+                            </Badge>
+                          ) : (
+                            <Badge variant="success" className="text-[10px]">
+                              Active
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">

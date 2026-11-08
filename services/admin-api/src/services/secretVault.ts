@@ -282,3 +282,11 @@ export function clearSecretStoreForTest(): void {
   secretManagerClient = null;
 }
 
+export function setInternalSecretForTest(name: string, value: string): void {
+  secretStore.set(name, {
+    value,
+    version: 1,
+    lastUpdated: new Date().toISOString(),
+  });
+}
+

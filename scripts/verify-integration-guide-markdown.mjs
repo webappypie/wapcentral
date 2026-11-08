@@ -43,7 +43,11 @@ async function runVerification() {
   assert.ok(!md1.includes('[REDACTED]'), 'Must NOT contain REDACTED');
   assert.ok(md1.includes('filezen-510822'), 'Must contain authoritative Firebase project ID');
   assert.ok(md1.includes('1:424198485420:android:c10d373ee2d29d76dd3609'), 'Must contain authoritative Android App ID');
-  assert.ok(md1.includes('AppLovin MAX as the sole advertising mediation platform'), 'Must identify AppLovin MAX as sole mediation engine');
+  assert.ok(
+    md1.includes('AppLovin MAX as the primary advertising mediation platform') ||
+    md1.includes('AppLovin MAX as the sole advertising mediation platform'),
+    'Must identify AppLovin MAX as mediation engine'
+  );
   assert.ok(md1.includes('`wap_core_sdk`'), 'Must include wap_core_sdk');
   assert.ok(md1.includes('`wap_ai_sdk`'), 'Must include wap_ai_sdk');
   assert.ok(md1.includes('`wap_ocr_sdk`'), 'Must include wap_ocr_sdk');

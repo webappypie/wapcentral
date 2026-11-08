@@ -29,6 +29,7 @@ export const ALLOWED_SECRET_NAMES = [
   'APPLOVIN_API_KEY',
   'PROMOTION_SIGNING_SECRET',
   'WEBHOOK_SECRETS',
+  'WEATHER_API_KEY',
 ] as const;
 
 export type AllowedSecretName = (typeof ALLOWED_SECRET_NAMES)[number];
@@ -36,6 +37,7 @@ export type AllowedSecretName = (typeof ALLOWED_SECRET_NAMES)[number];
 export function isAllowedSecretName(name: string): boolean {
   return (
     (ALLOWED_SECRET_NAMES as readonly string[]).includes(name) ||
+    /^WEATHER_API_KEY_[A-Z0-9_]+$/.test(name) ||
     /^FCM_(CREDENTIALS|SERVICE_ACCOUNT)_[A-Z0-9_]+$/.test(name) ||
     /^FIREBASE_SERVICE_ACCOUNT_[A-Z0-9_]+$/.test(name)
   );
